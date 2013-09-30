@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>Plataforma</name>
+	<name>librerias</name>
 	<comment></comment>
 	<projects>
 		<project>Shared-Library</project>

@@ -1,9 +1,33 @@
-//#include "string.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "json.h"
 #include <commons/string.h>
+
+
+char* 	crearNuevoJson						();
+void* 	respuesta_Switch					();
+void 	switch_accion						( char * json , char * accion , void *funcion());
+
+void  	agregarPropiedad 					( char*  propiedad , 	char*  	valor, char** json);
+void  	agregarPropArray 					( char*  propiedad ,	char** 	json);
+void 	agregarValorArray 					( char*  propiedad, 	char*  	valor, char **json);
+void   	borrarPropiedad						( char*  propiedad , 	char** 	json);
+
+int   	sonIguales_Strings					( char*  string1 ,		char*  	string2);
+void 	string_concat						( char** valor1,		char*  	valor2);
+int 	indexOf								( char*  string, 		char*  	buscado);
+char* 	substring_HastaEncontrar			( char*  texto, 		char*  	buscado);
+char* 	substring_DesdeEncontrar			( char*  texto, 		char*  	buscado);
+
+char* 	devolverPropiedad					( char*  propiedad , 	char*  	json);
+char*	devolverPropiedadDelArray 			( char*  propiedad , 	int 	posicion , char * json);
+int		devolverPropiedadComoInt			( char*  propiedad , 	char* 	json);
+int 	devolverPropiedadDelArrayComoInt 	( char * propiedad, 	int 	posicion , char * json);
+
+int		existePropiedad						( char * propiedad,		char* 	json);
+int		existeArray							( char * nombreArray, 	char*	json);
+int 	cantidadElementosEnArray 			( char*  propiedad, 	char*  	json);
+int   	cantidadPropiedades					( char * json);
 
 
 
@@ -30,6 +54,7 @@ char * funcionMoverse(char * json){
 
 char * morir(char * json){
 	char * morir = "me mori";
+	printf("%s", morir);
 	return morir;
 }
 
@@ -114,7 +139,7 @@ void ejemplo(int argc, char **argv){
 
 
 
-char * valor_respuesta_Switch;
+void* valor_respuesta_Switch;
 
 
 
@@ -126,8 +151,11 @@ char * valor_respuesta_Switch;
  *
  * Ej: switch_accion( {"accion":"moverse","posicionX":"5", "posicionY":"6" } , "moverse" , funcion)
  *
+ * Modificado para poder recibir cualquier tipo de funcion.
+ *
+ *
  */
-void switch_accion( char * json , char * accion , char* (*funcion) (char * )){
+void switch_accion( char * json , char * accion , int* funcion()){
 
 	if( sonIguales_Strings (devolverPropiedad("accion" , 	json ), accion) > 0){
 		valor_respuesta_Switch =  funcion(json);
@@ -141,7 +169,7 @@ void switch_accion( char * json , char * accion , char* (*funcion) (char * )){
  * Devuelve la accion ejecutada por la ultima accion
  *
  */
-char * respuesta_Switch(){
+void * respuesta_Switch(){
 	return valor_respuesta_Switch;
 }
 
@@ -567,19 +595,3 @@ int		existeArray( char * nombreArray, char * json)
 	free(cadenaABuscar);
 	return 0;
 }
-
-
-
-
-
-
-
-int main(){
-	ejemplo(0,NULL);
-	return 0;
-}
-
-
-
-
-
