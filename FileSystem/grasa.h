@@ -16,7 +16,7 @@
 #define BITMAP_BLOCK_SIZE Header_Data.size_bitmap
 
 // Macros de movimiento dentro del archivo.
-#define AVANZAR_BLOQUES(node,cant) advance(node,cant)
+//#define AVANZAR_BLOQUES(node,cant) advance(node,cant)
 #define OPEN_HEADER(fd) goto_Header(fd)
 #define OPEN_BITMAP(fd) goto_Bitmap(fd)
 #define OPEN_NODE_TABLE(fd) goto_Node_Table(fd)
@@ -57,10 +57,6 @@ typedef struct grasa_file_t { // un cuarto de bloque (256 bytes)
 } GFile;
 
 
-struct grasa_file_t* advance(struct grasa_file_t *node, int increment){
-	node = &node[increment];
-	return node;
-}
 
 int path_size_in_bytes(const char* path){
 	FILE *fd;
@@ -90,14 +86,15 @@ void* goto_Header(int fd){
 void* goto_Bitmap(int fd){
 	struct grasa_file_t *node;
 	node = (void*) mmap(NULL, HEADER_SIZE_B , PROT_WRITE | PROT_READ | PROT_EXEC, MAP_SHARED, fd, 0);
-	node = AVANZAR_BLOQUES(node,GFILEBYBLOCK);
+	node = &(node[GFILEBYBLOCK]);
+
 	return node;
 }
 
 void* goto_Node_Table(int fd){
 	struct grasa_file_t *node;
 	node = (void*) mmap(NULL, HEADER_SIZE_B + BITMAP_SIZE_B , PROT_WRITE | PROT_READ | PROT_EXEC, MAP_SHARED, fd, 0);
-	node = AVANZAR_BLOQUES(node,GFILEBYBLOCK + BITMAP_BLOCK_SIZE);
+	node = &(node[GFILEBYBLOCK + BITMAP_BLOCK_SIZE]);
 	return node;
 
 }
@@ -105,7 +102,7 @@ void* goto_Node_Table(int fd){
 void* goto_Data_Block(int fd){
 	struct grasa_file_t *node;
 	node = (void*) mmap(NULL, ACTUAL_DISC_SIZE_B , PROT_WRITE | PROT_READ | PROT_EXEC, MAP_SHARED, fd, 0);
-	node = AVANZAR_BLOQUES(node,GFILEBYBLOCK + BITMAP_BLOCK_SIZE + GFILEBYTABLE);
+	node = &(node[GFILEBYBLOCK + BITMAP_BLOCK_SIZE + GFILEBYTABLE]);
 	return node;
 }
 

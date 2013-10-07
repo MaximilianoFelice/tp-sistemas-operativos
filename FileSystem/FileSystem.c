@@ -99,29 +99,49 @@ void escribir_uno(){
  * 		Determina cual es el nodo sobre el cual se encuentra un path.
  *
  * 	@PARAM
- * 		path - Direccion del directorio o archivo a buscar. No debe finalizar en '/'.
- * 		block_type - Define si se esta buscando un bloque borrado(0), un archivo(1) o un directorio(2).
+ * 		path - Direccion del directorio o archivo a buscar.
  *
  * 	@RETURN
  * 		Devuelve el numero de bloque en el que se encuentra el nombre.
  * 		Si el nombre no se encuentra, devuelve -1.
  *
  */
-ptrGBloque determinar_nodo(const char* path, int block_type){
-	int fd, i;
-	struct grasa_file_t *node, *inicio;
-	unsigned char *node_name;	// Es el nombre obtenido del nodo que tengamos abierto.
-	char *nombre = malloc(strlen(path)); // Es el nombre obtenido del Path que manda FUSE.
-	char *start = nombre;
+
+ptrGBloque determinar_nodo(const char* path){
+
 	// Si es el directorio raiz, devuelve 0:
 	if(!strcmp(path, "/")) return 0;
-	// Acomoda el nombre del archivo.
+
+	int fd, i, nodo_anterior, aux;
+	// Super_path usado para obtener la parte superior del path, sin el nombre.
+	char *super_path = malloc(strlen(path)), *nombre = malloc(strlen(path));
+	strcpy(super_path, path);
 	strcpy(nombre, path);
+	char *start = nombre, *start_super_path = super_path; //Estos liberaran memoria.
+	struct grasa_file_t *node, *inicio;
+	unsigned char *node_name;
+
+	// Obtiene y acomoda el nombre del archivo.
 	if (lastchar(path, '/')) {
 		nombre[strlen(nombre)-1] = '\0';
+//		free(&(nombre[strlen(nombre)]));
 	}
 	nombre = strrchr(nombre, '/');
+	nombre[0] = '\0';
+	//free(start);
 	nombre = &nombre[1]; // Acomoda el nombre, ya que el primer digito siempre es '/'
+
+	// Acomoda el super_path
+	if (lastchar(super_path, '/')) {
+		super_path[strlen(super_path)-1] = '\0';
+//		free(&super_path[strlen(super_path)]);
+	}
+	aux = strlen(super_path) - strlen(nombre);
+	//free(&(super_path[aux +1]));
+	super_path[aux] = '\0';
+
+	nodo_anterior = determinar_nodo(super_path);
+
 
 	// Abrir conexion y traer directorios, guarda el bloque de inicio para luego liberar memoria
 	if ((fd = open(DISC_PATH, O_RDONLY, 0)) == -1) {
@@ -134,19 +154,20 @@ ptrGBloque determinar_nodo(const char* path, int block_type){
 
 	// Busca el nodo sobre el cual se encuentre el nombre.
 	node_name = &(node->fname[0]);
-	for (i = 0; ( (strcmp(nombre, (char*) node_name) != 0) | (node->state != block_type)) &  (i < GFILEBYTABLE) ; i++ ){
-		node = AVANZAR_BLOQUES(node,1);
+	for (i = 0; ( (node->parent_dir_block != nodo_anterior) | (strcmp(nombre, (char*) node_name) != 0) | (node->state == 0)) &  (i < GFILEBYTABLE) ; i++ ){
+		node = &(node[1]);
 		node_name = &(node->fname[0]);
 	}
 
 	// Cierra conexiones y libera memoria.
-	free(start);
+//	free(start);
+//	free(start_super_path);
 	if (munmap(inicio, HEADER_SIZE_B + BITMAP_SIZE_B + NODE_TABLE_SIZE_B) == -1) printf("ERROR");
 	close(fd);
 	if (i >= GFILEBYTABLE) return -1;
 	return (i+1);
-}
 
+}
 /*
  * @DESC
  *  Esta función va a ser llamada cuando a la biblioteca de FUSE le llege un pedido
@@ -160,40 +181,60 @@ ptrGBloque determinar_nodo(const char* path, int block_type){
  *
  * 	@RETURN
  * 		O archivo/directorio fue encontrado. -ENOENT archivo/directorio no encontrado
+ *
+ * 	@PERMISOS
+ * 		Si es un directorio debe tener los permisos:
+ * 			stbuf->st_mode = S_IFDIR | 0755;
+ * 			stbuf->st_nlink = 2;
+ * 		Si es un archivo:
+ * 			stbuf->st_mode = S_IFREG | 0444;
+ * 			stbuf->st_nlink = 1;
+ * 			stbuf->st_size = [TAMANIO];
+ *
  */
 static int grasa_getattr(const char *path, struct stat *stbuf) {
 
+	int nodo = determinar_nodo(path), fd;
+	if (nodo < 0) return -ENOENT;
+	struct grasa_file_t *node, *inicio;
+
 	memset(stbuf, 0, sizeof(struct stat));
 
-	if (strcmp(path, "/") == 0) {
+	if (strcmp(path, "/") == 0){
 		stbuf->st_mode = S_IFDIR | 0755;
 		stbuf->st_nlink = 2;
 		return 0;
 	}
-//	if (determinar_nodo(path,DIRECTORY_T) >= 0){
-//		stbuf->st_mode = S_IFDIR | 0755;
-//		stbuf->st_nlink = 2;
-//		return 0;
-//	}
-	if (determinar_nodo(path,FILE_T) >= 0){
+
+	// Abrir conexion y traer directorios, guarda el bloque de inicio para luego liberar memoria
+	if ((fd = open(DISC_PATH, O_RDONLY, 0)) == -1) {
+		printf("ERROR");
+		return -ENOENT;
+	}
+	node = (void*) mmap(NULL, HEADER_SIZE_B + BITMAP_SIZE_B + NODE_TABLE_SIZE_B , PROT_READ, MAP_SHARED, fd, 0);
+	inicio = node;
+	node = &(node[GFILEBYBLOCK + BITMAP_BLOCK_SIZE]);
+
+	node = &(node[nodo-1]);
+
+	if (node->state == 2){
+		stbuf->st_mode = S_IFDIR | 0755;
+		stbuf->st_nlink = 2;
+		if (munmap(inicio, HEADER_SIZE_B + BITMAP_SIZE_B + NODE_TABLE_SIZE_B) == -1) printf("ERROR");
+		return 0;
+	} else if(node->state == 1){
 		stbuf->st_mode = S_IFREG | 0444;
 		stbuf->st_nlink = 1;
-		stbuf->st_size = 100000;
+		stbuf->st_size = node->file_size;
+		if (munmap(inicio, HEADER_SIZE_B + BITMAP_SIZE_B + NODE_TABLE_SIZE_B) == -1) printf("ERROR");
 		return 0;
 	}
+
+	// Cierra conexiones y libera memoria.
+
+	close(fd);
+	if (munmap(inicio, HEADER_SIZE_B + BITMAP_SIZE_B + NODE_TABLE_SIZE_B) == -1) printf("ERROR");
 	return -ENOENT;
-//
-//	if (strcmp(path, "/") == 0) {
-//		stbuf->st_mode = S_IFDIR | 0755;
-//		stbuf->st_nlink = 2;
-//		return 0;
-//	}
-//
-//	stbuf->st_mode = S_IFREG | 0444;
-//	stbuf->st_nlink = 1;
-//	stbuf->st_size = 10000000;
-//
-//	return 0;
 }
 
 /*
@@ -214,7 +255,7 @@ static int grasa_getattr(const char *path, struct stat *stbuf) {
  */
 static int grasa_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi) {
 //static int grasa_readdir(const char *path){
-	int fd, i, nodo = determinar_nodo((char*) path, DIRECTORY_T);
+	int fd, i, nodo = determinar_nodo((char*) path);
 	struct grasa_file_t *node, *inicio;
 
 
@@ -327,21 +368,9 @@ int main (int argc, char *argv[]){
 	//---------- LETS TRY DOWN HERE!!! -----------
 
 	escribir_uno();
-
-//	 printf ("%d \n",strcmp("Inside Otra Otra :D", "Inside Otra Otra :D"));
 //
-//	char *nombre = "Inside Otra Otra :D";
-//	unsigned char *node_name = (unsigned char*)"Inside Otra";
-//	int i;
+//	 printf ("%d \n",determinar_nodo("/Otra Carpetita/Inside Otra/Inside Otra Otra :D/"));
 //
-//
-//	for (i = 0; ( (strcmp(nombre, (char*) node_name) != 0) | (0)) &  (i < 1) ; i++ ){
-//			printf("ASD \n");
-//		}
-//
-//	 printf ("%d \n",determinar_nodo("/Carpeta/Inside Otra/Inside Otra Otra :D", (DIRECTORY_T)));
-//
-//	 grasa_readdir("/Otra Carpetita/Inside Otra/inside Otra Otra :D");
 //
 //	 return 0;
 
