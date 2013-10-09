@@ -35,6 +35,8 @@
 
 typedef uint32_t ptrGBloque;
 
+typedef ptrGBloque pointer_data_block [1024];
+
 
 typedef struct grasa_header_t { // un bloque
 	unsigned char grasa[5];
@@ -55,7 +57,6 @@ typedef struct grasa_file_t { // un cuarto de bloque (256 bytes)
 	uint64_t m_date;
 	ptrGBloque blk_indirect[BLKINDIRECT];
 } GFile;
-
 
 
 int path_size_in_bytes(const char* path){

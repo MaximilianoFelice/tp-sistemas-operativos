@@ -29,10 +29,6 @@ struct t_runtime_options {
 	char* welcome_msg;
 } runtime_options;
 
-int lastchar(const char* str, char chr){
-	if ( ( str[strlen(str)-1]  == chr) ) return 1;
-	return 0;
-}
 
 // Funcion auxiliar para poder probar cosas hasta que nos manden el disco.
 void escribir_uno(){
@@ -42,9 +38,9 @@ void escribir_uno(){
 
 	// Abrir conexion y traer directorios, guarda el bloque de inicio para luego liberar memoria
 	if ((fd = open(DISC_PATH, O_RDWR, 0)) == -1) printf("ERROR");
-	node = (void*) mmap(NULL, HEADER_SIZE_B + BITMAP_SIZE_B + NODE_TABLE_SIZE_B , PROT_WRITE | PROT_READ | PROT_EXEC, MAP_SHARED, fd, 0);
+	node = (void*) mmap(NULL, ACTUAL_DISC_SIZE_B, PROT_WRITE | PROT_READ | PROT_EXEC, MAP_SHARED, fd, (GFILEBYBLOCK + BITMAP_BLOCK_SIZE)*BLOCKSIZE);
 	inicio = node;
-	node = &(node[GFILEBYBLOCK + BITMAP_BLOCK_SIZE]);
+//	node = &(node[GFILEBYBLOCK + BITMAP_BLOCK_SIZE]);
 
 	// Escribe en el bloque 1 el directorio
 	node->parent_dir_block = 0;
@@ -86,11 +82,28 @@ void escribir_uno(){
 	aux = &(node->fname[0]);
 	strcpy((char*) aux, "Mi primer archivo.txt");
 	node->state = 1;
-	node->file_size = 10000;
+	node->file_size = 4096;
+	(node->blk_indirect)[0] = 1026;
 
 
 	// Libera la memoria y cierra conexiones con el archivo.
 	if (munmap(inicio, HEADER_SIZE_B + BITMAP_SIZE_B + NODE_TABLE_SIZE_B) == -1) printf("ERROR");
+
+	// Abrir conexion y traer directorios, guarda el bloque de inicio para luego liberar memoria
+	node = (void*) mmap(NULL, ACTUAL_DISC_SIZE_B , PROT_WRITE | PROT_READ | PROT_EXEC, MAP_SHARED, fd, (GFILEBYBLOCK + BITMAP_BLOCK_SIZE + NODE_TABLE_SIZE)*BLOCKSIZE);
+	inicio = node;
+	ptrGBloque *redirect;
+	redirect = (ptrGBloque *) node;
+	redirect[0] = 1027;
+	int x;
+	for (x = 1; x < 1024; x++) redirect[x] = 0;
+
+	node = &(node[1]);
+
+	memcpy(node, "YO SOY ASI; DEL ROJO HASTA MORIR", 4096);
+
+	if (munmap(inicio, HEADER_SIZE_B + BITMAP_SIZE_B + NODE_TABLE_SIZE_B) == -1) printf("ERROR");
+
 	close(fd);
 }
 
@@ -114,30 +127,25 @@ ptrGBloque determinar_nodo(const char* path){
 
 	int fd, i, nodo_anterior, aux;
 	// Super_path usado para obtener la parte superior del path, sin el nombre.
-	char *super_path = malloc(strlen(path)), *nombre = malloc(strlen(path));
-	strcpy(super_path, path);
-	strcpy(nombre, path);
+	char *super_path = (char*) malloc(strlen(path) +1), *nombre = (char*) malloc(strlen(path)+1);
 	char *start = nombre, *start_super_path = super_path; //Estos liberaran memoria.
 	struct grasa_file_t *node, *inicio;
 	unsigned char *node_name;
-
+	strcpy(super_path, path);
+	strcpy(nombre, path);
 	// Obtiene y acomoda el nombre del archivo.
 	if (lastchar(path, '/')) {
 		nombre[strlen(nombre)-1] = '\0';
-//		free(&(nombre[strlen(nombre)]));
 	}
 	nombre = strrchr(nombre, '/');
 	nombre[0] = '\0';
-	//free(start);
 	nombre = &nombre[1]; // Acomoda el nombre, ya que el primer digito siempre es '/'
 
 	// Acomoda el super_path
 	if (lastchar(super_path, '/')) {
 		super_path[strlen(super_path)-1] = '\0';
-//		free(&super_path[strlen(super_path)]);
 	}
 	aux = strlen(super_path) - strlen(nombre);
-	//free(&(super_path[aux +1]));
 	super_path[aux] = '\0';
 
 	nodo_anterior = determinar_nodo(super_path);
@@ -160,8 +168,8 @@ ptrGBloque determinar_nodo(const char* path){
 	}
 
 	// Cierra conexiones y libera memoria.
-//	free(start);
-//	free(start_super_path);
+	free(start);
+	free(start_super_path);
 	if (munmap(inicio, HEADER_SIZE_B + BITMAP_SIZE_B + NODE_TABLE_SIZE_B) == -1) printf("ERROR");
 	close(fd);
 	if (i >= GFILEBYTABLE) return -1;
@@ -254,7 +262,6 @@ static int grasa_getattr(const char *path, struct stat *stbuf) {
  * 		O directorio fue encontrado. -ENOENT directorio no encontrado
  */
 static int grasa_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi) {
-//static int grasa_readdir(const char *path){
 	int fd, i, nodo = determinar_nodo((char*) path);
 	struct grasa_file_t *node, *inicio;
 
@@ -286,22 +293,138 @@ static int grasa_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
 /*
  * @DESC
  *  Esta función va a ser llamada cuando a la biblioteca de FUSE le llege un pedido
- * para obtener la metadata de un archivo/directorio. Esto puede ser tamaño, tipo,
- * permisos, dueño, etc ...
+ * para tratar de abrir un archivo
  *
  * @PARAMETROS
  * 		path - El path es relativo al punto de montaje y es la forma mediante la cual debemos
  * 		       encontrar el archivo o directorio que nos solicitan
- * 		stbuf - Esta esta estructura es la que debemos completar
+ * 		fi - es una estructura que contiene la metadata del archivo indicado en el path
  *
  * 	@RETURN
- * 		O archivo/directorio fue encontrado. -ENOENT archivo/directorio no encontrado
+ * 		O archivo fue encontrado. -EACCES archivo no es accesible
  */
-//static int grasa_getattr(const char *path, struct stat *info){
-//
-//	return -ENOENT;
-//
-//}
+static int grasa_open(const char *path, struct fuse_file_info *fi) {
+
+	return 0;
+}
+
+
+/*
+ * @DESC
+ *  Esta función va a ser llamada cuando a la biblioteca de FUSE le llege un pedido
+ * para obtener el contenido de un archivo
+ *
+ * @PARAMETROS
+ * 		path - El path es relativo al punto de montaje y es la forma mediante la cual debemos
+ * 		       encontrar el archivo o directorio que nos solicitan
+ * 		buf - Este es el buffer donde se va a guardar el contenido solicitado
+ * 		size - Nos indica cuanto tenemos que leer
+ * 		offset - A partir de que posicion del archivo tenemos que leer
+ *
+ * 	@RETURN
+ * 		Si se usa el parametro direct_io los valores de retorno son 0 si  elarchivo fue encontrado
+ * 		o -ENOENT si ocurrio un error. Si el parametro direct_io no esta presente se retorna
+ * 		la cantidad de bytes leidos o -ENOENT si ocurrio un error. ( Este comportamiento es igual
+ * 		para la funcion write )
+ */
+
+static int grasa_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
+	(void) fi;
+	int fd, nodo = determinar_nodo(path), bloque_punteros, num_bloque_datos;
+	int bloque_a_buscar; // Estructura auxiliar para no dejar choclos
+	struct grasa_file_t *node, *inicio, *inicio_data_block;
+	ptrGBloque *pointer_block;
+	char *data_block;
+	size_t tam = size;
+
+	// Abrir conexion y traer directorios, guarda el bloque de inicio para luego liberar memoria
+	if ((fd = open(DISC_PATH, O_RDWR, 0)) == -1) printf("ERROR");
+	node = (void*) mmap(NULL, ACTUAL_DISC_SIZE_B , PROT_WRITE | PROT_READ | PROT_EXEC, MAP_SHARED, fd, (GFILEBYBLOCK + BITMAP_BLOCK_SIZE)*BLOCKSIZE);
+	inicio = node;
+	inicio_data_block = &(node[NODE_TABLE_SIZE]);
+
+	// Ubica el nodo correspondiente al archivo
+	node = &(node[nodo-1]);
+
+	// Recorre todos los punteros en el bloque de la tabla de nodos
+	for (bloque_punteros = 0; bloque_punteros < BLKINDIRECT; bloque_punteros++){
+
+		// Chequea el offset y lo acomoda para leer lo que realmente necesita
+		if (offset > BLOCKSIZE * 1024){
+			offset -= (BLOCKSIZE * 1024);
+			continue;
+		}
+
+		bloque_a_buscar = (node->blk_indirect)[bloque_punteros];	// Ubica el nodo de punteros a nodos de datos, es relativo al nodo 0: Header.
+		bloque_a_buscar -= (GFILEBYBLOCK + BITMAP_BLOCK_SIZE + NODE_TABLE_SIZE);	// Acomoda el nodo de punteros a nodos de datos, es relativo al bloque de datos.
+		pointer_block =(ptrGBloque *) &(inicio_data_block[bloque_a_buscar]);		// Apunta al nodo antes ubicado. Lo utiliza para saber de donde leer los datos.
+
+		// Recorre el bloque de punteros correspondiente.
+		for (num_bloque_datos = 0; num_bloque_datos < 1024; num_bloque_datos++){
+
+			// Chequea el offset y lo acomoda para leer lo que realmente necesita
+			if (offset > BLOCKSIZE){
+				offset -= BLOCKSIZE;
+				continue;
+			}
+
+			bloque_a_buscar = pointer_block[0]; 	// Ubica el nodo de datos correspondiente. Relativo al nodo 0: Header.
+			bloque_a_buscar -= (GFILEBYBLOCK + BITMAP_BLOCK_SIZE + NODE_TABLE_SIZE);	// Acomoda el nodo, haciendolo relativo al bloque de datos.
+			data_block = (char *) &(inicio_data_block[bloque_a_buscar]);
+
+			// Corre el offset hasta donde sea necesario para poder leer lo que quiere.
+			if (offset > 0){
+				data_block += offset;
+				offset = 0;
+			}
+
+			if (tam < BLOCKSIZE){
+				memcpy(buf, data_block, tam);
+				tam = 0;
+				break;
+			} else {
+				memcpy(buf, data_block, BLOCKSIZE);
+				tam -= BLOCKSIZE;
+				if (tam == 0) break;
+			}
+
+		}
+
+		if (tam == 0) break;
+	}
+
+
+	if (munmap(inicio, ACTUAL_DISC_SIZE_B ) == -1) printf("ERROR");
+
+	close(fd);
+
+	printf("\n \n \n <<<<>>>>> \n \n \n %s \n \n \n <<<<>>>>> \n \n \n ", buf);
+
+	return size;
+
+
+}
+
+/*
+ *  @ DESC
+ * 		Esta estructura creara carpetas en el filesystem.
+ *
+ * 	@ PARAM
+ *
+ * 		-path: El path del directorio a crear
+ *
+ * 		-mode: Contiene los permisos que debe tener el directorio y otra metadata
+ *
+ * 	@ RET
+ * 		Seguramente 0 si esta todo ok, negativo si hay error.
+ */
+
+int grasa_mkdir (const char *path, mode_t mode){
+
+	// Falta implementar.
+
+	return -ENOENT;
+}
 
 
 /*
@@ -313,6 +436,9 @@ static int grasa_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
 static struct fuse_operations grasa_oper = {
 		.readdir = grasa_readdir,
 		.getattr = grasa_getattr,
+		.open = grasa_open,
+		.read = grasa_read,
+		.mkdir = grasa_mkdir,
 };
 
 /** keys for FUSE_OPT_ options */
@@ -367,11 +493,25 @@ int main (int argc, char *argv[]){
 
 	//---------- LETS TRY DOWN HERE!!! -----------
 
+//	char *CTMAB = malloc(100);
+//	CTMAB[50] = '\0';
+//	strcpy(CTMAB, "LA CONCHA DE TU MADRE ALL BOYS");
+//	CTMAB = &(CTMAB[5]);
+//	CTMAB[strlen(CTMAB)-10] = '\0';
+//	printf("%d", strlen(CTMAB));
+//	free(&(CTMAB[-5]));
+
 	escribir_uno();
+
+//	char *buf = malloc(4096);
+//	size_t size = 4096;
+//	off_t offset = 0;
+//	struct fuse_file_info *fi = ((struct fuse_file_info *) NULL);
 //
-//	 printf ("%d \n",determinar_nodo("/Otra Carpetita/Inside Otra/Inside Otra Otra :D/"));
+//	grasa_read("/Mi primer archivo.txt", buf, size, offset, fi);
 //
-//
+//	printf("%s", buf);
+//	free(buf);
 //	 return 0;
 
 	//---------- LETS END OUR TRIAL =( -----------
