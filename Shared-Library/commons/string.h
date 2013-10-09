@@ -49,4 +49,7 @@
 	void 	string_iterate_lines(char ** strings, void (*closure)(char *));
 	char**  string_get_string_as_array(char* text);
 
+	// Funciones agregadas
+	int lastchar(const char*, char);
+
 #endif /* STRING_UTILS_H_ */

@@ -367,3 +367,12 @@ void _string_append_with_format_list(const char* format, char** original, va_lis
 	string_append(original, temporal);
 	free(temporal);
 }
+
+/*
+ *  @DESC
+ *  	Devuelve 0 si el ultimo caracter en str es chr, 1 en cualquier otro caso.
+ */
+int lastchar(const char* str, char chr){
+	if ( ( str[strlen(str)-1]  == chr) ) return 1;
+	return 0;
+}
