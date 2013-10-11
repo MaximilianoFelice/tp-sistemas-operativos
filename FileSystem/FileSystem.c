@@ -16,8 +16,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <sys/mman.h>
-#include <commons/string.h>
-
+//#include <commons/string.h>
 
 /*
  * Este es el path de nuestro, relativo al punto de montaje, archivo dentro del FS
@@ -28,6 +27,12 @@
 struct t_runtime_options {
 	char* welcome_msg;
 } runtime_options;
+
+
+int lastchar(const char* str, char chr){
+	if ( ( str[strlen(str)-1]  == chr) ) return 1;
+	return 0;
+}
 
 
 // Funcion auxiliar para poder probar cosas hasta que nos manden el disco.
@@ -329,6 +334,8 @@ static int grasa_open(const char *path, struct fuse_file_info *fi) {
  */
 
 static int grasa_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
+	printf("OFFSET: %d \n", (int) offset);
+	printf("SIZE: %d \n", size);
 	(void) fi;
 	int fd, nodo = determinar_nodo(path), bloque_punteros, num_bloque_datos;
 	int bloque_a_buscar; // Estructura auxiliar para no dejar choclos
@@ -363,12 +370,12 @@ static int grasa_read(const char *path, char *buf, size_t size, off_t offset, st
 		for (num_bloque_datos = 0; num_bloque_datos < 1024; num_bloque_datos++){
 
 			// Chequea el offset y lo acomoda para leer lo que realmente necesita
-			if (offset > BLOCKSIZE){
+			if (offset >= BLOCKSIZE){
 				offset -= BLOCKSIZE;
 				continue;
 			}
 
-			bloque_a_buscar = pointer_block[0]; 	// Ubica el nodo de datos correspondiente. Relativo al nodo 0: Header.
+			bloque_a_buscar = pointer_block[num_bloque_datos]; 	// Ubica el nodo de datos correspondiente. Relativo al nodo 0: Header.
 			bloque_a_buscar -= (GFILEBYBLOCK + BITMAP_BLOCK_SIZE + NODE_TABLE_SIZE);	// Acomoda el nodo, haciendolo relativo al bloque de datos.
 			data_block = (char *) &(inicio_data_block[bloque_a_buscar]);
 
@@ -380,11 +387,13 @@ static int grasa_read(const char *path, char *buf, size_t size, off_t offset, st
 
 			if (tam < BLOCKSIZE){
 				memcpy(buf, data_block, tam);
+				buf = &(buf[tam]);
 				tam = 0;
 				break;
 			} else {
 				memcpy(buf, data_block, BLOCKSIZE);
 				tam -= BLOCKSIZE;
+				buf = &(buf[BLOCKSIZE]);
 				if (tam == 0) break;
 			}
 
@@ -398,8 +407,6 @@ static int grasa_read(const char *path, char *buf, size_t size, off_t offset, st
 
 	close(fd);
 
-	printf("\n \n \n <<<<>>>>> \n \n \n %s \n \n \n <<<<>>>>> \n \n \n ", buf);
-
 	return size;
 
 
@@ -408,6 +415,7 @@ static int grasa_read(const char *path, char *buf, size_t size, off_t offset, st
 /*
  *  @ DESC
  * 		Esta estructura creara carpetas en el filesystem.
+ * 		Notese que no debe nodificarse el Bitmap, ya que todas las estructuras administrativas quedan marcadas.
  *
  * 	@ PARAM
  *
@@ -421,9 +429,60 @@ static int grasa_read(const char *path, char *buf, size_t size, off_t offset, st
 
 int grasa_mkdir (const char *path, mode_t mode){
 
-	// Falta implementar.
+	int fd, nodo_padre, i, res = 0;
+	struct grasa_file_t *node, *inicio;
+	char *nombre = malloc(sizeof(path) + 1);
+	char *dir_padre = malloc(sizeof(path) + 1);
 
-	return -ENOENT;
+	// Obtiene el nombre del path:
+	strcpy(nombre, path);
+	if (lastchar(nombre, '/')){
+		nombre[strlen(nombre) -1] = '\0';
+	}
+	nombre = strrchr(nombre, '/');
+	nombre = &(nombre[1]);
+
+	// Obtiene el directorio superior:
+	strcpy(dir_padre, path);
+	if (lastchar(dir_padre, '/')){
+		dir_padre[strlen(dir_padre) -1] = '\0';
+	}
+	(strrchr(dir_padre, '/'))[1] = '\0'; 	// Borra el nombre del dir_padre.
+
+	// Ubica el nodo correspondiente. Si es el raiz, lo marca como 0, Si es menor a 0, lo crea (mismos permisos).
+	if (strcmp(dir_padre, "/") == 0){
+		nodo_padre = 0;
+	} else if ((nodo_padre = determinar_nodo(dir_padre)) < 0){
+		grasa_mkdir(path, mode);
+	}
+
+	// Abrir conexion y traer directorios, guarda el bloque de inicio para luego liberar memoria
+	if ((fd = open(DISC_PATH, O_RDWR, 0)) == -1) printf("ERROR");
+	node = (void*) mmap(NULL, HEADER_SIZE_B + BITMAP_SIZE_B + NODE_TABLE_SIZE_B , PROT_WRITE | PROT_READ | PROT_EXEC, MAP_SHARED, fd, (GFILEBYBLOCK)*BLOCKSIZE);
+	inicio = node;
+
+	// Busca el primer nodo libre (state 0) y cuando lo encuentra, lo crea:
+	for (i = 0; (node->state != 0) & (i < NODE_TABLE_SIZE); i++) node = &(node[1]);
+	// Si no hay un nodo libre, devuelve un error.
+	if (i >= NODE_TABLE_SIZE){
+		res = -ENOENT;
+		goto finalizar;
+	}
+
+	// Escribe datos del archivo
+	node->state = 2;
+	strcpy((char*) &(node->fname[0]), nombre);
+	node->file_size = 0;
+	node->parent_dir_block = nodo_padre;
+	res = 0;
+
+	finalizar:
+	if (munmap(inicio, BITMAP_SIZE_B + NODE_TABLE_SIZE_B ) == -1) printf("ERROR");
+
+	close(fd);
+
+	return res;
+
 }
 
 
@@ -501,17 +560,28 @@ int main (int argc, char *argv[]){
 //	printf("%d", strlen(CTMAB));
 //	free(&(CTMAB[-5]));
 
-	escribir_uno();
+//	escribir_uno();
 
-//	char *buf = malloc(4096);
-//	size_t size = 4096;
+
+//
+//	char *buf = malloc(16384);
+//	size_t size = 16384;
 //	off_t offset = 0;
 //	struct fuse_file_info *fi = ((struct fuse_file_info *) NULL);
 //
-//	grasa_read("/Mi primer archivo.txt", buf, size, offset, fi);
+//	grasa_read("/dir1/secret/top_secret.jpg", buf, size, offset, fi);
 //
+//	int fd;
+//	fd = open("imagen.jpg", O_RDWR, 0);
 //	printf("%s", buf);
+//	write(fd, buf, size);
+//	close(fd);
 //	free(buf);
+
+
+//	mode_t elModo;
+//	elModo = 0;
+//	printf("%d", grasa_mkdir("/carlos/", elModo));
 //	 return 0;
 
 	//---------- LETS END OUR TRIAL =( -----------

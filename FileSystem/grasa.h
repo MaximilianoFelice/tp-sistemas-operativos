@@ -8,7 +8,7 @@
 // Macros que definen los tamanios de los archivos.
 #define NODE_TABLE_SIZE 1024
 #define NODE_TABLE_SIZE_B ((int) NODE_TABLE_SIZE * BLOCKSIZE)
-#define DISC_PATH "/home/utnso/grasa-tools/disco.bin"
+#define DISC_PATH "/home/utnso/tp-2013-2c-c-o-no-ser/FileSystem/Testdisk/disk.bin"
 #define DISC_SIZE_B(p) path_size_in_bytes(p)
 #define ACTUAL_DISC_SIZE_B path_size_in_bytes(DISC_PATH)
 #define BITMAP_SIZE_B get_size()
