@@ -16,6 +16,8 @@
 #include <errno.h>
 #include <unistd.h>
 #include <sys/mman.h>
+#include "bitarray.h"
+#include <limits.h>		// Aqui obtenemos el CHAR_BIT, que nos permite obtener la cantidad de bits en un char.
 //#include <commons/string.h>
 
 /*
@@ -35,84 +37,6 @@ int lastchar(const char* str, char chr){
 }
 
 
-// Funcion auxiliar para poder probar cosas hasta que nos manden el disco.
-void escribir_uno(){
-	int fd;
-	struct grasa_file_t *node, *inicio;
-	unsigned char *aux;
-
-	// Abrir conexion y traer directorios, guarda el bloque de inicio para luego liberar memoria
-	if ((fd = open(DISC_PATH, O_RDWR, 0)) == -1) printf("ERROR");
-	node = (void*) mmap(NULL, ACTUAL_DISC_SIZE_B, PROT_WRITE | PROT_READ | PROT_EXEC, MAP_SHARED, fd, (GFILEBYBLOCK + BITMAP_BLOCK_SIZE)*BLOCKSIZE);
-	inicio = node;
-//	node = &(node[GFILEBYBLOCK + BITMAP_BLOCK_SIZE]);
-
-	// Escribe en el bloque 1 el directorio
-	node->parent_dir_block = 0;
-	aux = &(node->fname[0]);
-	strcpy((char*) aux, "Carpeta");
-	node->state = 2;
-	node->file_size = 154;
-
-	node = &(node[1]);
-	node->parent_dir_block = 0;
-	aux = &(node->fname[0]);
-	strcpy((char*) aux, "Otra Carpetita");
-	node->state = 2;
-	node->file_size = 154234;
-
-	node = &(node[1]);
-	node->parent_dir_block = 1;
-	aux = &(node->fname[0]);
-	strcpy((char*) aux, "Inside Carpeta");
-	node->state = 2;
-	node->file_size = 154234;
-
-	node = &(node[1]);
-	node->parent_dir_block = 2;
-	aux = &(node->fname[0]);
-	strcpy((char*) aux, "Inside Otra");
-	node->state = 2;
-	node->file_size = 154234;
-
-	node = &(node[1]);
-	node->parent_dir_block = 4;
-	aux = &(node->fname[0]);
-	strcpy((char*) aux, "Inside Otra Otra :D");
-	node->state = 2;
-	node->file_size = 154234;
-
-	node = &(node[1]);
-	node->parent_dir_block = 0;
-	aux = &(node->fname[0]);
-	strcpy((char*) aux, "Mi primer archivo.txt");
-	node->state = 1;
-	node->file_size = 4096;
-	(node->blk_indirect)[0] = 1026;
-
-
-	// Libera la memoria y cierra conexiones con el archivo.
-	if (munmap(inicio, HEADER_SIZE_B + BITMAP_SIZE_B + NODE_TABLE_SIZE_B) == -1) printf("ERROR");
-
-	// Abrir conexion y traer directorios, guarda el bloque de inicio para luego liberar memoria
-	node = (void*) mmap(NULL, ACTUAL_DISC_SIZE_B , PROT_WRITE | PROT_READ | PROT_EXEC, MAP_SHARED, fd, (GFILEBYBLOCK + BITMAP_BLOCK_SIZE + NODE_TABLE_SIZE)*BLOCKSIZE);
-	inicio = node;
-	ptrGBloque *redirect;
-	redirect = (ptrGBloque *) node;
-	redirect[0] = 1027;
-	int x;
-	for (x = 1; x < 1024; x++) redirect[x] = 0;
-
-	node = &(node[1]);
-
-	memcpy(node, "YO SOY ASI; DEL ROJO HASTA MORIR", 4096);
-
-	if (munmap(inicio, HEADER_SIZE_B + BITMAP_SIZE_B + NODE_TABLE_SIZE_B) == -1) printf("ERROR");
-
-	close(fd);
-}
-
-
 /* @DESC
  * 		Determina cual es el nodo sobre el cual se encuentra un path.
  *
@@ -124,7 +48,6 @@ void escribir_uno(){
  * 		Si el nombre no se encuentra, devuelve -1.
  *
  */
-
 ptrGBloque determinar_nodo(const char* path){
 
 	// Si es el directorio raiz, devuelve 0:
@@ -181,6 +104,7 @@ ptrGBloque determinar_nodo(const char* path){
 	return (i+1);
 
 }
+
 /*
  * @DESC
  *  Esta función va a ser llamada cuando a la biblioteca de FUSE le llege un pedido
@@ -284,7 +208,6 @@ static int grasa_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
 
 	// Carga los nodos que cumple la condicion en el buffer.
 	for (i = 0; i < GFILEBYTABLE;  (i++)){
-//		if ((nodo==(node->parent_dir_block)) & (((node->state) == 1) | ((node->state) == 2)))  printf("%s\n",(char*) &(node->fname[0]));
 		if ((nodo==(node->parent_dir_block)) & (((node->state) == 1) | ((node->state) == 2)))  filler(buf, (char*) &(node->fname[0]), NULL, 0);
 		node = &node[1];
 	}
@@ -313,7 +236,6 @@ static int grasa_open(const char *path, struct fuse_file_info *fi) {
 	return 0;
 }
 
-
 /*
  * @DESC
  *  Esta función va a ser llamada cuando a la biblioteca de FUSE le llege un pedido
@@ -332,10 +254,7 @@ static int grasa_open(const char *path, struct fuse_file_info *fi) {
  * 		la cantidad de bytes leidos o -ENOENT si ocurrio un error. ( Este comportamiento es igual
  * 		para la funcion write )
  */
-
 static int grasa_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
-	printf("OFFSET: %d \n", (int) offset);
-	printf("SIZE: %d \n", size);
 	(void) fi;
 	int fd, nodo = determinar_nodo(path), bloque_punteros, num_bloque_datos;
 	int bloque_a_buscar; // Estructura auxiliar para no dejar choclos
@@ -426,13 +345,12 @@ static int grasa_read(const char *path, char *buf, size_t size, off_t offset, st
  * 	@ RET
  * 		Seguramente 0 si esta todo ok, negativo si hay error.
  */
-
 int grasa_mkdir (const char *path, mode_t mode){
 
 	int fd, nodo_padre, i, res = 0;
 	struct grasa_file_t *node, *inicio;
-	char *nombre = malloc(sizeof(path) + 1);
-	char *dir_padre = malloc(sizeof(path) + 1);
+	char *nombre = malloc(sizeof(path) +1), *nom_to_free = nombre;
+	char *dir_padre = malloc(sizeof(path) +1), *dir_to_free = dir_padre;
 
 	// Obtiene el nombre del path:
 	strcpy(nombre, path);
@@ -470,13 +388,16 @@ int grasa_mkdir (const char *path, mode_t mode){
 	}
 
 	// Escribe datos del archivo
-	node->state = 2;
+	node->state = DIRECTORY_T;
 	strcpy((char*) &(node->fname[0]), nombre);
 	node->file_size = 0;
 	node->parent_dir_block = nodo_padre;
 	res = 0;
 
 	finalizar:
+	free(nom_to_free);
+	free(dir_to_free);
+
 	if (munmap(inicio, BITMAP_SIZE_B + NODE_TABLE_SIZE_B ) == -1) printf("ERROR");
 
 	close(fd);
@@ -485,19 +406,374 @@ int grasa_mkdir (const char *path, mode_t mode){
 
 }
 
+/*
+ *	@DESC
+ *		Funcion que borra directorios de fuse.
+ *
+ *	@PARAM
+ *		Path - El path donde tiene que borrar.
+ *
+ *	@RET
+ *		0 Si esta OK, -ENOENT si no pudo.
+ *
+ *		Restaria que la funcion chequee si el dir esta vacio.
+ *
+ */
+int grasa_rmdir (const char* path){
+
+	int fd, nodo_padre = determinar_nodo(path);
+	if (nodo_padre < 0) return -ENOENT;
+	struct grasa_file_t *node, *inicio;
+
+	// Abre conexiones y levanta la tabla de nodos en memoria.
+	if ((fd = open(DISC_PATH, O_RDWR, 0)) == -1) printf("ERROR");
+	node = (void*) mmap(NULL, HEADER_SIZE_B + BITMAP_SIZE_B + NODE_TABLE_SIZE_B , PROT_WRITE | PROT_READ | PROT_EXEC, MAP_SHARED, fd, (GFILEBYBLOCK)*BLOCKSIZE);
+	inicio = node;
+
+	node = &(node[nodo_padre]);
+
+	node->state = DELETED_T; // Aca le dice que el estado queda "Borrado"
+
+	// Cierra, ponele la alarma y se va para su casa. Mejor dicho, retorna 0 :D
+	if (munmap(inicio, BITMAP_SIZE_B + NODE_TABLE_SIZE_B ) == -1) printf("ERROR");
+
+	close(fd);
+
+	return 0;
+}
+
+/*
+ * 	@DESC
+ * 		Trunca un archivo a un length correspondiente. El archivo puede perder datos
+ *
+ * 	@PARAM
+ * 		path - La ruta del archivo.
+ * 		new_size - El nuevo size.
+ *
+ * 	@RET
+ * 		Como siempre, 0 si esta OK.
+ *
+ * 	FALTARIA QUE LA FUNCION RESERVE NODOS LIBRES.
+ */
+int grasa_truncate (const char *path, off_t new_size){
+	int fd, nodo_padre = determinar_nodo(path);
+	if (nodo_padre < 0) return -ENOENT;
+	struct grasa_file_t *node, *inicio;
+
+	// Abre conexiones y levanta la tabla de nodos en memoria.
+	if ((fd = open(DISC_PATH, O_RDWR, 0)) == -1) printf("ERROR");
+	node = (void*) mmap(NULL, HEADER_SIZE_B + BITMAP_SIZE_B + NODE_TABLE_SIZE_B , PROT_WRITE | PROT_READ | PROT_EXEC, MAP_SHARED, fd, (GFILEBYBLOCK)*BLOCKSIZE);
+	inicio = node;
+
+	node = &(node[nodo_padre]);
+
+	node->file_size = new_size; // Aca le dice su nuevo size.
+
+	// Cierra, ponele la alarma y se va para su casa. Mejor dicho, retorna 0 :D
+	if (munmap(inicio, BITMAP_SIZE_B + NODE_TABLE_SIZE_B ) == -1) printf("ERROR");
+
+	close(fd);
+
+	return 0;
+}
+
+/*
+ *  @DESC
+ *  	Obtiene un bloque libre, actualiza el bitmap.
+ *
+ *  @PARAM
+ *  	bitmap_start - Comienzo del Bitmap
+ *  	bitmap_size - Tamanio del Bitmap
+ *
+ *  @RETURN
+ *  	Devuelve el numero de un nodo libre listo para escribir. Si hay error, un numero negativo.
+ */
+int get_node(struct grasa_file_t *bitmap_start, size_t bitmap_size){
+	t_bitarray *bitarray;
+	int i, res;
+	struct grasa_file_t *node = bitmap_start, *data_block = &node[BITMAP_BLOCK_SIZE + NODE_TABLE_SIZE];
+
+	bitarray = bitarray_create((char*) bitmap_start, bitmap_size);
+
+	// Encuentra el primer bit libre en la tabla de nodos.
+	for (i = 0; (i <= bitmap_size) & (bitarray_test_bit(bitarray,i) == 1); i++);
+	res = i;
+
+	// Setea en 1 el bitmap.
+	bitarray_set_bit(bitarray, i);
+
+	// Limpia el contenido del nodo.
+	i -= (GHEADERBLOCKS + BITMAP_BLOCK_SIZE + NODE_TABLE_SIZE);
+	node = &data_block[i];
+	memset(node, 0, BLOCKSIZE);
+
+	// Cierra el bitmap
+	bitarray_destroy(bitarray);
+
+	return res;
+}
+
+/*
+ *  @DESC
+ *  	Actualiza la informacion del archivo.
+ *
+ *  @PARAM
+ *
+ *  @RET
+ *  	Devuelve 0 si salio bien, negativo si hubo problemas.
+ */
+int add_node(struct grasa_file_t *file_data, struct grasa_file_t *inicio_data_block, int node_number, struct grasa_file_t *bitmap_start){
+	int node_pointer_number, position;
+	size_t tam = file_data->file_size;
+	int new_pointer_block;
+	size_t bitmap_size = (BITMAP_SIZE_B * CHAR_BIT);
+	struct grasa_file_t *node = inicio_data_block;
+	ptrGBloque *nodo_punteros;
+
+	// Ubica nodo y posicion en el mismo.
+	for (node_pointer_number = 0; (tam >= (BLOCKSIZE * 1024)); tam -= (BLOCKSIZE * 1024), node_pointer_number++);
+	for (position = 0; (tam >= BLOCKSIZE); tam -= BLOCKSIZE, position++);
+
+	// Si es el ultimo nodo en el bloque de punteros, pasa al siguiente
+	if (position == 0){
+		new_pointer_block = get_node(bitmap_start, bitmap_size);
+		file_data->blk_indirect[node_pointer_number] = new_pointer_block;
+
+	} else {
+		new_pointer_block = file_data->blk_indirect[node_pointer_number]; //Se usa como auxiliar para encontrar el numero del bloque de punteros
+	}
+
+	// Ubica el nodo de punteros en *node, relativo al bloque de datos.
+	nodo_punteros = (ptrGBloque*) &node[new_pointer_block - (GHEADERBLOCKS + NODE_TABLE_SIZE + BITMAP_BLOCK_SIZE)];
+
+	// Hace que dicho puntero, en la posicion ya obtenida, apunte al nodo indicado.
+	nodo_punteros[position] = node_number;
+
+	return 0;
+
+}
+
+/*
+ * NO USA EL OFFSET
+ */
+int set_position (int *pointer_block, int *data_block, size_t size, off_t offset){
+	div_t divi;
+	divi = div(offset, (BLOCKSIZE*1024));
+	*pointer_block = divi.quot;
+	*data_block = divi.rem / BLOCKSIZE;
+	return 0;
+}
+
+/*
+ * 	@DESC
+ * 		Funcion que escribe archivos en fuse. Tiene la posta.
+ *
+ * 	@PARAM
+ * 		path - Dir del archivo
+ * 		buf - Buffer que indica que datos copiar.
+ * 		size - Tam de los datos a copiar
+ * 		offset - Situa una posicion sobre la cual empezar a copiar datos
+ * 		fi - File Info. Contiene flags y otras cosas locas que no hay que usar
+ *
+ * 	@RET
+ * 		Devuelve la cantidad de bytes escritos, siempre y cuando este OK. Caso contrario, numero negativo tipo -ENOENT.
+ */
+int grasa_write (const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi){
+	(void) fi;
+	int fd, nodo = determinar_nodo(path);
+	int new_free_node;
+	size_t bitmap_size = (BITMAP_SIZE_B * CHAR_BIT);
+	struct grasa_file_t *node, *inicio_bitmap, *inicio_data_block;
+	char *data_block;
+	size_t tam = size, file_size;
+	off_t off = offset;
+	int *n_pointer_block = malloc(sizeof(int)), *n_data_block = malloc(sizeof(int));
+	ptrGBloque *pointer_block;
+
+	// Abrir conexion y traer directorios, guarda el bloque de inicio para luego liberar memoria
+	if ((fd = open(DISC_PATH, O_RDWR, 0)) == -1) printf("ERROR");
+	inicio_bitmap = (void*) mmap(NULL, ACTUAL_DISC_SIZE_B , PROT_WRITE | PROT_READ | PROT_EXEC, MAP_SHARED, fd, (GFILEBYBLOCK)*BLOCKSIZE);
+	node = inicio_bitmap;
+	node = (&node[BITMAP_BLOCK_SIZE]);
+	inicio_data_block = &(node[NODE_TABLE_SIZE]);
+
+	// Ubica el nodo correspondiente al archivo
+	node = &(node[nodo-1]);
+	file_size = node->file_size;
+
+
+	// Guarda tantas veces como sea necesario, consigue nodos y actualiza el archivo.
+	while (tam != 0){
+
+		// Ubica a que nodo le corresponderia guardar el dato
+		set_position(n_pointer_block, n_data_block, file_size, off);
+
+		// Si el offset es mayor que el tamanio del archivo, significa que hay que pedir un bloque nuevo
+		if ((off >= file_size) & (file_size != 0)){
+
+			// Obtiene un bloque libre para escribir.
+			new_free_node = get_node(inicio_bitmap, bitmap_size);
+
+			// Actualiza la informacion del archivo.
+			add_node(node, inicio_data_block, new_free_node, inicio_bitmap);
+
+			// Lo relativiza al data block.
+			new_free_node -= (GHEADERBLOCKS + NODE_TABLE_SIZE + BITMAP_BLOCK_SIZE);
+			data_block = (char*) &(inicio_data_block[new_free_node]);
+
+		} else {
+			//Ubica el nodo a escribir.
+			*n_pointer_block = node->blk_indirect[*n_pointer_block];
+			*n_pointer_block -= (GHEADERBLOCKS + NODE_TABLE_SIZE + BITMAP_BLOCK_SIZE);
+			pointer_block = (ptrGBloque*) &(inicio_data_block[*n_pointer_block]);
+			*n_data_block = pointer_block[*n_data_block];
+			*n_data_block -= (GHEADERBLOCKS + NODE_TABLE_SIZE + BITMAP_BLOCK_SIZE);
+			data_block = (char*) &(inicio_data_block[*n_data_block]);
+		}
+
+		// Escribe en ese bloque de datos.
+		if (tam >= BLOCKSIZE){
+			memcpy(data_block, buf, BLOCKSIZE);
+			off += BLOCKSIZE;
+			tam -= BLOCKSIZE;
+			file_size = node->file_size += BLOCKSIZE;
+		} else {
+			memcpy(data_block, buf, tam);
+			file_size = node->file_size += tam;
+			tam = 0;
+		}
+
+	}
+
+	// Cierra lo que tiene en memoria.
+	if (munmap(inicio_bitmap, ACTUAL_DISC_SIZE_B ) == -1) printf("ERROR");
+
+	close(fd);
+
+	return size;
+
+}
+
+/*
+ *  @DESC
+ *  	Se invoca esta funcion cada vez que fuse quiere hacer un archivo nuevo
+ *
+ *  @PARAM
+ *  	path - Como siempre, el path del archivo relativo al disco
+ *  	mode - Opciones del archivo
+ *  	dev - Otra cosa que no se usa :D
+ *
+ *  @RET
+ *  	Devuelve 0 si le sale OK, num negativo si no.
+ */
+int grasa_mknod (const char* path, mode_t mode, dev_t dev){
+	int fd, nodo_padre, i, res = 0;
+	int new_free_node;
+	struct grasa_file_t *node, *inicio, *inicio_data_block;
+	char *nombre = malloc(sizeof(path) + 1), *nom_to_free = nombre;
+	char *dir_padre = malloc(sizeof(path) + 1), *dir_to_free = dir_padre;
+	char *data_block;
+	size_t bitmap_size = (BITMAP_SIZE_B * CHAR_BIT);
+
+	// Obtiene el nombre del path:
+	strcpy(nombre, path);
+	if (lastchar(nombre, '/')){
+		nombre[strlen(nombre) -1] = '\0';
+	}
+	nombre = strrchr(nombre, '/');
+	nombre = &(nombre[1]);
+
+	// Obtiene el directorio superior:
+	strcpy(dir_padre, path);
+	if (lastchar(dir_padre, '/')){
+		dir_padre[strlen(dir_padre) -1] = '\0';
+	}
+	(strrchr(dir_padre, '/'))[1] = '\0'; 	// Borra el nombre del dir_padre.
+
+	// Ubica el nodo correspondiente. Si es el raiz, lo marca como 0, Si es menor a 0, lo crea (mismos permisos).
+	if (strcmp(dir_padre, "/") == 0){
+		nodo_padre = 0;
+	} else if ((nodo_padre = determinar_nodo(dir_padre)) < 0){
+		grasa_mkdir(path, mode);
+	}
+
+	// Abrir conexion y traer directorios, guarda el bloque de inicio para luego liberar memoria
+	if ((fd = open(DISC_PATH, O_RDWR, 0)) == -1) printf("ERROR");
+	node = (void*) mmap(NULL, ACTUAL_DISC_SIZE_B , PROT_WRITE | PROT_READ | PROT_EXEC, MAP_SHARED, fd, (GFILEBYBLOCK)*BLOCKSIZE);
+	inicio = node;
+
+	// Busca el primer nodo libre (state 0) y cuando lo encuentra, lo crea:
+	for (i = 0; (node->state != 0) & (i < NODE_TABLE_SIZE); i++) node = &(node[1]);
+	// Si no hay un nodo libre, devuelve un error.
+	if (i >= NODE_TABLE_SIZE){
+		res = -ENOENT;
+		goto finalizar;
+	}
+
+	// Escribe datos del archivo
+	node->state = FILE_T;
+	strcpy((char*) &(node->fname[0]), nombre);
+	node->file_size = 0; // El tamanio se ira sumando a medida que se le reserven nodos.
+	node->parent_dir_block = nodo_padre;
+	res = 0;
+
+	// Obtiene un bloque libre para escribir.
+	new_free_node = get_node(inicio, bitmap_size);
+
+
+	// Actualiza la informacion del archivo.
+	inicio_data_block = &inicio[BITMAP_BLOCK_SIZE + NODE_TABLE_SIZE];
+	add_node(node, inicio_data_block, new_free_node, inicio);
+
+	// Lo relativiza al data block.
+	new_free_node -= (GHEADERBLOCKS + NODE_TABLE_SIZE + BITMAP_BLOCK_SIZE);
+	data_block = (char*) &(inicio_data_block[new_free_node]);
+
+	// Escribe en ese bloque de datos.
+	memset(data_block, '\0', BLOCKSIZE);
+
+	finalizar:
+	free(nom_to_free);
+	free(dir_to_free);
+
+	if (munmap(inicio, ACTUAL_DISC_SIZE_B) == -1) printf("ERROR");
+
+	close(fd);
+
+	return res;
+}
+
+/*
+ *  @DESC
+ *  	Funcion que se llama cuando hay que borrar un archivo
+ *
+ *  @PARAM
+ *  	path - La ruta del archivo a borrar.
+ *
+ *  @RET
+ *  	0 si salio bien
+ *  	Numero negativo, si no
+ */
+int grasa_unlink (const char* path){
+		return grasa_rmdir(path);
+	}
 
 /*
  * Esta es la estructura principal de FUSE con la cual nosotros le decimos a
  * biblioteca que funciones tiene que invocar segun que se le pida a FUSE.
  * Como se observa la estructura contiene punteros a funciones.
  */
-
 static struct fuse_operations grasa_oper = {
-		.readdir = grasa_readdir,
-		.getattr = grasa_getattr,
-		.open = grasa_open,
-		.read = grasa_read,
-		.mkdir = grasa_mkdir,
+		.readdir = grasa_readdir,	//OK
+		.getattr = grasa_getattr,	//OK
+		.open = grasa_open,			// OK
+		.read = grasa_read,			// OK
+		.mkdir = grasa_mkdir,		// OK - CHEQUEO DE NOMBRES IGUALES (VERIFICAR) // PROBLEMAS CON NOMBRES LARGOS
+		.rmdir = grasa_rmdir,		// Queda implementar chequeo de directorio vacio.
+		.truncate = grasa_truncate, // Queda implementar que la funcion reserve nodos y los libere.
+		.write = grasa_write,		// Falta testearlo.
+		.mknod = grasa_mknod,		// MISMO PROBLEMA CON NOMBRES LARGOS
+		.unlink = grasa_unlink,		// Queda implementar la liberacion de los nodos que tenia.
 };
 
 /** keys for FUSE_OPT_ options */
@@ -506,7 +782,7 @@ enum {
 	KEY_HELP,
 };
 
-
+/* Carga los datos del header */
 void Load_Header_Data(){
 	int fd;
 	struct grasa_header_t *node;
@@ -582,8 +858,14 @@ int main (int argc, char *argv[]){
 //	mode_t elModo;
 //	elModo = 0;
 //	printf("%d", grasa_mkdir("/carlos/", elModo));
-//	 return 0;
+//	 return 0
 
+//
+//	mode_t mode;
+//	dev_t dev;
+//	grasa_mknod("/holaa.txt", mode, dev);
+//	grasa_mkdir("/yosoydeindependiente", mode);
+//	return 0;
 	//---------- LETS END OUR TRIAL =( -----------
 
 
@@ -613,7 +895,7 @@ int main (int argc, char *argv[]){
 	}
 
 	// Esta es la funcion principal de FUSE, es la que se encarga
-	// de realizar el montaje, comuniscarse con el kernel, delegar todo
+	// de realizar el montaje, comuniscarse con el kernel, delegar
 	// en varios threads
 	return fuse_main(args.argc, args.argv, &grasa_oper, NULL);
 

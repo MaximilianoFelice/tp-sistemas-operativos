@@ -1,3 +1,10 @@
+//RECORDAR INCLUIR STDINT, QUE CONTIENE LAS DEFINICIONES DE LOS TIPOS DE DATOS USADOS.
+#include <limits.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <sys/mman.h>
+#include <fcntl.h>
+
 #define GFILEBYTABLE 1024
 #define GFILEBYBLOCK 1
 #define GFILENAMELENGTH 71
@@ -27,11 +34,13 @@
 #define FILE_T ((int) 1)
 #define DIRECTORY_T ((int) 2)
 
-//RECORDAR INCLUIR STDINT, QUE CONTIENE LAS DEFINICIONES DE LOS TIPOS DE DATOS USADOS.
-#include <stdint.h>
-#include <stdio.h>
-#include <sys/mman.h>
-#include <fcntl.h>
+// Definiciones para el manejo de bits
+#define BITMAP_TYPE char
+#define READTHEBIT(n_bit, inicio) BITPOS(GETBYTE(n_bit), OFFSET(n_bit), inicio)
+#define GETBYTE(n_bit) ((int) n_bit / CHAR_BIT)
+#define OFFSET(n_bit) ((int) n_bit % CHAR_BIT)
+#define BITPOS(n_byte, offset, inicio) getbit(n_byte, offset, inicio)
+
 
 typedef uint32_t ptrGBloque;
 
@@ -107,3 +116,15 @@ void* goto_Data_Block(int fd){
 	return node;
 }
 
+int getbit(int n_byte, int offset, BITMAP_TYPE* inicio){
+	int i, tam_byte = CHAR_BIT; // tam_byte = sizeof(BITMAP_TYPE) * CHAR_BIT;
+
+	// Ubica el byte en el que se buscara el bit
+	inicio = &(inicio[n_byte]);
+
+	// Ubica el bit
+	for (i = 1; tam_byte != 0; (tam_byte --, i *= 2));
+	for(; (offset != 0); (offset--, i/=2));
+	if ((*inicio & i) != i) return 1;
+	return 0;
+}
