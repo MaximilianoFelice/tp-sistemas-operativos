@@ -22,4 +22,4 @@ makefile
 *.d
 Debug/
 FileSystem/Testdisk/
-FileSyste/log/
+FileSystem/log/
