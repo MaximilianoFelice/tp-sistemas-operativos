@@ -31,6 +31,7 @@ t_bitarray *bitarray_create(char *bitarray, size_t size) {
 	self->size = size;
 
 	return self;
+
 }
 
 /*

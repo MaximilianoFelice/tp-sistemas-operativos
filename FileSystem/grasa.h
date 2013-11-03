@@ -15,9 +15,9 @@
 // Macros que definen los tamanios de los archivos.
 #define NODE_TABLE_SIZE 1024
 #define NODE_TABLE_SIZE_B ((int) NODE_TABLE_SIZE * BLOCKSIZE)
-#define DISC_PATH "/home/utnso/tp-2013-2c-c-o-no-ser/FileSystem/Testdisk/disk.bin"
+#define DISC_PATH fuse_disc_path
 #define DISC_SIZE_B(p) path_size_in_bytes(p)
-#define ACTUAL_DISC_SIZE_B path_size_in_bytes(DISC_PATH)
+#define ACTUAL_DISC_SIZE_B fuse_disc_size
 #define BITMAP_SIZE_B get_size()
 #define HEADER_SIZE_B ((int) GHEADERBLOCKS * BLOCKSIZE)
 #define BITMAP_BLOCK_SIZE Header_Data.size_bitmap
@@ -41,6 +41,11 @@
 #define OFFSET(n_bit) ((int) n_bit % CHAR_BIT)
 #define BITPOS(n_byte, offset, inicio) getbit(n_byte, offset, inicio)
 
+// Se guardara aqui la ruta al disco. Tiene un tamanio maximo.
+char fuse_disc_path[1000];
+
+// Se guardara aqui el tamanio del disco
+int fuse_disc_size;
 
 typedef uint32_t ptrGBloque;
 
@@ -83,7 +88,7 @@ int path_size_in_bytes(const char* path){
 }
 
 int get_size(){
-	return ((int) (DISC_SIZE_B(DISC_PATH) / BLOCKSIZE));
+	return ((int) (ACTUAL_DISC_SIZE_B / BLOCKSIZE));
 }
 
 void* goto_Header(int fd){

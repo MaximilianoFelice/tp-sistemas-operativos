@@ -3,7 +3,6 @@
 	<name>FileSystem</name>
 	<comment></comment>
 	<projects>
-		<project>Shared-Library</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>

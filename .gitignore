@@ -21,3 +21,5 @@ makefile
 *.mk
 *.d
 Debug/
+FileSystem/Testdisk
+FileSyste/Log

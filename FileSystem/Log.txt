@@ -1,0 +1,5 @@
+[INFO] 23:09:46:828 Grasa Filesystem/(4036:4036): Se inicializa el log y se entra al modulod e fuse
+[INFO] 23:09:52:792 Grasa Filesystem/(4081:4081): Se inicializa el log y se entra al modulod e fuse
+[DEBUG] 23:10:35:282 Grasa Filesystem/(4081:4081): Read: Tomado lock de lectura con valor 2
+[DEBUG] 23:10:35:284 Grasa Filesystem/(4081:4081): Read: Tomado lock de lectura con valor 2
+[DEBUG] 23:10:35:287 Grasa Filesystem/(4081:4081): Read: Tomado lock de lectura con valor 2
