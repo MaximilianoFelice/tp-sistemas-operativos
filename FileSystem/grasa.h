@@ -12,7 +12,7 @@
 #define BLKINDIRECT 1000
 #define BLOCKSIZE 4096
 
-// Macros que definen los tamanios de los archivos.
+// Macros que definen los tamanios de los bloques.
 #define NODE_TABLE_SIZE 1024
 #define NODE_TABLE_SIZE_B ((int) NODE_TABLE_SIZE * BLOCKSIZE)
 #define DISC_PATH fuse_disc_path
@@ -25,9 +25,7 @@
 // Macros de movimiento dentro del archivo.
 //#define AVANZAR_BLOQUES(node,cant) advance(node,cant)
 #define OPEN_HEADER(fd) goto_Header(fd)
-#define OPEN_BITMAP(fd) goto_Bitmap(fd)
-#define OPEN_NODE_TABLE(fd) goto_Node_Table(fd)
-#define OPEN_DATA_BLOCK(fd) goto_Data_Block(fd)
+
 
 // Definiciones de tipo de bloque borrado(0), archivo(1), directorio(2)
 #define DELETED_T ((int) 0)
@@ -43,6 +41,7 @@
 
 // Se guardara aqui la ruta al disco. Tiene un tamanio maximo.
 char fuse_disc_path[1000];
+
 
 // Se guardara aqui el tamanio del disco
 int fuse_disc_size;
@@ -96,29 +95,6 @@ void* goto_Header(int fd){
 	node = (void*) mmap(NULL, HEADER_SIZE_B , PROT_WRITE | PROT_READ | PROT_EXEC, MAP_SHARED, fd, 0);
 	return node;
 
-}
-
-void* goto_Bitmap(int fd){
-	struct grasa_file_t *node;
-	node = (void*) mmap(NULL, HEADER_SIZE_B , PROT_WRITE | PROT_READ | PROT_EXEC, MAP_SHARED, fd, 0);
-	node = &(node[GFILEBYBLOCK]);
-
-	return node;
-}
-
-void* goto_Node_Table(int fd){
-	struct grasa_file_t *node;
-	node = (void*) mmap(NULL, HEADER_SIZE_B + BITMAP_SIZE_B , PROT_WRITE | PROT_READ | PROT_EXEC, MAP_SHARED, fd, 0);
-	node = &(node[GFILEBYBLOCK + BITMAP_BLOCK_SIZE]);
-	return node;
-
-}
-
-void* goto_Data_Block(int fd){
-	struct grasa_file_t *node;
-	node = (void*) mmap(NULL, ACTUAL_DISC_SIZE_B , PROT_WRITE | PROT_READ | PROT_EXEC, MAP_SHARED, fd, 0);
-	node = &(node[GFILEBYBLOCK + BITMAP_BLOCK_SIZE + GFILEBYTABLE]);
-	return node;
 }
 
 int getbit(int n_byte, int offset, BITMAP_TYPE* inicio){

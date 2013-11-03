@@ -33,13 +33,14 @@ t_log* logger;
 #define CUSTOM_FUSE_OPT_KEY(t, p, v) { t, offsetof(struct t_runtime_options, p), v }
 
 // Define los datos del log
-#define LOG_PATH log_path
-char* log_path = "/home/utnso/tp-2013-2c-c-o-no-ser/FileSystem/log/Log.txt";
+#define LOG_PATH fuse_log_path
+char fuse_log_path[1000];
 
 struct t_runtime_options {
 	char* welcome_msg;
 	char* define_disc_path;
 	char* log_level_param;
+	char* log_path_param;
 } runtime_options;
 
 
@@ -150,7 +151,7 @@ ptrGBloque determinar_nodo(const char* path){
  *
  */
 static int grasa_getattr(const char *path, struct stat *stbuf) {
-
+			log_info(logger, "Getattr: Path: %s", path);
 	int nodo = determinar_nodo(path), fd, res;
 	if (nodo < 0) return -ENOENT;
 	struct grasa_file_t *node, *inicio;
@@ -216,6 +217,7 @@ static int grasa_getattr(const char *path, struct stat *stbuf) {
  * 		O directorio fue encontrado. -ENOENT directorio no encontrado
  */
 static int grasa_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi) {
+			log_info(logger, "Readdir: Path: %s - Offset %d", path, offset);
 	int fd, i, nodo = determinar_nodo((char*) path), res = 0;
 	struct grasa_file_t *node, *inicio;
 
@@ -285,7 +287,7 @@ static int grasa_open(const char *path, struct fuse_file_info *fi) {
  * 		para la funcion write )
  */
 static int grasa_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
-			log_trace(logger, "Reading: Path: %s\nSize: %d\nOffset %d", path, size, offset);
+			log_info(logger, "Reading: Path: %s - Size: %d - Offset %d", path, size, offset);
 	(void) fi;
 	unsigned int fd, nodo = determinar_nodo(path), bloque_punteros, num_bloque_datos;
 	unsigned int bloque_a_buscar; // Estructura auxiliar para no dejar choclos
@@ -478,7 +480,7 @@ int add_node(struct grasa_file_t *file_data, struct grasa_file_t *inicio_data_bl
  * 		Seguramente 0 si esta ok, negativo si hay error.
  */
 int grasa_mkdir (const char *path, mode_t mode){
-
+			log_info(logger, "Mkdir: Path: %s", path);
 	int fd, nodo_padre, i, res = 0;
 	struct grasa_file_t *node, *inicio;
 	char *nombre = malloc(strlen(path) + 1), *nom_to_free = nombre;
@@ -684,7 +686,7 @@ int get_new_space (struct grasa_file_t *file_data, int size, struct grasa_file_t
  *
  */
 int grasa_rmdir (const char* path){
-
+			log_trace(logger, "Rmdir: Path: %s", path);
 	int fd, nodo_padre = determinar_nodo(path), i, res = 0;
 	if (nodo_padre < 0) return -ENOENT;
 	struct grasa_file_t *node, *inicio;
@@ -736,6 +738,7 @@ int grasa_rmdir (const char* path){
  * 	FALTARIA QUE LA FUNCION RESERVE NODOS LIBRES.
  */
 int grasa_truncate (const char *path, off_t new_size){
+			log_info(logger, "Truncate: Path: %s - New size: %d", path, new_size);
 	int fd, nodo_padre = determinar_nodo(path);
 	if (nodo_padre < 0) return -ENOENT;
 	struct grasa_file_t *node, *inicio;
@@ -796,14 +799,14 @@ int grasa_truncate (const char *path, off_t new_size){
  * 		Devuelve la cantidad de bytes escritos, siempre y cuando este OK. Caso contrario, numero negativo tipo -ENOENT.
  */
 int grasa_write (const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi){
-			log_trace(logger, "Writing: Path: %s\nSize: %d\nOffset %d", path, size, offset);
+			log_trace(logger, "Writing: Path: %s - Size: %d - Offset %d", path, size, offset);
 	(void) fi;
 	int fd, nodo = determinar_nodo(path);
 	int new_free_node;
 	size_t bitmap_size = (BITMAP_SIZE_B * CHAR_BIT);
 	struct grasa_file_t *node, *inicio_bitmap, *inicio_data_block;
 	char *data_block;
-	size_t tam = size, file_size;
+	size_t tam = size, file_size, space_in_block, offset_in_block = offset % BLOCKSIZE;
 	off_t off = offset;
 	int *n_pointer_block = malloc(sizeof(int)), *n_data_block = malloc(sizeof(int));
 	ptrGBloque *pointer_block;
@@ -822,7 +825,8 @@ int grasa_write (const char *path, const char *buf, size_t size, off_t offset, s
 	// Ubica el nodo correspondiente al archivo
 	node = &(node[nodo-1]);
 	file_size = node->file_size;
-
+	space_in_block = BLOCKSIZE - (file_size % BLOCKSIZE);
+	if (space_in_block == BLOCKSIZE) (space_in_block = 0); // Porque significa que el bloque esta lleno.
 
 	// Guarda tantas veces como sea necesario, consigue nodos y actualiza el archivo.
 	while (tam != 0){
@@ -830,8 +834,8 @@ int grasa_write (const char *path, const char *buf, size_t size, off_t offset, s
 		// Ubica a que nodo le corresponderia guardar el dato
 		set_position(n_pointer_block, n_data_block, file_size, off);
 
-		// Si el offset es mayor que el tamanio del archivo, significa que hay que pedir un bloque nuevo
-		if ((off >= file_size) & (file_size != 0)){
+		// Si el offset es mayor que el tamanio del archivo mas el resto del bloque libre, significa que hay que pedir un bloque nuevo
+		if ((off >= (file_size + space_in_block)) & (file_size != 0)){
 
 			// Obtiene un bloque libre para escribir.
 			new_free_node = get_node(inicio_bitmap, bitmap_size);
@@ -856,12 +860,13 @@ int grasa_write (const char *path, const char *buf, size_t size, off_t offset, s
 		// Escribe en ese bloque de datos.
 		if (tam >= BLOCKSIZE){
 			memcpy(data_block, buf, BLOCKSIZE);
+			if ((node->file_size) <= (off)) file_size = node->file_size += BLOCKSIZE;
 			off += BLOCKSIZE;
 			tam -= BLOCKSIZE;
-			file_size = node->file_size += BLOCKSIZE;
 		} else {
-			memcpy(data_block, buf, tam);
-			file_size = node->file_size += tam;
+			memcpy(data_block + offset_in_block, buf, tam);
+			if (node->file_size <= off) file_size = node->file_size += tam;
+			else if (node->file_size <= (off + tam)) file_size = node->file_size += (off + tam - node->file_size);
 			tam = 0;
 		}
 
@@ -893,6 +898,7 @@ int grasa_write (const char *path, const char *buf, size_t size, off_t offset, s
  *  	Devuelve 0 si le sale OK, num negativo si no.
  */
 int grasa_mknod (const char* path, mode_t mode, dev_t dev){
+		log_info(logger, "Mknod: Path: %s", path);
 	int fd, nodo_padre, i, res = 0;
 	int new_free_node;
 	struct grasa_file_t *node, *inicio, *inicio_data_block;
@@ -1046,6 +1052,9 @@ static struct fuse_opt fuse_options[] = {
 		// Define el log level
 		CUSTOM_FUSE_OPT_KEY("--ll=%s", log_level_param, 0),
 
+		// Define el log path
+		CUSTOM_FUSE_OPT_KEY("--Log-Path", log_path_param, 0),
+
 		// Estos son parametros por defecto que ya tiene FUSE
 		FUSE_OPT_KEY("-V", KEY_VERSION),
 		FUSE_OPT_KEY("--version", KEY_VERSION),
@@ -1100,22 +1109,28 @@ int main (int argc, char *argv[]){
 		strcpy(fuse_disc_path, "/home/utnso/tp-2013-2c-c-o-no-ser/FileSystem/Testdisk/disk.bin");
 	}
 
-	// Setea el log level del disco:
+	// Settea el log level del disco:
 	t_log_level log_level = LOG_LEVEL_TRACE;
 	if (runtime_options.log_level_param != NULL){
-		if (strcmp(runtime_options.log_level_param, "LockTrace")) log_level = LOG_LEVEL_LOCK_TRACE;
-		else if (strcmp(runtime_options.log_level_param, "Trace")) log_level = LOG_LEVEL_TRACE;
-		else if (strcmp(runtime_options.log_level_param, "Debug")) log_level = LOG_LEVEL_DEBUG;
-		else if (strcmp(runtime_options.log_level_param, "Info")) log_level = LOG_LEVEL_INFO;
-		else if (strcmp(runtime_options.log_level_param, "Warning")) log_level = LOG_LEVEL_WARNING;
-		else if (strcmp(runtime_options.log_level_param, "Error")) log_level = LOG_LEVEL_ERROR;
+		if (!strcmp(runtime_options.log_level_param, "LockTrace")) log_level = LOG_LEVEL_LOCK_TRACE;
+		else if (!strcmp(runtime_options.log_level_param, "Trace")) log_level = LOG_LEVEL_TRACE;
+		else if (!strcmp(runtime_options.log_level_param, "Debug")) log_level = LOG_LEVEL_DEBUG;
+		else if (!strcmp(runtime_options.log_level_param, "Info")) log_level = LOG_LEVEL_INFO;
+		else if (!strcmp(runtime_options.log_level_param, "Warning")) log_level = LOG_LEVEL_WARNING;
+		else if (!strcmp(runtime_options.log_level_param, "Error")) log_level = LOG_LEVEL_ERROR;
 		else log_level = LOG_LEVEL_TRACE;
 	}
 
+	// Settea el log path
+	if (runtime_options.log_path_param != NULL){
+		strcpy(fuse_log_path,runtime_options.log_path_param);
+	} else {
+		strcpy(fuse_log_path,"/home/utnso/tp-2013-2c-c-o-no-ser/FileSystem/log/");
+	}
 	Load_Header_Data();
 
 	// Crea el log:
-	logger = log_create(LOG_PATH, "Grasa Filesystem", 1, log_level);
+	logger = log_create(strcat(LOG_PATH,"Log.txt"), "Grasa Filesystem", 1, log_level);
 
 	log_info(logger, "Log inicializado correctamente");
 
