@@ -1014,6 +1014,22 @@ int obtain_free_blocks(){
 	return free_nodes;
 }
 
+/*
+ *  DESC
+ *  	Settea los permisos de acceso a un file
+ *
+ *  PARAM
+ *  	path - path del archivo
+ *  	flags - flags que corresponden a los permisos del archivo
+ *
+ *  RET
+ *  	0 - Access granted
+ *  	-1 - Access denied
+ */
+int grasa_access(){
+
+	return 0;
+}
 
 
 /*
