@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>librerias</name>
+	<name>personaje</name>
 	<comment></comment>
 	<projects>
-		<project>Shared-Library</project>
+		<project>commons</project>
+		<project>ginyu</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>

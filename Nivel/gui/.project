@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>Personaje</name>
+	<name>gui</name>
 	<comment></comment>
 	<projects>
+		<project>commons</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>

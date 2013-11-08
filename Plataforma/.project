@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>Plataforma</name>
+	<name>plataforma</name>
 	<comment></comment>
 	<projects>
-		<project>Shared-Library</project>
+		<project>commons</project>
+		<project>ginyu</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>

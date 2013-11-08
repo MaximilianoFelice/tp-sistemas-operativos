@@ -23,3 +23,10 @@ makefile
 Debug/
 FileSystem/Testdisk/
 FileSystem/log/
+
+# Settings
+.settings
+/.settings
+
+# Files
+*.log

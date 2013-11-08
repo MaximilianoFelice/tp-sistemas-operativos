@@ -12,8 +12,9 @@ typedef struct item {
 	char id;
 	int posx;
 	int posy;
-	char item_type; // PERSONAJE o CAJA_DE_RECURSOS
+	int item_type; // PERSONAJE o CAJA_DE_RECURSOS
 	int quantity;
+	char num_enemy;
 } ITEM_NIVEL;
 
 

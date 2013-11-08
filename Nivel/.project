@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>Nivel</name>
+	<name>nivel</name>
 	<comment></comment>
 	<projects>
-		<project>Shared-Library</project>
+		<project>commons</project>
+		<project>gui</project>
+		<project>ginyu</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>
