@@ -16,10 +16,11 @@
 #include <errno.h>
 #include <unistd.h>
 #include <sys/mman.h>
-#include "bitarray.h"
+#include <commons/bitarray.h>
 #include <semaphore.h>
 #include <pthread.h>
-#include "log.h"
+#include <commons/log.h>
+#include <commons/string.h>
 #include <signal.h>
 #include <time.h>
 
@@ -51,10 +52,6 @@ struct grasa_file_t *node_table_start, *data_block_start, *bitmap_start;
 // Utiliza esta estructura para almacenar el numero de descriptor en el cual se abrio el disco
 int discDescriptor;
 
-int lastchar(const char* str, char chr){
-	if ( ( str[strlen(str)-1]  == chr) ) return 1;
-	return 0;
-}
 
 /*
  *

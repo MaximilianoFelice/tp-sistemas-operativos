@@ -26,9 +26,9 @@
 #include <stdbool.h>
 #include <stdarg.h>
 
-#define LOG_ENUM_SIZE 5
+#define LOG_ENUM_SIZE 6
 
-static char *enum_names[LOG_ENUM_SIZE] = {"TRACE", "DEBUG", "INFO", "WARNING", "ERROR"};
+static char *enum_names[LOG_ENUM_SIZE] = {"LOCK_TRACE", "TRACE", "DEBUG", "INFO", "WARNING", "ERROR"};
 
 /**
  * Private Functions
@@ -93,6 +93,15 @@ void log_destroy(t_log* logger) {
 	txt_close_file(logger->file);
 	free(logger);
 }
+
+/**
+ * @NAME: log_lock_trace
+ * @DESC: Loguea un mensaje con el siguiente formato
+ *
+ * [TRACE] hh:mm:ss:mmmm PROCESS_NAME/(PID:TID): MESSAGE
+ *
+ */
+log_impl_template(log_lock_trace, LOG_LEVEL_LOCK_TRACE);
 
 /**
  * @NAME: log_trace

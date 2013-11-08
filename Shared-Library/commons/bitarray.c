@@ -26,10 +26,12 @@
  */
 t_bitarray *bitarray_create(char *bitarray, size_t size) {
 	t_bitarray *self = malloc(sizeof(t_bitarray));
+
 	self->bitarray = bitarray;
 	self->size = size;
 
 	return self;
+
 }
 
 /*

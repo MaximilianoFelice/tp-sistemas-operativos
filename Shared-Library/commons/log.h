@@ -22,6 +22,7 @@
 
 
 	typedef enum {
+		LOG_LEVEL_LOCK_TRACE,
 		LOG_LEVEL_TRACE,
 		LOG_LEVEL_DEBUG,
 		LOG_LEVEL_INFO,
@@ -41,6 +42,7 @@
 	t_log* 		log_create(char* file, char *program_name, bool is_active_console, t_log_level level);
 	void 		log_destroy(t_log* logger);
 
+	void		log_lock_trace(t_log* logger, const char* message, ...);
 	void 		log_trace(t_log* logger, const char* message, ...);
 	void 		log_debug(t_log* logger, const char* message, ...);
 	void 		log_info(t_log* logger, const char* message, ...);

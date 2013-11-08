@@ -48,6 +48,7 @@
 
 	void 	string_iterate_lines(char ** strings, void (*closure)(char *));
 	char**  string_get_string_as_array(char* text);
+	int lastchar(const char*, char);
 
 	// Funciones agregadas
 	int lastchar(const char*, char);
