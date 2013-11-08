@@ -44,6 +44,6 @@ t_log* logInit(char** argv, char* who){
 
 	t_log* auxLog = log_create(path, who, verbose, logLevel);
 
-	log_error(auxLog, "-----------------------------------------");
+	log_info(auxLog, "--------------- Started log tracking ---------------");
 	return auxLog;
 }
