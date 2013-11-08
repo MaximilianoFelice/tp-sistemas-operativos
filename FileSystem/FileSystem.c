@@ -17,10 +17,11 @@
 #include <unistd.h>
 #include <sys/mman.h>
 #include "bitarray.h"
-#include <limits.h>		// Aqui obtenemos el CHAR_BIT, que nos permite obtener la cantidad de bits en un char.
 #include <semaphore.h>
 #include <pthread.h>
 #include "log.h"
+#include <signal.h>
+#include <time.h>
 
 // Definimos el semaforo que se utilizará para poder escribir:
 pthread_rwlock_t rwlock = PTHREAD_RWLOCK_INITIALIZER;
@@ -43,12 +44,41 @@ struct t_runtime_options {
 	char* log_path_param;
 } runtime_options;
 
+// Define los datos de mappeo de memoria:
+struct grasa_header_t *header_start;
+struct grasa_file_t *node_table_start, *data_block_start, *bitmap_start;
+
+// Utiliza esta estructura para almacenar el numero de descriptor en el cual se abrio el disco
+int discDescriptor;
 
 int lastchar(const char* str, char chr){
 	if ( ( str[strlen(str)-1]  == chr) ) return 1;
 	return 0;
 }
 
+/*
+ *
+ */
+int split_path(const char* path, char** super_path, char** name){
+	int aux;
+	strcpy(*super_path, path);
+	strcpy(*name, path);
+	// Obtiene y acomoda el nombre del archivo.
+	if (lastchar(path, '/')) {
+		(*name)[strlen(*name)-1] = '\0';
+	}
+	*name = strrchr(*name, '/');
+	*name = *name + 1; // Acomoda el nombre, ya que el primer digito siempre es '/'
+
+	// Acomoda el super_path
+	if (lastchar(*super_path, '/')) {
+		(*super_path)[strlen(*super_path)-1] = '\0';
+	}
+	aux = strlen(*super_path) - strlen(*name);
+	(*super_path)[aux] = '\0';
+
+	return 0;
+}
 
 /* @DESC
  * 		Determina cual es el nodo sobre el cual se encuentra un path.
@@ -66,44 +96,22 @@ ptrGBloque determinar_nodo(const char* path){
 	// Si es el directorio raiz, devuelve 0:
 	if(!strcmp(path, "/")) return 0;
 
-	int fd, i, nodo_anterior, aux, err = 0;
+	int i, nodo_anterior, err = 0;
 	// Super_path usado para obtener la parte superior del path, sin el nombre.
 	char *super_path = (char*) malloc(strlen(path) +1), *nombre = (char*) malloc(strlen(path)+1);
 	char *start = nombre, *start_super_path = super_path; //Estos liberaran memoria.
-	struct grasa_file_t *node, *inicio;
+	struct grasa_file_t *node;
 	unsigned char *node_name;
 
-	strcpy(super_path, path);
-	strcpy(nombre, path);
-	// Obtiene y acomoda el nombre del archivo.
-	if (lastchar(path, '/')) {
-		nombre[strlen(nombre)-1] = '\0';
-	}
-	nombre = strrchr(nombre, '/');
-	nombre[0] = '\0';
-	nombre = &nombre[1]; // Acomoda el nombre, ya que el primer digito siempre es '/'
-
-	// Acomoda el super_path
-	if (lastchar(super_path, '/')) {
-		super_path[strlen(super_path)-1] = '\0';
-	}
-	aux = strlen(super_path) - strlen(nombre);
-	super_path[aux] = '\0';
+	split_path(path, &super_path, &nombre);
 
 	nodo_anterior = determinar_nodo(super_path);
 
 
 	pthread_rwlock_rdlock(&rwlock); //Toma un lock de lectura.
 			log_lock_trace(logger, "Determinar_nodo: Toma lock lectura. Cantidad de lectores: %d", rwlock.__data.__nr_readers);
-	// Abrir conexion y traer directorios, guarda el bloque de inicio para luego liberar memoria
-	if ((fd = open(DISC_PATH, O_RDONLY, 0)) == -1) {
-		printf("ERROR");
-		err = -ENOENT;
-		goto finalizar;
-	}
-	node = (void*) mmap(NULL, HEADER_SIZE_B + BITMAP_SIZE_B + NODE_TABLE_SIZE_B , PROT_READ, MAP_SHARED, fd, 0);
-	inicio = node;
-	node = &(node[GFILEBYBLOCK + BITMAP_BLOCK_SIZE]);
+
+	node = node_table_start;
 
 	// Busca el nodo sobre el cual se encuentre el nombre.
 	node_name = &(node->fname[0]);
@@ -113,13 +121,10 @@ ptrGBloque determinar_nodo(const char* path){
 	}
 
 	// Cierra conexiones y libera memoria.
-	finalizar:
 	pthread_rwlock_unlock(&rwlock);
 			log_lock_trace(logger, "Determinar_nodo: Libera lock lectura. Cantidad de lectores: %d", rwlock.__data.__nr_readers);
 	free(start);
 	free(start_super_path);
-	if (munmap(inicio, HEADER_SIZE_B + BITMAP_SIZE_B + NODE_TABLE_SIZE_B) == -1) printf("ERROR");
-	close(fd);
 	if (err != 0) return err;
 	if (i >= GFILEBYTABLE) return -1;
 	return (i+1);
@@ -152,9 +157,9 @@ ptrGBloque determinar_nodo(const char* path){
  */
 static int grasa_getattr(const char *path, struct stat *stbuf) {
 			log_info(logger, "Getattr: Path: %s", path);
-	int nodo = determinar_nodo(path), fd, res;
+	int nodo = determinar_nodo(path), res;
 	if (nodo < 0) return -ENOENT;
-	struct grasa_file_t *node, *inicio;
+	struct grasa_file_t *node;
 	memset(stbuf, 0, sizeof(struct stat));
 
 	if (strcmp(path, "/") == 0){
@@ -163,29 +168,27 @@ static int grasa_getattr(const char *path, struct stat *stbuf) {
 		return 0;
 	}
 
-	// Abrir conexion y traer directorios, guarda el bloque de inicio para luego liberar memoria
 	pthread_rwlock_rdlock(&rwlock); //Toma un lock de lectura.
 			log_lock_trace(logger, "Getattr: Toma lock lectura. Cantidad de lectores: %d", rwlock.__data.__nr_readers);
-	if ((fd = open(DISC_PATH, O_RDONLY, 0)) == -1) {
-		printf("ERROR");
-		res = -ENOENT;
-		goto finalizar;
-	}
-	node = (void*) mmap(NULL, HEADER_SIZE_B + BITMAP_SIZE_B + NODE_TABLE_SIZE_B , PROT_READ, MAP_SHARED, fd, 0);
-	inicio = node;
-	node = &(node[GFILEBYBLOCK + BITMAP_BLOCK_SIZE]);
+
+	node = node_table_start;
 
 	node = &(node[nodo-1]);
 
 	if (node->state == 2){
 		stbuf->st_mode = S_IFDIR | 0777;
 		stbuf->st_nlink = 2;
+		stbuf->st_size = 4096; // Default para los directorios, es una "convencion".
+		stbuf->st_mtime = node->m_date;
+		stbuf->st_ctime = node->c_date;
 		res = 0;
 		goto finalizar;
 	} else if(node->state == 1){
 		stbuf->st_mode = S_IFREG | 0777;
 		stbuf->st_nlink = 1;
 		stbuf->st_size = node->file_size;
+		stbuf->st_mtime = node->m_date;
+		stbuf->st_ctime = node->c_date;
 		res = 0;
 		goto finalizar;
 	}
@@ -193,8 +196,6 @@ static int grasa_getattr(const char *path, struct stat *stbuf) {
 	res = -ENOENT;
 	// Cierra conexiones y libera memoria.
 	finalizar:
-	if (munmap(inicio, HEADER_SIZE_B + BITMAP_SIZE_B + NODE_TABLE_SIZE_B) == -1) printf("ERROR");
-	close(fd);
 	pthread_rwlock_unlock(&rwlock); // Libera el lock.
 			log_lock_trace(logger, "Getattr:: Libera lock lectura. Cantidad de lectores: %d", rwlock.__data.__nr_readers);
 	return res;
@@ -218,18 +219,15 @@ static int grasa_getattr(const char *path, struct stat *stbuf) {
  */
 static int grasa_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi) {
 			log_info(logger, "Readdir: Path: %s - Offset %d", path, offset);
-	int fd, i, nodo = determinar_nodo((char*) path), res = 0;
-	struct grasa_file_t *node, *inicio;
+	int i, nodo = determinar_nodo((char*) path), res = 0;
+	struct grasa_file_t *node;
 
 	if (nodo == -1) return  -ENOENT;
 
 	pthread_rwlock_rdlock(&rwlock); //Toma un lock de lectura.
 				log_lock_trace(logger, "Readdir: Toma lock lectura. Cantidad de lectores: %d", rwlock.__data.__nr_readers);
 
-	if ((fd = open(DISC_PATH, O_RDONLY, 0)) == -1) printf("ERROR");
-	node = (void*) mmap(NULL, HEADER_SIZE_B + BITMAP_SIZE_B + NODE_TABLE_SIZE_B , PROT_READ, MAP_SHARED, fd, 0);
-	inicio = node;
-	node = &(node[GFILEBYBLOCK + BITMAP_BLOCK_SIZE]);
+	node = node_table_start;
 
 	// "." y ".." obligatorios.
 	filler(buf, ".", NULL, 0);
@@ -241,9 +239,6 @@ static int grasa_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
 		node = &node[1];
 	}
 
-
-	if (munmap(inicio, HEADER_SIZE_B + BITMAP_SIZE_B + NODE_TABLE_SIZE_B) == -1) printf("ERROR");
-	close(fd);
 
 	pthread_rwlock_unlock(&rwlock); //Devuelve un lock de lectura.
 			log_lock_trace(logger, "Readdir: Libera lock lectura. Cantidad de lectores: %d", rwlock.__data.__nr_readers);
@@ -289,9 +284,9 @@ static int grasa_open(const char *path, struct fuse_file_info *fi) {
 static int grasa_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
 			log_info(logger, "Reading: Path: %s - Size: %d - Offset %d", path, size, offset);
 	(void) fi;
-	unsigned int fd, nodo = determinar_nodo(path), bloque_punteros, num_bloque_datos;
+	unsigned int nodo = determinar_nodo(path), bloque_punteros, num_bloque_datos;
 	unsigned int bloque_a_buscar; // Estructura auxiliar para no dejar choclos
-	struct grasa_file_t *node, *inicio, *inicio_data_block;
+	struct grasa_file_t *node;
 	ptrGBloque *pointer_block;
 	char *data_block;
 	size_t tam = size;
@@ -300,11 +295,7 @@ static int grasa_read(const char *path, char *buf, size_t size, off_t offset, st
 	pthread_rwlock_rdlock(&rwlock); //Toma un lock de lectura.
 			log_lock_trace(logger, "Read: Toma lock lectura. Cantidad de lectores: %d", rwlock.__data.__nr_readers);
 
-	// Abrir conexion y traer directorios, guarda el bloque de inicio para luego liberar memoria
-	if ((fd = open(DISC_PATH, O_RDWR, 0)) == -1) printf("ERROR");
-	node = (void*) mmap(NULL, ACTUAL_DISC_SIZE_B , PROT_WRITE | PROT_READ | PROT_EXEC, MAP_SHARED, fd, (GFILEBYBLOCK + BITMAP_BLOCK_SIZE)*BLOCKSIZE);
-	inicio = node;
-	inicio_data_block = &(node[NODE_TABLE_SIZE]);
+	node = node_table_start;
 
 	// Ubica el nodo correspondiente al archivo
 	node = &(node[nodo-1]);
@@ -325,7 +316,7 @@ static int grasa_read(const char *path, char *buf, size_t size, off_t offset, st
 
 		bloque_a_buscar = (node->blk_indirect)[bloque_punteros];	// Ubica el nodo de punteros a nodos de datos, es relativo al nodo 0: Header.
 		bloque_a_buscar -= (GFILEBYBLOCK + BITMAP_BLOCK_SIZE + NODE_TABLE_SIZE);	// Acomoda el nodo de punteros a nodos de datos, es relativo al bloque de datos.
-		pointer_block =(ptrGBloque *) &(inicio_data_block[bloque_a_buscar]);		// Apunta al nodo antes ubicado. Lo utiliza para saber de donde leer los datos.
+		pointer_block =(ptrGBloque *) &(data_block_start[bloque_a_buscar]);		// Apunta al nodo antes ubicado. Lo utiliza para saber de donde leer los datos.
 
 		// Recorre el bloque de punteros correspondiente.
 		for (num_bloque_datos = 0; num_bloque_datos < 1024; num_bloque_datos++){
@@ -338,7 +329,7 @@ static int grasa_read(const char *path, char *buf, size_t size, off_t offset, st
 
 			bloque_a_buscar = pointer_block[num_bloque_datos]; 	// Ubica el nodo de datos correspondiente. Relativo al nodo 0: Header.
 			bloque_a_buscar -= (GFILEBYBLOCK + BITMAP_BLOCK_SIZE + NODE_TABLE_SIZE);	// Acomoda el nodo, haciendolo relativo al bloque de datos.
-			data_block = (char *) &(inicio_data_block[bloque_a_buscar]);
+			data_block = (char *) &(data_block_start[bloque_a_buscar]);
 
 			// Corre el offset hasta donde sea necesario para poder leer lo que quiere.
 			if (offset > 0){
@@ -365,8 +356,6 @@ static int grasa_read(const char *path, char *buf, size_t size, off_t offset, st
 	res = size;
 
 	finalizar:
-	if (munmap(inicio, ACTUAL_DISC_SIZE_B ) == -1) printf("ERROR");
-	close(fd);
 	pthread_rwlock_unlock(&rwlock); //Devuelve el lock de lectura.
 			log_lock_trace(logger, "Read: Libera lock lectura. Cantidad de lectores: %d", rwlock.__data.__nr_readers);
 
@@ -387,7 +376,7 @@ static int grasa_read(const char *path, char *buf, size_t size, off_t offset, st
  *  @RETURN
  *  	Devuelve el numero de un nodo libre listo para escribir. Si hay error, un numero negativo.
  */
-int get_node(struct grasa_file_t *bitmap_start, size_t bitmap_size){
+int get_node(void){
 	t_bitarray *bitarray;
 	int i, res;
 	struct grasa_file_t *node = bitmap_start, *data_block = &node[BITMAP_BLOCK_SIZE + NODE_TABLE_SIZE];
@@ -400,6 +389,7 @@ int get_node(struct grasa_file_t *bitmap_start, size_t bitmap_size){
 
 	// Setea en 1 el bitmap.
 	bitarray_set_bit(bitarray, i);
+	bitmap_free_blocks--;
 
 	// Limpia el contenido del nodo.
 	i -= (GHEADERBLOCKS + BITMAP_BLOCK_SIZE + NODE_TABLE_SIZE);
@@ -416,30 +406,27 @@ int get_node(struct grasa_file_t *bitmap_start, size_t bitmap_size){
  *  	Actualiza la informacion del archivo.
  *
  *  @PARAM
+ *		file_data - El puntero al nodo en el que se encuentra el archivo.
+ *		node_number - El numero de nodo que se le debe agregar.
  *
  *  @RET
  *  	Devuelve 0 si salio bien, negativo si hubo problemas.
  */
-int add_node(struct grasa_file_t *file_data, struct grasa_file_t *inicio_data_block, int node_number, struct grasa_file_t *bitmap_start){
+int add_node(struct grasa_file_t *file_data, int node_number){
 	int node_pointer_number, position;
 	size_t tam = file_data->file_size;
 	int new_pointer_block;
-	size_t bitmap_size = (BITMAP_SIZE_B * CHAR_BIT);
-	struct grasa_file_t *node = inicio_data_block;
+	struct grasa_file_t *node = data_block_start;
 	ptrGBloque *nodo_punteros;
 
 	// Ubica el ultimo nodo escrito y se posiciona en el mismo.
 	for (node_pointer_number = 0; (tam >= (BLOCKSIZE * 1024)); tam -= (BLOCKSIZE * 1024), node_pointer_number++);
 	for (position = 0; (tam >= BLOCKSIZE); tam -= BLOCKSIZE, position++);
 
-	// Se posiciona en el siguiente nodo (a escribir)
-
-
 	// Si es el primer nodo del archivo y esta escrito, debe escribir el segundo.
 	// Se sabe que el primer nodo del archivo esta escrito siempre que el primer puntero a bloque punteros del nodo sea distinto de 0 (file_data->blk_indirect[0] != 0)
 	// ya que se le otorga esa marca (=0) al escribir el archivo, para indicar que es un archivo nuevo.
 	if ((file_data->blk_indirect[node_pointer_number] != 0)){
-		//position++;
 		if (position == 1024) {
 			position = 0;
 			node_pointer_number++;
@@ -447,7 +434,7 @@ int add_node(struct grasa_file_t *file_data, struct grasa_file_t *inicio_data_bl
 	}
 	// Si es el ultimo nodo en el bloque de punteros, pasa al siguiente
 	if (position == 0){
-		new_pointer_block = get_node(bitmap_start, bitmap_size);
+		new_pointer_block = get_node();
 		file_data->blk_indirect[node_pointer_number] = new_pointer_block;
 		// Cuando crea un bloque, settea al siguente como 0, dejando una marca.
 		file_data->blk_indirect[node_pointer_number +1] = 0;
@@ -481,8 +468,8 @@ int add_node(struct grasa_file_t *file_data, struct grasa_file_t *inicio_data_bl
  */
 int grasa_mkdir (const char *path, mode_t mode){
 			log_info(logger, "Mkdir: Path: %s", path);
-	int fd, nodo_padre, i, res = 0;
-	struct grasa_file_t *node, *inicio;
+	int nodo_padre, i, res = 0;
+	struct grasa_file_t *node;
 	char *nombre = malloc(strlen(path) + 1), *nom_to_free = nombre;
 	char *dir_padre = malloc(strlen(path) + 1), *dir_to_free = dir_padre;
 
@@ -513,15 +500,13 @@ int grasa_mkdir (const char *path, mode_t mode){
 	pthread_rwlock_wrlock(&rwlock);
 			log_lock_trace(logger, "Mkdir: Recibe lock escritura.");
 	// Abrir conexion y traer directorios, guarda el bloque de inicio para luego liberar memoria
-	if ((fd = open(DISC_PATH, O_RDWR, 0)) == -1) printf("ERROR");
-	node = (void*) mmap(NULL, HEADER_SIZE_B + BITMAP_SIZE_B + NODE_TABLE_SIZE_B , PROT_WRITE | PROT_READ | PROT_EXEC, MAP_SHARED, fd, (GFILEBYBLOCK)*BLOCKSIZE);
-	inicio = node;
+	node = bitmap_start;
 
 	// Busca si existe algun otro directorio con ese nombre. Caso afirmativo, se lo avisa a FUSE con -EEXIST.
-	for (i=1; i <= 1024 ;i++){
+	for (i=0; i < 1024 ;i++){
 		char *fname;
-		fname = (char*) &((&inicio[i])->fname);
-		if (((&inicio[i])->state != DELETED_T) & (strcmp(fname, nombre) == 0)) {
+		fname = (char*) &((&node_table_start[i])->fname);
+		if (((&node_table_start[i])->state != DELETED_T) & (strcmp(fname, nombre) == 0)) {
 			res = -EEXIST;
 			goto finalizar;
 		}
@@ -546,9 +531,6 @@ int grasa_mkdir (const char *path, mode_t mode){
 	free(nom_to_free);
 	free(dir_to_free);
 
-	if (munmap(inicio, BITMAP_SIZE_B + NODE_TABLE_SIZE_B ) == -1) printf("ERROR");
-
-	close(fd);
 	// Devuelve el lock de escritura.
 	pthread_rwlock_unlock(&rwlock);
 			log_lock_trace(logger, "Mkdir: Devuelve lock escritura. En cola: %d", rwlock.__data.__nr_writers_queued);
@@ -588,9 +570,8 @@ int set_position (int *pointer_block, int *data_block, size_t size, off_t offset
  *	@RET
  *
  */
-int delete_nodes_upto (struct grasa_file_t *file_data, int pointer_upto, int data_upto, struct grasa_file_t *bitmap_start){
+int delete_nodes_upto (struct grasa_file_t *file_data, int pointer_upto, int data_upto){
 	t_bitarray *bitarray;
-	size_t bitmap_size = (BITMAP_SIZE_B * CHAR_BIT);
 	size_t file_size = file_data->file_size;
 	int node_to_delete;
 	ptrGBloque *aux; // Auxiliar utilizado para saber que nodo redireccionar
@@ -615,6 +596,7 @@ int delete_nodes_upto (struct grasa_file_t *file_data, int pointer_upto, int dat
 		aux = &(file_data->blk_indirect[pointer_pos]);
 		node_to_delete = aux[data_pos];
 		bitarray_clean_bit(bitarray, node_to_delete);
+		bitmap_free_blocks++;
 
 		// Reubica el offset
 		data_pos--;
@@ -643,14 +625,25 @@ int delete_nodes_upto (struct grasa_file_t *file_data, int pointer_upto, int dat
 }
 
 /*
+ *	@DESC
+ *		Obtiene espacio nuevo para un archivo, agregandole los nodos que sean necesarios.
+ *		Actualiza el FileSize al tamanio correspondiente.
  *
+ *	@PARAM
+ *		file_data - El puntero al nodo donde se encuentra el archivo.
+ *		size - El tamanio que se le debe agregar.
+ *
+ *	@RET
+ *		0 - Se consiguio el espacio requerido
+ *		negativo - Error.
  */
-int get_new_space (struct grasa_file_t *file_data, int size, struct grasa_file_t *bitmap_start, struct grasa_file_t *inicio_data_block){
+int get_new_space (struct grasa_file_t *file_data, int size){
 	size_t file_size = file_data->file_size, space_in_block = file_size % BLOCKSIZE;
-//	size_t total_size = file_size + size;
 	int new_node;
-	size_t bitmap_size = (BITMAP_SIZE_B * CHAR_BIT);
 	space_in_block = BLOCKSIZE - space_in_block; // Calcula cuanto tamanio le queda para ocupar en el bloque
+
+	// Si no hay suficiente espacio, retorna error.
+	if ((bitmap_free_blocks*BLOCKSIZE) < (size - space_in_block)) return -1;
 
 	// Actualiza el file size al tamanio que le corresponde:
 	if (space_in_block >= size){
@@ -661,8 +654,8 @@ int get_new_space (struct grasa_file_t *file_data, int size, struct grasa_file_t
 	}
 
 	while ( (space_in_block <= size) ){ // Siempre que lo que haya que escribir sea mas grande que el espacio que quedaba en el bloque
-		new_node = get_node(bitmap_start, bitmap_size);
-		add_node(file_data, inicio_data_block, new_node, bitmap_start);
+		new_node = get_node();
+		add_node(file_data, new_node);
 		size -= BLOCKSIZE;
 		file_data->file_size += BLOCKSIZE;
 	}
@@ -678,7 +671,7 @@ int get_new_space (struct grasa_file_t *file_data, int size, struct grasa_file_t
  *
  *	@PARAM
  *		Path - El path donde tiene que borrar.
- *hanged in version 2.2
+ *
  *	@RET
  *		0 Si esta OK, -ENOENT si no pudo.
  *
@@ -687,24 +680,22 @@ int get_new_space (struct grasa_file_t *file_data, int size, struct grasa_file_t
  */
 int grasa_rmdir (const char* path){
 			log_trace(logger, "Rmdir: Path: %s", path);
-	int fd, nodo_padre = determinar_nodo(path), i, res = 0;
+	int nodo_padre = determinar_nodo(path), i, res = 0;
 	if (nodo_padre < 0) return -ENOENT;
-	struct grasa_file_t *node, *inicio;
+	struct grasa_file_t *node;
 
 	// Toma un lock de escritura.
 			log_lock_trace(logger, "Rmdir: Pide lock escritura. Escribiendo: %d. En cola: %d.", rwlock.__data.__writer, rwlock.__data.__nr_writers_queued);
 	pthread_rwlock_wrlock(&rwlock);
 			log_lock_trace(logger, "Rmdir: Recibe lock escritura.");
 	// Abre conexiones y levanta la tabla de nodos en memoria.
-	if ((fd = open(DISC_PATH, O_RDWR, 0)) == -1) printf("ERROR");
-	node = (void*) mmap(NULL, HEADER_SIZE_B + BITMAP_SIZE_B + NODE_TABLE_SIZE_B , PROT_WRITE | PROT_READ | PROT_EXEC, MAP_SHARED, fd, (GFILEBYBLOCK)*BLOCKSIZE);
-	inicio = node;
+	node = bitmap_start;
 
 	node = &(node[nodo_padre]);
 
 	// Chequea si el directorio esta vacio. En caso que eso suceda, FUSE se encarga de borrar lo que hay dentro.
-	for (i=1; i <= 1024 ;i++){
-		if (((&inicio[i])->state != DELETED_T) & ((&inicio[i])->parent_dir_block == nodo_padre)) {
+	for (i=0; i < 1024 ;i++){
+		if (((&node_table_start[i])->state != DELETED_T) & ((&node_table_start[i])->parent_dir_block == nodo_padre)) {
 			res = -ENOTEMPTY;
 			goto finalizar;
 		}
@@ -715,9 +706,6 @@ int grasa_rmdir (const char* path){
 
 	// Cierra, ponele la alarma y se va para su casa. Mejor dicho, retorna 0 :D
 	finalizar:
-	if (munmap(inicio, BITMAP_SIZE_B + NODE_TABLE_SIZE_B ) == -1) printf("ERROR");
-
-	close(fd);
 	// Devuelve el lock de escritura.
 	pthread_rwlock_unlock(&rwlock);
 			log_lock_trace(logger, "Rmdir: Devuelve lock escritura. En cola: %d", rwlock.__data.__nr_writers_queued);
@@ -739,28 +727,22 @@ int grasa_rmdir (const char* path){
  */
 int grasa_truncate (const char *path, off_t new_size){
 			log_info(logger, "Truncate: Path: %s - New size: %d", path, new_size);
-	int fd, nodo_padre = determinar_nodo(path);
+	int nodo_padre = determinar_nodo(path);
 	if (nodo_padre < 0) return -ENOENT;
-	struct grasa_file_t *node, *inicio;
-	struct grasa_file_t *bitmap_start;
-	struct grasa_file_t *data_block_start;
+	struct grasa_file_t *node;
 
 	// Toma un lock de escritura.
 			log_lock_trace(logger, "Truncate: Pide lock escritura. Escribiendo: %d. En cola: %d.", rwlock.__data.__writer, rwlock.__data.__nr_writers_queued);
 	pthread_rwlock_wrlock(&rwlock);
 			log_lock_trace(logger, "Truncate: Recibe lock escritura.");
 	// Abre conexiones y levanta la tabla de nodos en memoria.
-	if ((fd = open(DISC_PATH, O_RDWR, 0)) == -1) printf("ERROR");
-	node = (void*) mmap(NULL, ACTUAL_DISC_SIZE_B , PROT_WRITE | PROT_READ | PROT_EXEC, MAP_SHARED, fd, (GFILEBYBLOCK)*BLOCKSIZE);
-	inicio = node;
-	bitmap_start = node;
-	data_block_start = &(node[BITMAP_BLOCK_SIZE + NODE_TABLE_SIZE]);
+	node = bitmap_start;
 
 	node = &(node[nodo_padre]);
 
 	// Si el nuevo size es mayor, se deben reservar los nodos correspondientes:
 	if (new_size > node->file_size){
-		get_new_space(node, (new_size - node->file_size), bitmap_start, data_block_start);
+		get_new_space(node, (new_size - node->file_size));
 
 	} else {	// Si no, se deben borrar los nodos hasta ese punto.
 		int pointer_to_delete;
@@ -768,16 +750,13 @@ int grasa_truncate (const char *path, off_t new_size){
 
 		set_position(&pointer_to_delete, &data_to_delete, 0, node->file_size);
 
-		delete_nodes_upto(node, pointer_to_delete, data_to_delete, bitmap_start);
+		delete_nodes_upto(node, pointer_to_delete, data_to_delete);
 	}
 
 	node->file_size = new_size; // Aca le dice su nuevo size.
 
 
 	// Cierra, ponele la alarma y se va para su casa. Mejor dicho, retorna 0 :D
-	if (munmap(inicio, BITMAP_SIZE_B + NODE_TABLE_SIZE_B ) == -1) printf("ERROR");
-
-	close(fd);
 	// Devuelve el lock de escritura.
 	pthread_rwlock_wrlock(&rwlock);
 			log_lock_trace(logger, "Truncate: Devuelve lock escritura. En cola: %d", rwlock.__data.__nr_writers_queued);
@@ -801,10 +780,9 @@ int grasa_truncate (const char *path, off_t new_size){
 int grasa_write (const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi){
 			log_trace(logger, "Writing: Path: %s - Size: %d - Offset %d", path, size, offset);
 	(void) fi;
-	int fd, nodo = determinar_nodo(path);
+	int nodo = determinar_nodo(path);
 	int new_free_node;
-	size_t bitmap_size = (BITMAP_SIZE_B * CHAR_BIT);
-	struct grasa_file_t *node, *inicio_bitmap, *inicio_data_block;
+	struct grasa_file_t *node;
 	char *data_block;
 	size_t tam = size, file_size, space_in_block, offset_in_block = offset % BLOCKSIZE;
 	off_t off = offset;
@@ -816,11 +794,7 @@ int grasa_write (const char *path, const char *buf, size_t size, off_t offset, s
 	pthread_rwlock_wrlock(&rwlock);
 			log_lock_trace(logger, "Write: Recibe lock escritura.");
 	// Abrir conexion y traer directorios, guarda el bloque de inicio para luego liberar memoria
-	if ((fd = open(DISC_PATH, O_RDWR, 0)) == -1) printf("ERROR");
-	inicio_bitmap = (void*) mmap(NULL, ACTUAL_DISC_SIZE_B , PROT_WRITE | PROT_READ | PROT_EXEC, MAP_SHARED, fd, (GFILEBYBLOCK)*BLOCKSIZE);
-	node = inicio_bitmap;
-	node = (&node[BITMAP_BLOCK_SIZE]);
-	inicio_data_block = &(node[NODE_TABLE_SIZE]);
+	node = node_table_start;
 
 	// Ubica el nodo correspondiente al archivo
 	node = &(node[nodo-1]);
@@ -837,24 +811,27 @@ int grasa_write (const char *path, const char *buf, size_t size, off_t offset, s
 		// Si el offset es mayor que el tamanio del archivo mas el resto del bloque libre, significa que hay que pedir un bloque nuevo
 		if ((off >= (file_size + space_in_block)) & (file_size != 0)){
 
+			// Si no hay espacio en el disco, retorna error.
+			if (bitmap_free_blocks == 0) return -ENOSPC;
+
 			// Obtiene un bloque libre para escribir.
-			new_free_node = get_node(inicio_bitmap, bitmap_size);
+			new_free_node = get_node();
 
 			// Actualiza la informacion del archivo.
-			add_node(node, inicio_data_block, new_free_node, inicio_bitmap);
+			add_node(node, new_free_node);
 
 			// Lo relativiza al data block.
 			new_free_node -= (GHEADERBLOCKS + NODE_TABLE_SIZE + BITMAP_BLOCK_SIZE);
-			data_block = (char*) &(inicio_data_block[new_free_node]);
+			data_block = (char*) &(data_block_start[new_free_node]);
 
 		} else {
 			//Ubica el nodo a escribir.
 			*n_pointer_block = node->blk_indirect[*n_pointer_block];
 			*n_pointer_block -= (GHEADERBLOCKS + NODE_TABLE_SIZE + BITMAP_BLOCK_SIZE);
-			pointer_block = (ptrGBloque*) &(inicio_data_block[*n_pointer_block]);
+			pointer_block = (ptrGBloque*) &(data_block_start[*n_pointer_block]);
 			*n_data_block = pointer_block[*n_data_block];
 			*n_data_block -= (GHEADERBLOCKS + NODE_TABLE_SIZE + BITMAP_BLOCK_SIZE);
-			data_block = (char*) &(inicio_data_block[*n_data_block]);
+			data_block = (char*) &(data_block_start[*n_data_block]);
 		}
 
 		// Escribe en ese bloque de datos.
@@ -872,10 +849,6 @@ int grasa_write (const char *path, const char *buf, size_t size, off_t offset, s
 
 	}
 
-	// Cierra lo que tiene en memoria.
-	if (munmap(inicio_bitmap, ACTUAL_DISC_SIZE_B ) == -1) printf("ERROR");
-
-	close(fd);
 	// Devuelve el lock de escritura.
 	pthread_rwlock_unlock(&rwlock);
 			log_lock_trace(logger, "Write: Devuelve lock escritura. En cola: %d", rwlock.__data.__nr_writers_queued);
@@ -905,7 +878,6 @@ int grasa_mknod (const char* path, mode_t mode, dev_t dev){
 	char *nombre = malloc(strlen(path) + 1), *nom_to_free = nombre;
 	char *dir_padre = malloc(strlen(path) + 1), *dir_to_free = dir_padre;
 	char *data_block;
-	size_t bitmap_size = (BITMAP_SIZE_B * CHAR_BIT);
 
 	// Obtiene el nombre del path:
 	strcpy(nombre, path);
@@ -955,12 +927,12 @@ int grasa_mknod (const char* path, mode_t mode, dev_t dev){
 	res = 0;
 
 	// Obtiene un bloque libre para escribir.
-	new_free_node = get_node(inicio, bitmap_size);
+	new_free_node = get_node();
 
 
 	// Actualiza la informacion del archivo.
 	inicio_data_block = &inicio[BITMAP_BLOCK_SIZE + NODE_TABLE_SIZE];
-	add_node(node, inicio_data_block, new_free_node, inicio);
+	add_node(node, new_free_node);
 
 	// Lo relativiza al data block.
 	new_free_node -= (GHEADERBLOCKS + NODE_TABLE_SIZE + BITMAP_BLOCK_SIZE);
@@ -999,6 +971,52 @@ int grasa_unlink (const char* path){
 	}
 
 /*
+ *
+ */
+int grasa_rename (const char* oldpath, const char* newpath){
+
+			log_info(logger, "Rename: Moviendo archivo. From: %s - To: %s", oldpath, newpath);
+	char* newroute = malloc(strlen(newpath) + 1);
+	char* newname = malloc(GFILENAMELENGTH + 1);
+	char* tofree1 = newroute;
+	char* tofree2 = newname;
+	split_path(newpath, &newroute, &newname);
+	int old_node = determinar_nodo(oldpath), new_parent_node = determinar_nodo(newroute);
+
+	// Modifica los valores del file. Como el determinar_nodo devuelve el numero de nodo +1, lo reubica.
+	strcpy((char *) &(node_table_start[old_node - 1].fname[0]), newname);
+	node_table_start[old_node -1].parent_dir_block = new_parent_node;
+
+	free(tofree1);
+	free(tofree2);
+
+	return 0;
+}
+
+/*
+ * 	@DESC
+ * 		Obtiene y registra la cantidad de bloques de datos libres.
+ */
+int obtain_free_blocks(){
+	t_bitarray *bitarray;
+	int free_nodes=0, i;
+
+	bitarray = bitarray_create((char*) bitmap_start, bitmap_size);
+
+	for (i = 0; i < bitmap_size; i++){
+		if (bitarray_test_bit(bitarray, i) == 0) free_nodes++;
+	}
+
+	bitarray_destroy(bitarray);
+
+	bitmap_free_blocks = free_nodes;
+
+	return free_nodes;
+}
+
+
+
+/*
  * Esta es la estructura principal de FUSE con la cual nosotros le decimos a
  * biblioteca que funciones tiene que invocar segun que se le pida a FUSE.
  * Como se observa la estructura contiene punteros a funciones.
@@ -1014,6 +1032,7 @@ static struct fuse_operations grasa_oper = {
 		.write = grasa_write,		// OK
 		.mknod = grasa_mknod,		// OK
 		.unlink = grasa_unlink,		// OK
+		.rename = grasa_rename,
 };
 
 /** keys for FUSE_OPT_ options */
@@ -1022,29 +1041,12 @@ enum {
 	KEY_HELP,
 };
 
-/* Carga los datos del header */
-void Load_Header_Data(){
-	int fd;
-	struct grasa_header_t *node;
-
-	if ((fd = open(DISC_PATH, O_RDWR, 0)) == -1) printf("ERROR");
-
-	node = OPEN_HEADER(fd);
-
-	Header_Data = *node;
-
-	fuse_disc_size = path_size_in_bytes(DISC_PATH);
-
-}
-
 
 /*
  * Esta estructura es utilizada para decirle a la biblioteca de FUSE que
  * parametro puede recibir y donde tiene que guardar el valor de estos
  */
 static struct fuse_opt fuse_options[] = {
-		// Este es un parametro definido por nosotros
-		CUSTOM_FUSE_OPT_KEY("--welcome-msg %s", welcome_msg, 0),
 
 		// Si se le manda el parametro "--Disc-Path", lo utiliza:
 		CUSTOM_FUSE_OPT_KEY("--Disc-Path=%s", define_disc_path, 0),
@@ -1071,10 +1073,39 @@ fuse_fill_dir_t* functi_filler(void *buf, const char *name,const struct stat *st
 	return 0;
 }
 
+void sig_int_handler(int sig){
+	log_info(logger, "Recibido signal SIGUSR1");
+	if (sig == SIGUSR1) {
+		printf("\n%d\n", bitmap_free_blocks);
+		printf("\n%d\n", obtain_free_blocks());
+	}
+	log_trace(logger, "SIGUSR1 res: %d", bitmap_free_blocks);
+}
+
+void sig_term_handler(int sig){
+	log_error(logger, "Programa terminado anormalmente con signal %d", sig);
+	// Termina el programa de forma normal.
+	if (sig == SIGTERM){
+		// Destruye el lock:
+			pthread_rwlock_destroy(&rwlock);
+
+			// Destruye el log
+			log_destroy(logger);
+
+			// Cierra lo que tiene en memoria.
+			if (munmap(header_start, ACTUAL_DISC_SIZE_B ) == -1) printf("ERROR");
+
+			close(discDescriptor);
+	}
+}
 
 int main (int argc, char *argv[]){
 
-	int res;
+	signal(SIGUSR1, sig_int_handler);
+	signal(SIGTERM, sig_term_handler);
+	signal(SIGABRT, sig_term_handler);
+
+	int res, fd;
 
 	// Crea los atributos del rwlock
 	pthread_rwlockattr_t attrib;
@@ -1093,13 +1124,6 @@ int main (int argc, char *argv[]){
 		/** error parsing options */
 		perror("Invalid arguments!");
 		return EXIT_FAILURE;
-	}
-
-	// Si se paso el parametro --welcome-msg
-	// el campo welcome_msg deberia tener el
-	// valor pasado
-	if( runtime_options.welcome_msg != NULL ){
-		printf("%s\n", runtime_options.welcome_msg);
 	}
 
 	// Setea el path del disco
@@ -1127,17 +1151,34 @@ int main (int argc, char *argv[]){
 	} else {
 		strcpy(fuse_log_path,"/home/utnso/tp-2013-2c-c-o-no-ser/FileSystem/log/");
 	}
-	Load_Header_Data();
+
+	// Obiene el tamanio del disco
+	fuse_disc_size = path_size_in_bytes(DISC_PATH);
+
+	bitmap_size = (BITMAP_SIZE_B * CHAR_BIT);
+
+	// Abrir conexion y traer directorios, guarda el bloque de inicio para luego liberar memoria
+	if ((discDescriptor = fd = open(DISC_PATH, O_RDWR, 0)) == -1) printf("ERROR");
+	header_start = (struct grasa_header_t*) mmap(NULL, ACTUAL_DISC_SIZE_B , PROT_WRITE | PROT_READ | PROT_EXEC, MAP_SHARED, fd, 0);
+	Header_Data = *header_start;
+	bitmap_start = (struct grasa_file_t*) &header_start[GHEADERBLOCKS];
+	node_table_start = (struct grasa_file_t*) &header_start[GHEADERBLOCKS + BITMAP_BLOCK_SIZE];
+	data_block_start = (struct grasa_file_t*) &header_start[GHEADERBLOCKS + BITMAP_BLOCK_SIZE + NODE_TABLE_SIZE];
+
 
 	// Crea el log:
 	logger = log_create(strcat(LOG_PATH,"Log.txt"), "Grasa Filesystem", 1, log_level);
 
 	log_info(logger, "Log inicializado correctamente");
 
+	// Cuenta y registra la cantidad de nodos libres.
+	obtain_free_blocks();
+
 	// Esta es la funcion principal de FUSE, es la que se encarga
 	// de realizar el montaje, comuniscarse con el kernel, delegar
 	// en varios threads
 	log_info(logger, "Se ingresa al modulo de FUSE");
+
 	res = fuse_main(args.argc, args.argv, &grasa_oper, NULL);
 
 	// Destruye el lock:
@@ -1146,6 +1187,11 @@ int main (int argc, char *argv[]){
 
 	// Destruye el log
 	log_destroy(logger);
+
+	// Cierra lo que tiene en memoria.
+	if (munmap(header_start, ACTUAL_DISC_SIZE_B ) == -1) printf("ERROR");
+
+	close(fd);
 
 	return res;
 

@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <sys/mman.h>
 #include <fcntl.h>
+#include <limits.h>		// Aqui obtenemos el CHAR_BIT, que nos permite obtener la cantidad de bits en un char.
+
 
 #define GFILEBYTABLE 1024
 #define GFILEBYBLOCK 1
@@ -32,19 +34,17 @@
 #define FILE_T ((int) 1)
 #define DIRECTORY_T ((int) 2)
 
-// Definiciones para el manejo de bits
-#define BITMAP_TYPE char
-#define READTHEBIT(n_bit, inicio) BITPOS(GETBYTE(n_bit), OFFSET(n_bit), inicio)
-#define GETBYTE(n_bit) ((int) n_bit / CHAR_BIT)
-#define OFFSET(n_bit) ((int) n_bit % CHAR_BIT)
-#define BITPOS(n_byte, offset, inicio) getbit(n_byte, offset, inicio)
 
 // Se guardara aqui la ruta al disco. Tiene un tamanio maximo.
 char fuse_disc_path[1000];
 
-
 // Se guardara aqui el tamanio del disco
 int fuse_disc_size;
+
+// Se guardara aqui el tamanio del bitmap
+size_t bitmap_size;
+// Se guardara aqui la cantidad de bloques libres en el bitmap
+int bitmap_free_blocks;
 
 typedef uint32_t ptrGBloque;
 
@@ -61,7 +61,7 @@ typedef struct grasa_header_t { // un bloque
 
 struct grasa_header_t Header_Data;
 
-typedef struct grasa_file_t { // un cuarto de bloque (256 bytes)
+typedef struct grasa_file_t {
 	uint8_t state; // 0: borrado, 1: archivo, 2: directorio
 	unsigned char fname[GFILENAMELENGTH];
 	uint32_t parent_dir_block;
@@ -90,22 +90,5 @@ int get_size(){
 	return ((int) (ACTUAL_DISC_SIZE_B / BLOCKSIZE));
 }
 
-void* goto_Header(int fd){
-	struct grasa_file_t *node;
-	node = (void*) mmap(NULL, HEADER_SIZE_B , PROT_WRITE | PROT_READ | PROT_EXEC, MAP_SHARED, fd, 0);
-	return node;
 
-}
 
-int getbit(int n_byte, int offset, BITMAP_TYPE* inicio){
-	int i, tam_byte = CHAR_BIT; // tam_byte = sizeof(BITMAP_TYPE) * CHAR_BIT;
-
-	// Ubica el byte en el que se buscara el bit
-	inicio = &(inicio[n_byte]);
-
-	// Ubica el bit
-	for (i = 1; tam_byte != 0; (tam_byte --, i *= 2));
-	for(; (offset != 0); (offset--, i/=2));
-	if ((*inicio & i) != i) return 1;
-	return 0;
-}
