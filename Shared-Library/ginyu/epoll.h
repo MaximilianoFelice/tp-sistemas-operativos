@@ -16,8 +16,8 @@
 #include <sys/epoll.h>
 #include <netdb.h>
 #include <fcntl.h>
-#include <commons/log.h>
-#include <commons/collections/list.h>
+#include "../commons/log.h"
+#include "../commons/collections/list.h"
 
 #define MYPORT 3490
 #define BACKLOG 20

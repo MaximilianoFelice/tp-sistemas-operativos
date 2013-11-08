@@ -12,7 +12,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include <commons/log.h>
+#include "../commons/log.h"
 #include <errno.h>
 
 void iniSocks(fd_set *master, fd_set *temp, struct sockaddr_in *myAddress,

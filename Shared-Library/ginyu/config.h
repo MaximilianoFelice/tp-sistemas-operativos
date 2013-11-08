@@ -1,7 +1,7 @@
 #ifndef GINYUCONFIGS_H_
 #define GINYUCONFIGS_H_
 
-#include <commons/config.h> //Lo tengo que agregar por el tipo "t_config"
+#include "../commons/config.h" //Lo tengo que agregar por el tipo "t_config"
 
 t_config *config_try_create (char *path, char *options);
 int file_exists (const char* path);

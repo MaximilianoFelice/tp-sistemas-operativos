@@ -8,7 +8,7 @@
 #include <arpa/inet.h>
 #include <sys/time.h>
 #include <signal.h>
-#include <commons/log.h>
+#include "../commons/log.h"
 #include "protocolo.h"
 #include "sockets.h"
 

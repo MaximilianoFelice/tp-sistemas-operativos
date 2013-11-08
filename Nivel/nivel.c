@@ -625,9 +625,7 @@ void *enemigo(void * args) {
 							&posPerY);
 
 					//Calculo la distancia entre ambos
-					*distancia = sqrt(
-							pow((posPerX - enemigo->posX), 2)
-									+ pow((posPerY - enemigo->posY), 2));
+					*distancia = sqrt(pow((posPerX - enemigo->posX), 2) + pow((posPerY - enemigo->posY), 2));
 
 					if (i == 0 || distVictima >= *distancia) {
 						*victima_simb = pjLevantador->simbolo;

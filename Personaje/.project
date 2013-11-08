@@ -3,8 +3,7 @@
 	<name>personaje</name>
 	<comment></comment>
 	<projects>
-		<project>commons</project>
-		<project>ginyu</project>
+		<project>Shared-Library</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>
