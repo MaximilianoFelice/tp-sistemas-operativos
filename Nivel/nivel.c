@@ -1,7 +1,11 @@
-//export LD_LIBRARY_PATH=/home/utnso/git/fuerzas_ginyu/libs/commons/Debug:/home/utnso/git/fuerzas_ginyu/libs/ginyu/Debug:/home/utnso/git/fuerzas_ginyu/libs/commons/Debug:/home/utnso/git/fuerzas_ginyu/libs/gui/Debug
+/*
+ * Sistemas Operativos - Super Mario Proc RELOADED.
+ * Grupo       : C o no ser.
+ * Nombre      : nivel.c.
+ * Descripcion : Este archivo contiene la implementacion de las
+ * funciones usadas por el nivel.
+ */
 
-// PARA EJECUTAR NIVEL: NO EJECUTAR CON -v NI CON -ll trace PORQUE SINO DIBUJA MAL
-// ./nivel ../nivel1.config
 
 #include "nivel.h"
 
@@ -48,9 +52,7 @@ int main(int argc, char *argv[]) {
 	logger = logInit(argv, "NIVEL");
 
 	// Creamos el config
-	configNivel =
-			config_try_create(argv[1],
-					"Nombre,puerto,ip,Plataforma,TiempoChequeoDeadlock,Recovery,Enemigos,Sleep_Enemigos,algoritmo,quantum,retardo,Caja1");
+	configNivel = config_try_create(argv[1], "Nombre,puerto,ip,Plataforma,TiempoChequeoDeadlock,Recovery,Enemigos,Sleep_Enemigos,algoritmo,quantum,retardo,Caja1");
 
 	nivel_gui_inicializar();
 
@@ -58,8 +60,9 @@ int main(int argc, char *argv[]) {
 	char state = nivel_gui_get_area_nivel(&rows, &cols); //TODO cambie de lugar los argumentos
 
 	// Validamos que no haya habido error
-	if (state != EXIT_SUCCESS)
+	if (state != EXIT_SUCCESS) {
 		cerrarNivel("Error al conseguir el área del nivel");
+	}
 
 	// Variable para mensajes de error
 	char* messageLimitErr;
@@ -71,25 +74,20 @@ int main(int argc, char *argv[]) {
 	sprintf(cajaAux, "Caja1");
 
 	// Mientras pueda levantar el array
-	while ((arrCaja = config_try_get_array_value(configNivel, cajaAux))
-			!= NULL ) {
+	while ((arrCaja = config_try_get_array_value(configNivel, cajaAux)) != NULL ) {
 		// Convierto en int las posiciones de la caja
 		posXCaja = atoi(arrCaja[3]);
 		posYCaja = atoi(arrCaja[4]);
 
 		// Validamos que la caja a crear esté dentro de los valores posibles del mapa
-		if (posYCaja > rows || posXCaja > cols || posYCaja < 1
-				|| posXCaja < 1) { //TODO cambie de lugar las X e Y en posYCaja y posXCaja
-			sprintf(messageLimitErr,
-					"La caja %c excede los limites de la pantalla. (%d,%d) - (%d,%d)",
-					arrCaja[1][0], posXCaja, posYCaja, rows, cols);
+		if (posYCaja > rows || posXCaja > cols || posYCaja < 1 || posXCaja < 1) { //TODO cambie de lugar las X e Y en posYCaja y posXCaja
+			sprintf(messageLimitErr, "La caja %c excede los limites de la pantalla. (%d,%d) - (%d,%d)", arrCaja[1][0], posXCaja, posYCaja, rows, cols);
 			cerrarNivel(messageLimitErr);
 			exit(EXIT_FAILURE);
 		}
 
 		// Si la validacion fue exitosa creamos la caja de recursos
-		CrearCaja(list_items, arrCaja[1][0], atoi(arrCaja[3]), atoi(arrCaja[4]),
-				atoi(arrCaja[2]));
+		CrearCaja(list_items, arrCaja[1][0], atoi(arrCaja[3]), atoi(arrCaja[4]), atoi(arrCaja[2]));
 
 		// Rearma el cajaAux para la iteracion
 		sprintf(cajaAux, "Caja%d", ++t);
@@ -104,14 +102,14 @@ int main(int argc, char *argv[]) {
 	cantRecursos = list_size(list_items);
 
 	// Obtenemos el string del nombre y dirección de la plataforma
-	nom_nivel = config_get_string_value(configNivel, "Nombre");
+	nom_nivel 	   = config_get_string_value(configNivel, "Nombre");
 	dir_plataforma = config_get_string_value(configNivel, "Plataforma");
 
 	// Obtenemos el valor de recovery
 	int recovery = config_get_int_value(configNivel, "Recovery");
 
 	// Obtenemos datos de enemigos
-	cant_enemigos = config_get_int_value(configNivel, "Enemigos");
+	cant_enemigos  = config_get_int_value(configNivel, "Enemigos");
 
 	sleep_enemigos = config_get_int_value(configNivel, "Sleep_Enemigos");
 
@@ -134,6 +132,7 @@ int main(int argc, char *argv[]) {
 
 		//PRIMERO: me aseguro que no comience en el origen
 		if (posEnemigoX <= 4 && posEnemigoY <= 4) {
+
 			while (posEnemigoX <= 4 && posEnemigoY <= 4) {
 				posEnemigoX = (rand() % (cols));
 				posEnemigoY = (rand() % (rows)) + 1;
@@ -142,6 +141,7 @@ int main(int argc, char *argv[]) {
 
 		// Valido la posicion en los limites del eje X
 		if (posEnemigoX >= maxCols) {
+
 			while (1) {
 				posEnemigoX = (rand() % (cols));
 				if (posEnemigoX < maxCols)
@@ -151,6 +151,7 @@ int main(int argc, char *argv[]) {
 
 		// Valido la posicion en los limites del eje X
 		if (posEnemigoY >= maxRows) {
+
 			while (1) {
 				posEnemigoY = (rand() % (rows)) + 1;
 				if (posEnemigoY < maxRows)
@@ -177,9 +178,7 @@ int main(int argc, char *argv[]) {
 			if ((itemAux->posx == posEnemigoX)
 					&& (itemAux->posy == posEnemigoY)) {
 				//Me aseguro que no esten en un recurso y dentro de los limites del mapa
-				while (((itemAux->posx == posEnemigoX)
-						&& (itemAux->posy == posEnemigoY))
-						|| (posEnemigoX >= maxCols || posEnemigoY >= maxRows)) {
+				while (((itemAux->posx == posEnemigoX) && (itemAux->posy == posEnemigoY)) || (posEnemigoX >= maxCols || posEnemigoY >= maxRows)) {
 					posEnemigoX = (rand() % (cols));
 					posEnemigoY = (rand() % (rows)) + 1;
 				}
@@ -196,17 +195,16 @@ int main(int argc, char *argv[]) {
 
 	// Obtenemos el resto de los datos del archivo config
 	char * algoritmo = config_get_string_value(configNivel, "algoritmo");
-	int quantum = config_get_int_value(configNivel, "quantum");
-	int retardo = config_get_int_value(configNivel, "retardo");
-	int timeCheck = config_get_int_value(configNivel, "TiempoChequeoDeadlock");
+	int quantum 	 = config_get_int_value(configNivel, "quantum");
+	int retardo 	 = config_get_int_value(configNivel, "retardo");
+	int timeCheck 	 = config_get_int_value(configNivel, "TiempoChequeoDeadlock");
 	char *ip_plataforma = strtok(dir_plataforma, ":");  //Separo la ip
-	char* port_orq = strtok(NULL, ":");			 //Separo el puerto
+	char* port_orq 	    = strtok(NULL, ":");			 //Separo el puerto
 
 	//--------------------SALUDO - INFO - INFO_PLANIFICADOR - WHATS_UP--------------------//
 
 	// Definiciones para el uso de sockets
-	int sockOrq = connectServer(ip_plataforma, atoi(port_orq), logger,
-			"orquestador");
+	int sockOrq = connectServer(ip_plataforma, atoi(port_orq), logger, "orquestador");
 
 	// Armo mensaje inicial de SALUDO con el orquestador
 	orq_t orqMsj;
@@ -224,34 +222,30 @@ int main(int argc, char *argv[]) {
 	strcpy(orqMsj.name, algoritmo);
 
 	// Envía msj INFO y el orquestador lanza el hilo planificador para este nivel
-	enviaMensaje(sockOrq, &orqMsj, sizeof(orq_t), logger,
-			"Info de Planificacion");
+	enviaMensaje(sockOrq, &orqMsj, sizeof(orq_t), logger, "Info de Planificacion");
 
 	//-------------Recibe puerto e ip del planificador para hacer el connect------------//
 	//Esto se podría sacar y directamente hacer un listen y accept, pero es mejor con solo un connect
-	recibeMensaje(sockOrq, &orqMsj, sizeof(orq_t), logger,
-			"Recibi puerto de mi planificador");
+	recibeMensaje(sockOrq, &orqMsj, sizeof(orq_t), logger, "Recibi puerto de mi planificador");
 
 	int puertoPlan;
 
 	if (orqMsj.type == INFO_PLANIFICADOR) {
 		puertoPlan = orqMsj.port;
+
 		if (!string_equals_ignore_case(orqMsj.ip, ip_plataforma)) {
-			log_warning(logger,
-					"WARN: Las ip del archivo config y la que recibo del orquestador no coinciden");
+			log_warning(logger, "WARN: Las ip del archivo config y la que recibo del orquestador no coinciden");
 			exit(EXIT_FAILURE);
 		}
 
 	} else {
-		log_error(logger,
-				"Tipo de mensaje incorrecto: se esperaba INFO_PLANIFICADOR del orquestador");
+		log_error(logger, "Tipo de mensaje incorrecto: se esperaba INFO_PLANIFICADOR del orquestador");
 		exit(EXIT_FAILURE);
 	}
 	//-------------Recibe puerto e ip del planificador para hacer el connect------------//
 
 	//Me conecto al planificador
-	int sockPlanif = connectServer(ip_plataforma, puertoPlan, logger,
-			"planificador");
+	int sockPlanif = connectServer(ip_plataforma, puertoPlan, logger, "planificador");
 
 	//Fuerzo un envio de mensaje al planificador para que me agregue a su lista de sockets y pueda mandar mensajes
 
@@ -313,17 +307,17 @@ int main(int argc, char *argv[]) {
 			//Creo el personaje en el mapa
 			CrearPersonaje(list_items, msj.name, INI_X, INI_Y);
 			// TODO validar que no haya otro personaje con el mismo simbolo jugando en el nivel
-			pjNew.simbolo = msj.name;
-			pjNew.blocked = false;
-			pjNew.muerto = false;
+			pjNew.simbolo  = msj.name;
+			pjNew.blocked  = false;
+			pjNew.muerto   = false;
 			pjNew.recursos = list_create();
 
 			// Logueo el personaje recien agregado
 			log_info(logger, "Se agregó al personaje %c", pjNew.simbolo);
 
 			// Devuelvo msj SALUDO al planificador.
-			msj.type = NIVEL;
-			msj.detail = INI_X;
+			msj.type    = NIVEL;
+			msj.detail  = INI_X;
 			msj.detail2 = INI_Y;
 
 			// Envio la posicion inicial del personaje al planificador
@@ -530,8 +524,7 @@ void *enemigo(void * args) {
 	ITEM_NIVEL *aux; //Aqui levanto cada item cuando los recorro
 
 	//Obtengo mi posicion de enemigo
-	getPosEnemy(list_items, enemigo->num_enemy, &(enemigo->posX),
-			&(enemigo->posY));
+	getPosEnemy(list_items, enemigo->num_enemy, &(enemigo->posX), &(enemigo->posY));
 
 	while (1) {
 
@@ -546,6 +539,7 @@ void *enemigo(void * args) {
 				else
 					enemigo->posX += 2;
 			}
+
 			if (enemigo->posY > maxRows || enemigo->posY < 0) {
 				if (enemigo->posY > maxRows)
 					enemigo->posY -= 2;
@@ -570,14 +564,12 @@ void *enemigo(void * args) {
 				// Me fijo si es un recurso
 				if (aux->item_type == RECURSO_ITEM_TYPE) {
 					//Si luego de moverme estoy arriba de un recurso
-					if (aux->posx == enemigo->posX
-							&& aux->posy == enemigo->posY) {
+					if (aux->posx == enemigo->posX && aux->posy == enemigo->posY) {
 						while (1) {
 							enemigo->posX -= 2;
 							enemigo->posY -= 2;
 							//Si ahora estoy en una posicion libre de recursos salgo del ciclo. Sino sigo ciclando hasta moverme
-							if (aux->posx != enemigo->posX
-									|| aux->posy != enemigo->posY)
+							if (aux->posx != enemigo->posX || aux->posy != enemigo->posY)
 								break;
 						}
 						break;
@@ -636,8 +628,7 @@ void *enemigo(void * args) {
 
 				}
 
-				moverme(&victimaX, &victimaY, &(enemigo->posX),
-						&(enemigo->posY), movimiento);
+				moverme(&victimaX, &victimaY, &(enemigo->posX), &(enemigo->posY), movimiento);
 
 				//Valido que no vaya al origeeeeeeeeeeeeen
 				if (enemigo->posX <= 4 && enemigo->posY <= 4) {
@@ -696,8 +687,7 @@ _Bool personajeMuerto(t_list *list_personajes, char name) {
 	return false;
 }
 
-void matar(enemigo_t *enemigo, pers_t *pjVictima, int indice,
-		char*ip_plataforma, int puertoPlan) {
+void matar(enemigo_t *enemigo, pers_t *pjVictima, int indice, char*ip_plataforma, int puertoPlan) {
 	message_t *msj = malloc(sizeof(message_t));
 	msj->type = NIVEL;
 	msj->detail = MUERTO_ENEMIGOS;
@@ -706,13 +696,10 @@ void matar(enemigo_t *enemigo, pers_t *pjVictima, int indice,
 	liberarRecursos(pjVictima, indice);
 	hayQueAsesinar = false;
 
-	enemigo->sockP = connectServer(ip_plataforma, puertoPlan, logger,
-			"planificador");
+	enemigo->sockP = connectServer(ip_plataforma, puertoPlan, logger, "planificador");
 
-	enviaMensaje(enemigo->sockP, &msj, sizeof(msj), logger,
-			"Informo asesinato al planificador");
-	recibeMensaje(enemigo->sockP, &msj, sizeof(msj), logger,
-			"Recibo confirmacion");
+	enviaMensaje(enemigo->sockP, &msj, sizeof(msj), logger, "Informo asesinato al planificador");
+	recibeMensaje(enemigo->sockP, &msj, sizeof(msj), logger, "Recibo confirmacion");
 	free(msj);
 }
 
@@ -721,7 +708,6 @@ bool hayAlgunEnemigoArriba(int posPerX, int posPerY) {
 	int i;
 	int posEnemyX, posEnemyY;
 	for (i = 1; i <= cant_enemigos; i++) {
-
 		getPosEnemy(list_items, i, &posEnemyX, &posEnemyY);
 		if (posPerX == posEnemyX && posPerY == posEnemyY)
 			return true;
@@ -758,13 +744,11 @@ void liberarRecursos(pers_t *personajeAux, int index_l_personajes) {
 	}
 
 	//Destruyo la lista y los elementos de la lista: libera memoria
-	list_destroy_and_destroy_elements(personajeAux->recursos,
-			(void *) recurso_destroyer);
+	list_destroy_and_destroy_elements(personajeAux->recursos, (void *) recurso_destroyer);
 
 	if (personajeAux->muerto) { //Esto es porque si lo mato un enemigo que no intente borrarlo dos veces
 		hayQueAsesinar = true;
-		log_debug(logger, "El personaje %c esta muerto y reinicia",
-				personajeAux->simbolo);
+		log_debug(logger, "El personaje %c esta muerto y reinicia", personajeAux->simbolo);
 	}
 
 	BorrarItem(list_items, personajeAux->simbolo);
@@ -809,8 +793,7 @@ void moverme(int *victimaX, int *victimaY, int *posX, int *posY,
 
 }
 
-void validarPosSobreRecurso(t_list *list_items, mov_t movimiento, int *posX,
-		int *posY) {
+void validarPosSobreRecurso(t_list *list_items, mov_t movimiento, int *posX, int *posY) {
 
 	int i;
 	ITEM_NIVEL *aux;
@@ -826,6 +809,7 @@ void validarPosSobreRecurso(t_list *list_items, mov_t movimiento, int *posX,
 
 				//Si me movi en el eje X
 				if (movimiento.in_x && !movimiento.in_y) {
+
 					if (movimiento.type_mov_x == izquierda) {
 						(*posX)++; //Vuelvo atras
 						(*posY)--; //Subo un escalon
@@ -836,6 +820,7 @@ void validarPosSobreRecurso(t_list *list_items, mov_t movimiento, int *posX,
 				}
 				//Si me movi en el eje Y
 				if (movimiento.in_y && !movimiento.in_x) {
+
 					if (movimiento.type_mov_y == arriba) {
 						(*posY)++; //Vuelvo atras
 						(*posX)++; //Me muevo a la derecha
@@ -853,6 +838,7 @@ void validarPosSobreRecurso(t_list *list_items, mov_t movimiento, int *posX,
 						else if (movimiento.type_mov_y == arriba) //diagonal derecha inferior
 							(*posY)--;
 					}
+
 					if (movimiento.type_mov_x == derecha) {
 						if (movimiento.type_mov_y == abajo)
 							(*posY)--;

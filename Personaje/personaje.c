@@ -1,10 +1,10 @@
-//export LD_LIBRARY_PATH=/home/utnso/git/tp-2013-2c-fuerzas-especiales-ginyu/libs/commons/Debug:/home/utnso/git/tp-2013-2c-fuerzas-especiales-ginyu/libs/ginyu/Debug
-
-//PARA ejecutar personaje: en personaje/Debug
-// ./personaje ../personaje1.config -v
-
-//O tambien podemos agregarle el nivel del logueo:
-// ./personaje ../personaje1.config -v -ll trace
+/*
+ * Sistemas Operativos - Super Mario Proc RELOADED.
+ * Grupo       : C o no ser.
+ * Nombre      : personaje.c.
+ * Descripcion : Este archivo contiene la implementacion de las
+ * funciones usadas por el personaje.
+ */
 
 #include "personaje.h"
 
@@ -34,8 +34,7 @@ int main(int argc, char*argv[]) {
 	logger = logInit(argv, "PERSONAJE");
 
 	// Creamos el archivo de Configuración
-	configPersonaje = config_try_create(argv[1],
-			"nombre,simbolo,planDeNiveles,vidas,orquestador");
+	configPersonaje = config_try_create(argv[1], "nombre,simbolo,planDeNiveles,vidas,orquestador");
 
 	// Obtenemos el nombre - global de solo lectura
 	nombre_pj = config_get_string_value(configPersonaje, "nombre");
@@ -45,11 +44,10 @@ int main(int argc, char*argv[]) {
 
 	// Obetenemos los datos del orquestador
 	char * dir_orq = config_get_string_value(configPersonaje, "orquestador");
-	ip_plataforma = strtok(dir_orq, ":"); // Separar ip - Global
-	puerto_orq = strtok(NULL, ":"); // Separar puerto - Local
+	ip_plataforma  = strtok(dir_orq, ":"); // Separar ip - Global
+	puerto_orq 	   = strtok(NULL, ":"); // Separar puerto - Local
 
-	char** niveles = config_try_get_array_value(configPersonaje,
-			"planDeNiveles");
+	char** niveles = config_try_get_array_value(configPersonaje, "planDeNiveles");
 	t_list* listaObjetivos;
 	listaNiveles = list_create();
 	int j, i = 0;
@@ -57,14 +55,13 @@ int main(int argc, char*argv[]) {
 
 	char *stringABuscar = malloc(sizeof(char) * 25);
 
-	int *k = malloc(sizeof(int));
-	*k = 0;
-	//Cuento la cantidad de threads que voy a tirar: uno por cada nivel
-	while (niveles[*k] != NULL )
-		*k = *k + 1;
+	int cantThreads = 0;
 
-	int cantThreads = *k;
-	free(k);
+	//Cuento la cantidad de threads que voy a tirar: uno por cada nivel
+	while (niveles[cantThreads] != NULL ) {
+		cantThreads++;
+	}
+
 	threadNivel_t *hilosNiv;
 	hilosNiv = calloc(cantThreads, sizeof(threadNivel_t));
 
@@ -98,8 +95,7 @@ int main(int argc, char*argv[]) {
 		hilosNiv[i].nivel.num_of_thread = i;
 
 		//Tiro el hilo para jugar de cada nivel
-		if (pthread_create(&hilosNiv[i].thread, NULL, jugar,
-				(void *) &hilosNiv[i].nivel)) {
+		if (pthread_create(&hilosNiv[i].thread, NULL, jugar, (void *) &hilosNiv[i].nivel)) {
 			log_error(logger, "pthread_create: %s", strerror(errno));
 			exit(EXIT_FAILURE);
 		}
@@ -162,11 +158,11 @@ void *jugar(void *args) {
 			//reiniciar=false;
 		}
 		termine = false;
-		murioPersonaje=false;
+		murioPersonaje = false;
 
 		while (vidas > 0) {
 
-			murioPersonaje=false;
+			murioPersonaje = false;
 			termine = false;
 
 			log_info(logger, "Vidas de %c: %d", simbolo, vidas);
@@ -182,7 +178,7 @@ void *jugar(void *args) {
 
 			for (currObj=0; currObj < list_size(nivelQueJuego->Objetivos); currObj++) {
 
-				murioPersonaje=false;
+				murioPersonaje = false;
 
 				char* recurso = (char*) list_get_data(nivelQueJuego->Objetivos,	currObj);
 
@@ -199,19 +195,18 @@ void *jugar(void *args) {
 					posRecursoX = msjPlan.detail;
 					posRecursoY = msjPlan.detail2;
 				} else {
-					log_error(logger,"Llegaron (%d, %d, %c, %d) cuando debía llegar POSICION_RECURSO",
-							msjPlan.type, msjPlan.detail, msjPlan.detail2,msjPlan.name);
+					log_error(logger,"Llegaron (%d, %d, %c, %d) cuando debía llegar POSICION_RECURSO", msjPlan.type, msjPlan.detail, msjPlan.detail2,msjPlan.name);
 					exit(EXIT_FAILURE);
 				}
 
 				while (1) {
 
-					if(validarSenial(&murioPersonaje, &currObj))
+					if (validarSenial(&murioPersonaje, &currObj))
 						break;
 
 					recibeMensaje(sockPlan, &msjPlan, sizeof(message_t), logger, "Espero turno");
 
-					if(validarSenial(&murioPersonaje, &currObj))
+					if (validarSenial(&murioPersonaje, &currObj))
 						break;
 
 					//Valido que el mensaje sea correcto
@@ -250,9 +245,8 @@ void *jugar(void *args) {
 
 					if (msjPlan.type != MOVIMIENTO) {
 						log_error(logger, "Llegaron (detail: %d, detail2:%d, name:%c, type:%d) cuando debía llegar MOVIMIENTO",
-								msjPlan.detail, msjPlan.detail2, msjPlan.name, msjPlan.type);
+								  msjPlan.detail, msjPlan.detail2, msjPlan.name, msjPlan.type);
 						exit(EXIT_FAILURE);
-
 					}
 
 					//Si llego al recurso no pide otro turno, solo sale del while a buscar el siguiente recurso, si puede.
@@ -270,12 +264,12 @@ void *jugar(void *args) {
 
 				} //Fin de while(1) de busqueda de un recurso
 
-				if(murioPersonaje || muertePorSenial)
+				if (murioPersonaje || muertePorSenial)
 					break;
 
 			} //Fin de for de objetivos
 
-			if(!murioPersonaje){
+			if (!murioPersonaje) {
 				termine = true;
 				if (devolverRecursos(&sockPlan, &msjPlan)) {
 					close(sockPlan);
@@ -287,7 +281,7 @@ void *jugar(void *args) {
 					exit(EXIT_FAILURE);
 				}
 			} else { //Si llega aqui puede ser porque haya muerto por señal SIGINT, por ENEMIGOS o por DEADLOCK
-				if(muertePorSenial){ //Si es por señal
+				if (muertePorSenial) { //Si es por señal
 					if (devolverRecursos(&sockPlan, &msjPlan)) {
 						close(sockPlan);
 						close(sockOrq);
@@ -296,7 +290,7 @@ void *jugar(void *args) {
 					} else
 						exit(EXIT_FAILURE);
 				} else { //Si mori por enemigos o deadlock
-					if(vidas<=0){ //Si me quede sin vidas armo un mensaje especial para que el planificador libere memoria
+					if (vidas<=0) { //Si me quede sin vidas armo un mensaje especial para que el planificador libere memoria
 						msjPlan.type=PERSONAJE;
 						msjPlan.detail=SALIR;
 						msjPlan.name=simbolo;
@@ -313,24 +307,24 @@ void *jugar(void *args) {
 
 		} //Fin del while(vidas>0)
 
-		if(termine || muertePorSenial || vidas<=0)
+		if (termine || muertePorSenial || vidas<=0)
 			break;
 
 	} //Fin de while(1) de control de reinicio del personaje
 
 	//Aqui siempre va a terminar porque: termino su nivel bien; se cerro el proceso por señal; se acabaron sus vidas y no quiere reiniciar
 
-	if(vidas<=0){
+	if (vidas<=0) {
 		char *exit_return;
 		exit_return = strdup("se ha quedado sin vidas y murio :'(");
 		pthread_exit((void *)exit_return);
 	}
-	if(murioPersonaje && muertePorSenial){
+	if (murioPersonaje && muertePorSenial) {
 		char *exit_return;
 		exit_return = strdup("ha terminado por senial SIGINT");
 		pthread_exit((void *)exit_return);
 	}
-	if(termine){
+	if (termine) {
 		char * exit_return = strdup("ha finalizado su plan de niveles correctamente");
 		pthread_exit((void *)exit_return);
 	}
@@ -338,17 +332,15 @@ void *jugar(void *args) {
 
 }
 
-void handshake_planif(int *sockPlan, int *posX, int *posY){
+void handshake_planif(int *sockPlan, int *posX, int *posY) {
 	message_t msjPlan;
 	msjPlan.type = PERSONAJE;
 	msjPlan.detail = SALUDO;
 	msjPlan.name = simbolo;
 
-	enviaMensaje(*sockPlan, &msjPlan, sizeof(message_t), logger,
-			"Envia SALUDO al planificador");
+	enviaMensaje(*sockPlan, &msjPlan, sizeof(message_t), logger, "Envia SALUDO al planificador");
 
-	recibeMensaje(*sockPlan, &msjPlan, sizeof(message_t), logger,
-			"Recibo SALUDO del planificador");
+	recibeMensaje(*sockPlan, &msjPlan, sizeof(message_t), logger, "Recibo SALUDO del planificador");
 
 	if (msjPlan.type == SALUDO) {
 		*posX = msjPlan.detail;
@@ -417,9 +409,9 @@ bool devolverRecursos(int *sockPlan, message_t *message) {
 
 }
 
-//Senialeeeeeeeeeeeeeeeeeeeeeeessssssssssssssssssssssssssssss
+//Seniales
 bool validarSenial(bool *murioPersonaje, int *currObj){
-	if(muertePorSenial){
+	if (muertePorSenial) {
 		*murioPersonaje=true;
 		*currObj=1000;
 		vidas--;
@@ -428,7 +420,7 @@ bool validarSenial(bool *murioPersonaje, int *currObj){
 	return false;
 }
 
-void morirSenial(){
+void morirSenial() {
 	muertePorSenial=true;
 }
 
@@ -441,7 +433,7 @@ void restarVidas() {
 	vidas--;
 	log_info(logger, "Vidas de %c: %d", simbolo, vidas);
 }
-//Senialeeeeeeeeeeeeeeeeeeeeeeessssssssssssssssssssssssssssss
+//Seniales
 
 int calculaMovimiento(int posX, int posY, int posRX, int posRY) {
 

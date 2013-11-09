@@ -1,10 +1,17 @@
+/*
+ * Sistemas Operativos - Super Mario Proc RELOADED.
+ * Grupo       : C o no ser.
+ * Nombre      : nivel.h.
+ * Descripcion : Este archivo contiene los prototipos de las
+ * funciones usadas por el nivel.
+ */
+
 
 #ifndef NIVEL_H_
 #define NIVEL_H_
 
-#include "gui/tad_items.h" //Este importa GUI
+#include <gui/tad_items.h> //Este importa GUI
 #include <ginyu/protocolo.h>
-#include "ginyu/protocolo.h"
 #include <ginyu/config.h>
 #include <ginyu/sockets.h>
 #include <ginyu/list.h>
@@ -84,7 +91,5 @@ pers_t* hayAlgunEnemigoArribaDeAlgunPersonaje();
 void liberarRecursos(pers_t *personajeAux, int index_l_personajes);
 static void personaje_destroyer(pers_t *personaje);
 static void recurso_destroyer(char *recurso);
-
-
 
 #endif /* NIVEL_H_ */

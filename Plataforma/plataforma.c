@@ -1,10 +1,10 @@
-//export LD_LIBRARY_PATH=/home/utnso/git/fuerzas_ginyu/libs/ginyu/Debug:/home/utnso/git/fuerzas_ginyu/libs/commons/Debug
-
-//PARA EJECUTAR PLATAFORMA:
-// ./plataforma ../plataforma.config -v
-
-//O tambien podemos agregarle el nivel de logueo:
-// ./plataforma ../plataforma.config -v -ll trace
+/*
+ * Sistemas Operativos - Super Mario Proc RELOADED.
+ * Grupo       : C o no ser.
+ * Nombre      : plataforma.c.
+ * Descripcion : Este archivo contiene la implementacion de las
+ * funciones usadas por la plataforma.
+ */
 
 #include "plataforma.h"
 
@@ -373,7 +373,7 @@ void* planificador(void *argumentos) {
 
 					//Si soy el primer personaje que entra al planificador, entonces le doy un turno
 					if (soyElPrimerPersonajeDameUnTurno) {
-						for(contPj =0 ; contPj<list_size(nivelPlanif->l_personajesRdy); contPj++){
+						for (contPj =0 ; contPj<list_size(nivelPlanif->l_personajesRdy); contPj++) {
 							pjLevantador = list_get(nivelPlanif->l_personajesRdy, contPj);
 							if(pjLevantador->sockID == sockPrimerPersonaje)
 								break;
@@ -386,7 +386,7 @@ void* planificador(void *argumentos) {
 
 						break;
 					}
-					for(contPj = 0; contPj<list_size(nivelPlanif->l_personajesRdy); contPj++){
+					for (contPj = 0; contPj<list_size(nivelPlanif->l_personajesRdy); contPj++) {
 						pjLevantador = list_get(nivelPlanif->l_personajesRdy, contPj);
 						if(pjLevantador->sockID == i){
 							pjLevantador->ready = true;
@@ -394,7 +394,7 @@ void* planificador(void *argumentos) {
 						}
 					}
 
-					if(pjLevantador->kill){
+					if (pjLevantador->kill) {
 						pjLevantador->kill = false;
 						reMultiplexar = true;
 						sockReMultiplexar = i;
@@ -402,7 +402,7 @@ void* planificador(void *argumentos) {
 
 					//Si tengo que volver a multiplexar: esta variable solo la pongo en true en el case de MOVIMIENTO
 					if (reMultiplexar) {
-						for(contPj = 0; contPj<list_size(nivelPlanif->l_personajesRdy); contPj++){
+						for (contPj = 0; contPj<list_size(nivelPlanif->l_personajesRdy); contPj++) {
 							pjLevantador = list_get(nivelPlanif->l_personajesRdy, contPj);
 							if(pjLevantador->sockID == sockReMultiplexar)
 								break;
@@ -416,7 +416,7 @@ void* planificador(void *argumentos) {
 						break;
 					}
 
-					if(dar_turno_al_pj_casi_listo && sock_pj_casi_listo == i){
+					if (dar_turno_al_pj_casi_listo && sock_pj_casi_listo == i) {
 						msj.type = PERSONAJE;
 						msj.detail = TURNO;
 
@@ -484,6 +484,7 @@ void* planificador(void *argumentos) {
 					// Cicla los personajes y busca uno a partir de su socket
 					for (contPj = 0;contPj < list_size(nivelPlanif->l_personajesRdy);contPj++) {
 						pjLevantador = (personaje_t*) list_get(nivelPlanif->l_personajesRdy, contPj);
+
 						if (pjLevantador->sockID == i)
 							break;
 					}
@@ -498,9 +499,9 @@ void* planificador(void *argumentos) {
 
 					recibeMensaje(nivelPlanif->sock, &msj, sizeof(message_t), logger, "Recibo estado en el que quedo el personaje");
 
-					if(msj.detail == MUERTO_ENEMIGOS){
+					if (msj.detail == MUERTO_ENEMIGOS) {
 
-						bool _search_by_sockID(personaje_t *pjAux){
+						bool _search_by_sockID(personaje_t *pjAux) {
 							return (pjAux->sockID == i);
 						}
 
@@ -604,13 +605,13 @@ void* planificador(void *argumentos) {
 					 *
 					 */
 
-					if(msj.detail2 != MUERTO_ENEMIGOS){
+					if (msj.detail2 != MUERTO_ENEMIGOS) {
 						//El personaje se quedo sin vidas pero ya devolvio recursos en el case de MOVIMIENTO
 						//por lo tanto tiene que liberar memoria solamente y volver a multiplexar
 
 						encontrado = false;
 
-						bool _search_by_sockID(personaje_t *pjAux){
+						bool _search_by_sockID(personaje_t *pjAux) {
 							return (pjAux->sockID == i);
 						}
 
@@ -634,9 +635,10 @@ void* planificador(void *argumentos) {
 
 					} else {
 
-						for(contPj=0; contPj <list_size(nivelPlanif->l_personajesDie); contPj++){
+						for (contPj=0; contPj <list_size(nivelPlanif->l_personajesDie); contPj++) {
 							pjLevantador = list_get(nivelPlanif->l_personajesDie, contPj);
-							if(pjLevantador->sockID == i){
+
+							if (pjLevantador->sockID == i) {
 								list_remove(nivelPlanif->l_personajesDie, contPj);
 								break;
 							}
@@ -659,13 +661,16 @@ void* planificador(void *argumentos) {
 					if (list_size(nivelPlanif->l_personajesRdy) > 0) {
 
 						proxPj--;
-						if (list_size(nivelPlanif->l_personajesRdy) == proxPj || proxPj<0)
+
+						if (list_size(nivelPlanif->l_personajesRdy) == proxPj || proxPj<0) {
 							proxPj = 0;
+						}
+
 						q = 1;
 
 						personaje_t *pjAux = (personaje_t *) list_get(nivelPlanif->l_personajesRdy, proxPj);
 
-						if(pjAux == NULL){
+						if (pjAux == NULL) {
 							log_debug(logger, "hace mal el gett %d", proxPj);
 							exit(EXIT_FAILURE);
 						} else
@@ -755,11 +760,12 @@ bool exist_personaje(t_list *list, char name_pj, int  *indice_pj){
 	int i;
 	personaje_t * pj;
 
-	if(list_size(list) == 0) return false;
+	if (list_size(list) == 0) return false;
 
-	for(i=0; i<list_size(list); i++){
+	for (i=0; i<list_size(list); i++) {
 		pj = list_get(list, i);
-		if(pj->name == name_pj){
+
+		if (pj->name == name_pj) {
 			*indice_pj = i;
 			return true;
 		}
@@ -770,10 +776,11 @@ bool exist_personaje(t_list *list, char name_pj, int  *indice_pj){
 
 bool estaMuerto(t_list * end, char name){
 	int i;
-	for(i=0; i<list_size(end); i++){
+	for (i=0; i<list_size(end); i++) {
 		personaje_t * pjAux = list_get(end, i);
-		if(pjAux->name == name)
+		if (pjAux->name == name) {
 			return true;
+		}
 	}
 	return false;
 }
