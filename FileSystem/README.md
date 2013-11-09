@@ -60,4 +60,4 @@ proyecto por separado para conocer a fondo cada herramienta.
 
 IMPORTANTE:
 	Recordar que para crear un nuevo disco, se debe utilizar un comando al estilo:
-     dd if=/dev/urandom of=disco.bin bs=1024 count=10240
+    dd if=/dev/urandom of=disco.bin bs=1024 count=10240
