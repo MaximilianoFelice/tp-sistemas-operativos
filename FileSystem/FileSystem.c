@@ -54,6 +54,19 @@ int discDescriptor;
 
 
 /*
+ * 	DESC
+ * 		Divide el path con formato de [RUTA] en: [RUTA_SUPERIOR] y [NOMBRE].
+ * 		Ejemplo:
+ * 			path: /home/utnso/algo.txt == /home/utnso - algo.txt
+ * 			path: /home/utnso/ == /home - utnso
+ *
+ * 	PARAM
+ * 		path - Ruta a dividir
+ * 		super_path - Puntero sobre el cual se guardara la ruta superior.
+ * 		name - Puntero al nombre del archivo
+ *
+ * 	RET
+ * 		0... SIEMPRE!
  *
  */
 int split_path(const char* path, char** super_path, char** name){
@@ -221,14 +234,16 @@ static int grasa_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
 
 	if (nodo == -1) return  -ENOENT;
 
-	pthread_rwlock_rdlock(&rwlock); //Toma un lock de lectura.
-				log_lock_trace(logger, "Readdir: Toma lock lectura. Cantidad de lectores: %d", rwlock.__data.__nr_readers);
 
 	node = node_table_start;
 
 	// "." y ".." obligatorios.
 	filler(buf, ".", NULL, 0);
 	filler(buf, "..", NULL, 0);
+
+	pthread_rwlock_rdlock(&rwlock); //Toma un lock de lectura.
+			log_lock_trace(logger, "Readdir: Toma lock lectura. Cantidad de lectores: %d", rwlock.__data.__nr_readers);
+
 
 	// Carga los nodos que cumple la condicion en el buffer.
 	for (i = 0; i < GFILEBYTABLE;  (i++)){
@@ -289,13 +304,13 @@ static int grasa_read(const char *path, char *buf, size_t size, off_t offset, st
 	size_t tam = size;
 	int res;
 
-	pthread_rwlock_rdlock(&rwlock); //Toma un lock de lectura.
-			log_lock_trace(logger, "Read: Toma lock lectura. Cantidad de lectores: %d", rwlock.__data.__nr_readers);
-
 	node = node_table_start;
 
 	// Ubica el nodo correspondiente al archivo
 	node = &(node[nodo-1]);
+
+	pthread_rwlock_rdlock(&rwlock); //Toma un lock de lectura.
+			log_lock_trace(logger, "Read: Toma lock lectura. Cantidad de lectores: %d", rwlock.__data.__nr_readers);
 
 	if(node->file_size <= offset){
 		log_error(logger, "Fuse intenta leer un offset mayor que el tamanio de archivo. Se retorna size 0.");
@@ -367,8 +382,7 @@ static int grasa_read(const char *path, char *buf, size_t size, off_t offset, st
  *  	Obtiene un bloque libre, actualiza el bitmap.
  *
  *  @PARAM
- *  	bitmap_start - Comienzo del Bitmap
- *  	bitmap_size - Tamanio del Bitmap
+*		(void)
  *
  *  @RETURN
  *  	Devuelve el numero de un nodo libre listo para escribir. Si hay error, un numero negativo.
@@ -378,10 +392,10 @@ int get_node(void){
 	int i, res;
 	struct grasa_file_t *node = bitmap_start, *data_block = &node[BITMAP_BLOCK_SIZE + NODE_TABLE_SIZE];
 
-	bitarray = bitarray_create((char*) bitmap_start, bitmap_size);
+	bitarray = bitarray_create((char*) bitmap_start, BITMAP_SIZE_B);
 
 	// Encuentra el primer bit libre en la tabla de nodos.
-	for (i = 0; (i <= bitmap_size) & (bitarray_test_bit(bitarray,i) == 1); i++);
+	for (i = 0; (i <= BITMAP_SIZE_BITS) & (bitarray_test_bit(bitarray,i) == 1); i++);
 	res = i;
 
 	// Setea en 1 el bitmap.
@@ -574,39 +588,37 @@ int delete_nodes_upto (struct grasa_file_t *file_data, int pointer_upto, int dat
 	ptrGBloque *aux; // Auxiliar utilizado para saber que nodo redireccionar
 	int data_pos, pointer_pos;
 
-	// Si data_upto es 0, se debe borrar tambien el nodo, lo que ubicaria el data en 1023
-	if ((data_upto == 0) & (pointer_upto > 0)){
-		data_upto = 1023;
-		pointer_upto--;
-	}
-
 	// Ubica cual es el ultimo nodo del archivo
 	set_position(&pointer_pos, &data_pos, 0, file_size);
 
 	// Crea el bitmap
-	bitarray = bitarray_create((char*) bitmap_start, bitmap_size);
+	printf("\n %d \n", BITMAP_SIZE_B);
+	bitarray = bitarray_create((char*) bitmap_start, BITMAP_SIZE_B);
 
 	// Borra hasta que los nodos de posicion coincidan con los nodos especificados.
-	while((data_pos != data_upto) & (pointer_pos != pointer_upto)){
+	while( (data_pos != data_upto) | (pointer_pos != pointer_upto) | ((data_pos == 0) & (pointer_pos == 0)) ){
+		if ((data_pos < 0) | (pointer_pos < 0)) break;
+		if (data_pos != 0){
+			// Ubica y borra el nodo correspondiente
+			aux = &(file_data->blk_indirect[pointer_pos]);
+			node_to_delete = aux[data_pos];
+			bitarray_clean_bit(bitarray, node_to_delete);
+			bitmap_free_blocks++;
 
-		// Ubica y borra el nodo correspondiente
-		aux = &(file_data->blk_indirect[pointer_pos]);
-		node_to_delete = aux[data_pos];
-		bitarray_clean_bit(bitarray, node_to_delete);
-		bitmap_free_blocks++;
-
-		// Reubica el offset
-		data_pos--;
+			// Reubica el offset
+			data_pos--;
+		}
 
 		// Si el data_offset es 0, debe borrar la estructura de punteros
-		if (data_pos == 0){
-			if ((data_pos == 0) & (pointer_pos ==0)) return 0;
+		else if (data_pos == 0){
+//			if ((data_pos == 0) & (pointer_pos ==0)) return 0;
 
 			aux = &(file_data->blk_indirect[pointer_pos]);
 			node_to_delete = aux[0];
 			bitarray_clean_bit(bitarray, node_to_delete);
 			node_to_delete = file_data->blk_indirect[pointer_pos];
-			bitarray_clean_bit(bitarray, node_to_delete);
+			file_data->blk_indirect[pointer_pos] = 0; // Se utiliza el 0 como referencia a bloque no indicado.
+			bitarray_clean_bit(bitarray, node_to_delete); // C OLIMPICO: ESTA JUMPEANDO ESTA POSICION.
 
 			// Reubica el offset
 			data_pos = 1023;
@@ -672,8 +684,6 @@ int get_new_space (struct grasa_file_t *file_data, int size){
  *	@RET
  *		0 Si esta OK, -ENOENT si no pudo.
  *
- *		Restaria que la funcion chequee si el dir esta vacio.
- *
  */
 int grasa_rmdir (const char* path){
 			log_trace(logger, "Rmdir: Path: %s", path);
@@ -720,7 +730,6 @@ int grasa_rmdir (const char* path){
  * 	@RET
  * 		Como siempre, 0 si esta OK.
  *
- * 	FALTARIA QUE LA FUNCION RESERVE NODOS LIBRES.
  */
 int grasa_truncate (const char *path, off_t new_size){
 			log_info(logger, "Truncate: Path: %s - New size: %d", path, new_size);
@@ -745,12 +754,18 @@ int grasa_truncate (const char *path, off_t new_size){
 		int pointer_to_delete;
 		int data_to_delete;
 
-		set_position(&pointer_to_delete, &data_to_delete, 0, node->file_size);
+		set_position(&pointer_to_delete, &data_to_delete, 0, new_size);
 
 		delete_nodes_upto(node, pointer_to_delete, data_to_delete);
 	}
 
 	node->file_size = new_size; // Aca le dice su nuevo size.
+
+	// Como el truncar borra todos los nodos si tiene tamanio 0, se le debe asignar un nuevo nodo para que pueda abrir correctamente.
+	if (new_size == 0){
+		int new_node = get_node();
+		add_node(node, new_node);
+	}
 
 
 	// Cierra, ponele la alarma y se va para su casa. Mejor dicho, retorna 0 :D
@@ -963,7 +978,13 @@ int grasa_mknod (const char* path, mode_t mode, dev_t dev){
  *  	Numero negativo, si no
  */
 int grasa_unlink (const char* path){
-	grasa_truncate(path, 0);
+	struct grasa_file_t* file_data;
+	int node = determinar_nodo(path);
+
+	file_data = &(node_table_start[node - 1]);
+
+	delete_nodes_upto(file_data, 0, 0);
+
 	return grasa_rmdir(path);
 	}
 
@@ -997,10 +1018,11 @@ int grasa_rename (const char* oldpath, const char* newpath){
 int obtain_free_blocks(){
 	t_bitarray *bitarray;
 	int free_nodes=0, i;
+	int bitmap_size_in_bits = BITMAP_SIZE_BITS;
 
-	bitarray = bitarray_create((char*) bitmap_start, bitmap_size);
+	bitarray = bitarray_create((char*) bitmap_start, BITMAP_SIZE_B);
 
-	for (i = 0; i < bitmap_size; i++){
+	for (i = 0; i < bitmap_size_in_bits; i++){
 		if (bitarray_test_bit(bitarray, i) == 0) free_nodes++;
 	}
 
@@ -1089,7 +1111,6 @@ fuse_fill_dir_t* functi_filler(void *buf, const char *name,const struct stat *st
 void sig_int_handler(int sig){
 	log_info(logger, "Recibido signal SIGUSR1");
 	if (sig == SIGUSR1) {
-		printf("\n%d\n", bitmap_free_blocks);
 		printf("\n%d\n", obtain_free_blocks());
 	}
 	log_trace(logger, "SIGUSR1 res: %d", bitmap_free_blocks);
@@ -1167,8 +1188,6 @@ int main (int argc, char *argv[]){
 
 	// Obiene el tamanio del disco
 	fuse_disc_size = path_size_in_bytes(DISC_PATH);
-
-	bitmap_size = (BITMAP_SIZE_B * CHAR_BIT);
 
 	// Abrir conexion y traer directorios, guarda el bloque de inicio para luego liberar memoria
 	if ((discDescriptor = fd = open(DISC_PATH, O_RDWR, 0)) == -1) printf("ERROR");

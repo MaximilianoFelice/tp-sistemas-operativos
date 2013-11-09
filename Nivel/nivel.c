@@ -106,7 +106,7 @@ int main(int argc, char *argv[]) {
 	dir_plataforma = config_get_string_value(configNivel, "Plataforma");
 
 	// Obtenemos el valor de recovery
-	int recovery = config_get_int_value(configNivel, "Recovery");
+	//int recovery = config_get_int_value(configNivel, "Recovery"); TODO (SIN USAR)
 
 	// Obtenemos datos de enemigos
 	cant_enemigos  = config_get_int_value(configNivel, "Enemigos");
@@ -197,7 +197,7 @@ int main(int argc, char *argv[]) {
 	char * algoritmo = config_get_string_value(configNivel, "algoritmo");
 	int quantum 	 = config_get_int_value(configNivel, "quantum");
 	int retardo 	 = config_get_int_value(configNivel, "retardo");
-	int timeCheck 	 = config_get_int_value(configNivel, "TiempoChequeoDeadlock");
+	// int timeCheck 	 = config_get_int_value(configNivel, "TiempoChequeoDeadlock"); TODO (SIN USAR)
 	char *ip_plataforma = strtok(dir_plataforma, ":");  //Separo la ip
 	char* port_orq 	    = strtok(NULL, ":");			 //Separo el puerto
 

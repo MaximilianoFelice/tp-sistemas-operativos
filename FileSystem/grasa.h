@@ -20,7 +20,8 @@
 #define DISC_PATH fuse_disc_path
 #define DISC_SIZE_B(p) path_size_in_bytes(p)
 #define ACTUAL_DISC_SIZE_B fuse_disc_size
-#define BITMAP_SIZE_B get_size()
+#define BITMAP_SIZE_B (int) (get_size() / CHAR_BIT)
+#define BITMAP_SIZE_BITS get_size()
 #define HEADER_SIZE_B ((int) GHEADERBLOCKS * BLOCKSIZE)
 #define BITMAP_BLOCK_SIZE Header_Data.size_bitmap
 
@@ -41,8 +42,6 @@ char fuse_disc_path[1000];
 // Se guardara aqui el tamanio del disco
 int fuse_disc_size;
 
-// Se guardara aqui el tamanio del bitmap
-size_t bitmap_size;
 // Se guardara aqui la cantidad de bloques libres en el bitmap
 int bitmap_free_blocks;
 
