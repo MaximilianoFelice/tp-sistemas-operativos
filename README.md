@@ -7,6 +7,8 @@ Implementacion del TP de sistemas operativos
 
 Las macros que se usan en los mensajes estan en: - [protocolo.h](https://github.com/sisoputnfrba/tp-2013-2c-c-o-no-ser/blob/master/Shared-Library/ginyu/protocolo.h)
 
+----------------------------------------------------------
+
 ### Pasos para ejecutar los procesos:
 
 Ir a la carpeta de cada proceso. Y ejecutar:
