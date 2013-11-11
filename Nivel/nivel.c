@@ -106,18 +106,16 @@ int main(int argc, char *argv[]) {
 	// Logueo la conexion con el orquestador
 	log_info(logger, "Conexión con el planificador con puerto %d", puertoPlan);
 
-	puts("levanto archivo");
 		//INOTIFY
 		descriptorNotify=inotify_init();
 		vigilante=inotify_add_watch(descriptorNotify,argv[1],IN_MODIFY);
 		if(vigilante==1) puts("error en inotify add_watch");
-	puts("hizo inotify");
+
 		//POLL
 		uDescriptores[0].fd=sockPlanif;
 		uDescriptores[0].events=POLLIN;
 		uDescriptores[1].fd=descriptorNotify;
 		uDescriptores[1].events=POLLIN;
-	puts("hizo poll");
 
 	////CREANDO Y LANZANDO HILOS ENEMIGOS
 	threadEnemy_t *hilosEnemigos;
