@@ -13,17 +13,23 @@ pthread_t hilo_orquestador;
 t_list *listaNiveles;
 t_config *configPlataforma;
 t_log *logger;
-int puerto;
+unsigned short usPuerto;
 char *orqIp;
 char *pathKoopa;
 char *pathScript;
 
 int main(int argc, char*argv[]) {
+
+	if (argc <= 1) {
+		printf("[ERROR] Se debe pasar como parametro el archivo de configuracion.\n");
+		exit(EXIT_FAILURE);
+	}
+
 	// Creamos el archivo de configuracion
 	configPlataforma = config_try_create(argv[1], "puerto,koopa,script");
 
 	// Obtenemos el puerto
-	puerto = config_get_int_value(configPlataforma, "puerto");
+	usPuerto = config_get_int_value(configPlataforma, "puerto");
 
 	// Obtenemos el path donde va a estar koopa
 	pathKoopa = config_get_string_value(configPlataforma, "koopa");
@@ -40,7 +46,7 @@ int main(int argc, char*argv[]) {
 	orqIp = malloc(sizeof(char) * 16);
 	strcpy(orqIp, "127.0.0.1");
 
-	orquestador();
+	orquestador(usPuerto);
 //	pthread_create(&hilo_orquestador, NULL, orquestador, NULL );
 //
 //	pthread_join(hilo_orquestador, NULL );
@@ -53,7 +59,7 @@ int main(int argc, char*argv[]) {
 
 }
 
-void *orquestador() {
+void *orquestador(unsigned short usPuerto) {
 
 	threadPlanificador_t *hilosPlanif;
 
@@ -77,19 +83,19 @@ void *orquestador() {
 	struct sockaddr_in remoteAddress;
 	int maxSock;
 	int sockListener;
-	int i; // Aqui va a recibir el numero de socket que retornar getSockChanged()
+	int socketComunicacion; // Aqui va a recibir el numero de socket que retornar getSockChanged()
 
 	// Inicializacion de sockets y actualizacion del log
-	iniSocks(&master, &temp, &myAddress, remoteAddress, &maxSock, &sockListener, PUERTO_ORQ, logger);
+	iniSocks(&master, &temp, &myAddress, remoteAddress, &maxSock, &sockListener, usPuerto, logger);
 
 	// Mensaje del orquestador
 	orq_t orqMsj;
 
 	while (1) {
 
-		i = getSockChanged(&master, &temp, &maxSock, sockListener, &remoteAddress, &orqMsj, sizeof(orq_t), logger, "Orquestador");
+		socketComunicacion = getSockChanged(&master, &temp, &maxSock, sockListener, &remoteAddress, &orqMsj, sizeof(orq_t), logger, "Orquestador");
 
-		if (i != -1) {
+		if (socketComunicacion != -1) {
 			int contNiv;
 			bool nivelEncontrado;
 
@@ -108,7 +114,7 @@ void *orquestador() {
 					log_debug(logger, "Recibe msj SALUDO de %s", orqMsj.name);
 
 					// Armo estructura para ese nuevo nivel disponible y lo agrego a la lista de niveles
-					hilosPlanif[cantHilos].nivel.sock = i;
+					hilosPlanif[cantHilos].nivel.sock = socketComunicacion;
 					hilosPlanif[cantHilos].nivel.puertoPlan = lastPlan; //Puerto del planificador asociado
 					strcpy(hilosPlanif[cantHilos].nivel.nombre, orqMsj.name);
 
@@ -121,7 +127,7 @@ void *orquestador() {
 					log_trace(logger, "Se conectó el nivel: %s", orqMsj.name);
 
 					// Ahora debo esperar a que me llegue la informacion de planificacion.
-					recibeMensaje(i, &orqMsj, sizeof(orq_t), logger, "Recibe mensaje INFO de planificacion");
+					recibeMensaje(socketComunicacion, &orqMsj, sizeof(orq_t), logger, "Recibe mensaje INFO de planificacion");
 
 					// Validacion de que el nivel me envia informacion correcta
 					if (orqMsj.type == INFO) {
@@ -152,7 +158,7 @@ void *orquestador() {
 						orqMsj.port = lastPlan;
 						strcpy(orqMsj.ip, orqIp);
 
-						enviaMensaje(i, &orqMsj, sizeof(orq_t), logger, "Envio de puerto e ip del planificador al nivel");
+						enviaMensaje(socketComunicacion, &orqMsj, sizeof(orq_t), logger, "Envio de puerto e ip del planificador al nivel");
 
 						//Luego de crear el hilo aumento en uno el contador de hilos para el siguiente planificador
 						cantHilos++;
@@ -188,7 +194,7 @@ void *orquestador() {
 							nivelEncontrado = true;
 
 							// Logueo del pedido de nivel del personaje
-							log_trace(logger, "Se conectó el personaje: %c en sock %d, Pide nivel: %s",orqMsj.ip[0], i, orqMsj.name);
+							log_trace(logger, "Se conectó el personaje: %c en sock %d, Pide nivel: %s",orqMsj.ip[0], socketComunicacion, orqMsj.name);
 
 							// Armo mensaje SALUDO para el personaje con la info del planificador
 							orqMsj.detail = SALUDO;
@@ -196,7 +202,7 @@ void *orquestador() {
 							strcpy(orqMsj.ip, orqIp);
 
 							// Le aviso al personaje sobre el planificador a donde se va a conectar
-							enviaMensaje(i, &orqMsj, sizeof(orq_t), logger, "Envio al personaje la info del planificador del nivel");
+							enviaMensaje(socketComunicacion, &orqMsj, sizeof(orq_t), logger, "Envio al personaje la info del planificador del nivel");
 
 							break;
 
@@ -207,7 +213,7 @@ void *orquestador() {
 					if (nivelEncontrado == false) {
 						// El nivel solicitado no se encuentra conectado todavia
 						orqMsj.detail = NADA;
-						enviaMensaje(i, &orqMsj, sizeof(orq_t), logger, "No se encontro el nivel pedido");
+						enviaMensaje(socketComunicacion, &orqMsj, sizeof(orq_t), logger, "No se encontro el nivel pedido");
 					}
 
 					break; //break del case SALUDO dentro del personaje
@@ -261,8 +267,7 @@ void* planificador(void *argumentos) {
 	// Ciclo donde se multiplexa para escuchar personajes que se conectan
 	while (1) {
 		// Multiplexo
-		i = getSockChanged(&master, &temp, &maxSock, sockListener,
-				&remoteAddress, &msj, sizeof(message_t), logger, "Planificador");
+		i = getSockChanged(&master, &temp, &maxSock, sockListener, &remoteAddress, &msj, sizeof(message_t), logger, "Planificador");
 
 		// Si hay personajes que mandan mensajes entra al if
 		if (i != -1) {
@@ -536,8 +541,7 @@ void* planificador(void *argumentos) {
 							q = 1;
 						}
 
-						imprimirLista(nivelPlanif->nombre, nivelPlanif->l_personajesRdy,
-														nivelPlanif->l_personajesBlk, proxPj);
+						imprimirLista(nivelPlanif->nombre, nivelPlanif->l_personajesRdy, nivelPlanif->l_personajesBlk, proxPj);
 
 						break;
 					}
