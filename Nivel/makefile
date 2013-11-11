@@ -1,6 +1,6 @@
-# 
+###
 # Makefile nivel
-#
+###
 
 CC		  := gcc
 CFLAGS    := -Wall -L/usr/lib/

@@ -1,6 +1,6 @@
-# 
+###
 # Makefile plataforma
-#
+###
 
 CC		  := gcc
 CFLAGS    := -Wall -L/usr/lib

@@ -1,10 +1,10 @@
-# 
+###
 # Makefile personaje
-#
-export LD_LIBRARY_PATH=/home/utnso/tp-2013-2c-c-o-no-ser/Shared-Library/Debug/
+###
+
 CC		  := gcc
 CFLAGS    := -Wall -L/usr/lib
-LIBRARIES := -lso-commons -lginyu -lpthread
+LIBRARIES := -lso-commons -lginyu -lpthread -lm
 DEBUG	  := -g
 
 personaje: personaje.o
