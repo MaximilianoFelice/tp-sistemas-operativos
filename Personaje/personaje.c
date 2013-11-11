@@ -147,7 +147,7 @@ void *jugar(void *args) {
 	struct sockaddr_in direccion_orq, direccion_plan;
 	char * ip_planif = malloc(sizeof(char) * 23);  //TODO hacer free
 	int puertoPlanif;
-	bool termine = false;
+	bool finalice = false;
 	bool murioPersonaje = false;
 
 	while (1) {
@@ -157,13 +157,13 @@ void *jugar(void *args) {
 			inicializeVidas = true; //Esta variable solo se pone en false cuando el chaboncito se queda sin vidas y quiere reiniciar
 			//reiniciar=false;
 		}
-		termine = false;
+		finalice = false;
 		murioPersonaje = false;
 
 		while (vidas > 0) {
 
 			murioPersonaje = false;
-			termine = false;
+			finalice = false;
 
 			log_info(logger, "Vidas de %c: %d", simbolo, vidas);
 			message_t msjPlan;
@@ -201,12 +201,12 @@ void *jugar(void *args) {
 
 				while (1) {
 
-					if (validarSenial(&murioPersonaje, &currObj))
+					if (validarSenial(&murioPersonaje) || vidas<=0)
 						break;
 
 					recibeMensaje(sockPlan, &msjPlan, sizeof(message_t), logger, "Espero turno");
 
-					if (validarSenial(&murioPersonaje, &currObj))
+					if (validarSenial(&murioPersonaje) || vidas<=0)
 						break;
 
 					//Valido que el mensaje sea correcto
@@ -231,14 +231,8 @@ void *jugar(void *args) {
 					recibeMensaje(sockPlan, &msjPlan, sizeof(msjPlan), logger, "Confirmación de movimiento");
 					//TODO revisar que pasa cuando se booquea si se desbloquea luego tiene que recibir confirmaicon de movimiento
 
-					//TODO hacer funcion para cuando llegue tambien el mensaje MURIO_INTERBLOQUEO
-					if(msjPlan.detail == MUERTO_ENEMIGOS){
-						log_debug(logger, "Me han matado :/");
-						vidas--;
-						murioPersonaje=true;
-						currObj=800;
+					if(estaMuerto(msjPlan.detail, &murioPersonaje))
 						break;
-					}
 
 					//Actualizo mi posición y de acuerdo a eso armo mensaje de TURNO
 					actualizaPosicion(mov, &posX, &posY);
@@ -264,50 +258,46 @@ void *jugar(void *args) {
 
 				} //Fin de while(1) de busqueda de un recurso
 
-				if (murioPersonaje || muertePorSenial)
+				if (murioPersonaje || muertePorSenial || vidas<=0)
 					break;
 
 			} //Fin de for de objetivos
 
 			if (!murioPersonaje) {
-				termine = true;
-				if (devolverRecursos(&sockPlan, &msjPlan)) {
-					close(sockPlan);
-					close(sockOrq);
-					log_debug(logger, "Cierro conexion con el orquestador y planificador");
-					break; //Salgo de este ciclo y paso al de while(1)
-				} else {
-					log_error(logger, "No se pudo liberar recursos correctamente");
-					exit(EXIT_FAILURE);
-				}
-			} else { //Si llega aqui puede ser porque haya muerto por señal SIGINT, por ENEMIGOS o por DEADLOCK
-				if (muertePorSenial) { //Si es por señal
-					if (devolverRecursos(&sockPlan, &msjPlan)) {
-						close(sockPlan);
-						close(sockOrq);
-						log_debug(logger, "Cierro conexion con el orquestador y planificador");
-						break;
-					} else
-						exit(EXIT_FAILURE);
-				} else { //Si mori por enemigos o deadlock
-					if (vidas<=0) { //Si me quede sin vidas armo un mensaje especial para que el planificador libere memoria
-						msjPlan.type=PERSONAJE;
-						msjPlan.detail=SALIR;
-						msjPlan.name=simbolo;
-						msjPlan.detail2=MUERTO_ENEMIGOS;
-						enviaMensaje(sockPlan, &msjPlan, sizeof(msjPlan), logger, "Salida al planificador");
-						recibeMensaje(sockPlan, &msjPlan, sizeof(msjPlan), logger, "Recibo confirmacion del planificador");
-					}
-					close(sockPlan);
-					close(sockOrq);
-					usleep(3000);
-					log_debug(logger, "Cierro conexion con el orquestador y planificador");
-				}
+				finalice = true;
+				devolverRecursos(&sockPlan, &msjPlan);
+				cerrarConexiones(&sockPlan, &sockOrq);
 			}
+
+			if(vidas <= 0){
+				devolverRecursos(&sockPlan, &msjPlan);
+				cerrarConexiones(&sockPlan, &sockOrq);
+			}
+
+			if(muertePorSenial){
+				devolverRecursos(&sockPlan, &msjPlan);
+				cerrarConexiones(&sockPlan, &sockOrq);
+			}
+
+			if(murioPersonaje){
+				if (vidas<=0) { //Si me quede sin vidas armo un mensaje especial para que el planificador libere memoria
+					//TODO preguntar si tiene q reiniciar o no
+					//TODO si dice q no = > finalice=true
+					armarMsj(&msjPlan, simbolo, PERSONAJE, SALIR, MUERTO_ENEMIGOS);
+					enviaMensaje(sockPlan, &msjPlan, sizeof(msjPlan), logger, "Salida al planificador");
+					recibeMensaje(sockPlan, &msjPlan, sizeof(msjPlan), logger, "Recibo confirmacion del planificador");
+				}
+				vidas--;
+				log_debug(logger, "Me han matado :/");
+				cerrarConexiones(&sockPlan, &sockOrq);
+			}
+
+			if(muertePorSenial || finalice)
+				break;
 
 		} //Fin del while(vidas>0)
 
-		if (termine || muertePorSenial || vidas<=0)
+		if (finalice || muertePorSenial || vidas<=0)
 			break;
 
 	} //Fin de while(1) de control de reinicio del personaje
@@ -324,12 +314,19 @@ void *jugar(void *args) {
 		exit_return = strdup("ha terminado por senial SIGINT");
 		pthread_exit((void *)exit_return);
 	}
-	if (termine) {
-		char * exit_return = strdup("ha finalizado su plan de niveles correctamente");
-		pthread_exit((void *)exit_return);
-	}
-	pthread_exit(NULL);
 
+	char * exit_return = strdup("ha finalizado su plan de niveles correctamente");
+	pthread_exit((void *)exit_return);
+
+
+}
+
+bool estaMuerto(int8_t detail, bool *murioPj){
+	if(detail == MUERTO_DEADLOCK)
+		return (*murioPj = true);
+	if(detail == MUERTO_ENEMIGOS)
+		return (*murioPj = true);
+	return (*murioPj =false);
 }
 
 void handshake_planif(int *sockPlan, int *posX, int *posY) {
@@ -381,6 +378,12 @@ void handshake_orq(int *sockOrq, int *puertoPlanif, char*ip_planif, char *nom_ni
 	}
 }
 
+void cerrarConexiones(int * sockPlan, int *sockOrq){
+	close(*sockPlan);
+	close(*sockOrq);
+	log_debug(logger, "Cierro conexion con el orquestador y planificador");
+}
+
 void morir(char* causaMuerte, int *currObj) {
 	log_info(logger, "%s murio por: %s", nombre_pj, causaMuerte);
 	*currObj=1000;
@@ -404,20 +407,18 @@ bool devolverRecursos(int *sockPlan, message_t *message) {
 		return true;
 	} else {
 		log_error(logger, "Tipo de msj incorrecto se esperaba SALIR y me llego (type=%d, detail=%d)", message->type, message->detail);
-		return false;
+		exit(EXIT_FAILURE);
 	}
-
+	return false;
 }
 
 //Seniales
-bool validarSenial(bool *murioPersonaje, int *currObj){
-	if (muertePorSenial) {
-		*murioPersonaje=true;
-		*currObj=1000;
-		vidas--;
-		return true;
+bool validarSenial(bool *murioPersonaje){
+	if(muertePorSenial){
+		return (*murioPersonaje = true);
 	}
-	return false;
+	else
+		return (*murioPersonaje = false);
 }
 
 void morirSenial() {

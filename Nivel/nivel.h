@@ -10,7 +10,7 @@
 #ifndef NIVEL_H_
 #define NIVEL_H_
 
-#include <gui/tad_items.h> //Este importa GUI
+#include "gui/tad_items.h" //No le pongan <> porque me tira error plis!!
 #include <ginyu/protocolo.h>
 #include <ginyu/config.h>
 #include <ginyu/sockets.h>
