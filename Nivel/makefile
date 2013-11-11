@@ -4,7 +4,7 @@
 
 CC		  := gcc
 CFLAGS    := -Wall -L/usr/lib/
-LIBRARIES := -lso-commons -lginyu -lpthread -lnivel-gui -lncurses
+LIBRARIES := -lso-commons -lginyu -lpthread -lnivel-gui -lncurses -lm
 DEBUG	  := -g
 
 nivel: nivel.o

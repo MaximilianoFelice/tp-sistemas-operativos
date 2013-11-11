@@ -4,7 +4,7 @@
 
 CC		  := gcc
 CFLAGS    := -Wall -L/usr/lib
-LIBRARIES := -lso-commons -lginyu -lpthread -lm
+LIBRARIES := -lso-commons -lginyu -lpthread
 DEBUG	  := -g
 
 personaje: personaje.o
