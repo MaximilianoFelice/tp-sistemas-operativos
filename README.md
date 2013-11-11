@@ -1,4 +1,6 @@
-C o no ser
+# C o no ser
+
+![Ser o no ser, esa es la cuestion...](https://fbcdn-sphotos-h-a.akamaihd.net/hphotos-ak-prn2/v/1080659_10200556588376684_1368975743_n.jpg?oh=09332653344997554724976e5ce65ad9&oe=5282AEFB&__gda__=1384307913_51b9e7a4f953141bbb307a3da64224d1)
 =====================
 Implementacion del TP de sistemas operativos
 ----------------------------------------------------------
