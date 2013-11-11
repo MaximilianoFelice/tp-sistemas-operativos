@@ -10,7 +10,7 @@
 #ifndef NIVEL_H_
 #define NIVEL_H_
 
-#include "gui/tad_items.h"//<gui/tad_items.h> //Este importa GUI
+#include "gui/tad_items.h" //No le pongan <> porque me tira error plis!!
 #include <ginyu/protocolo.h>
 #include <ginyu/config.h>
 #include <ginyu/sockets.h>
@@ -18,7 +18,6 @@
 #include <ginyu/log.h>
 
 #include <sys/inotify.h>
-#include <sys/poll.h>
 
 #include <time.h>
 #include <stdlib.h>
@@ -39,11 +38,10 @@
 #define INI_Y 0
 
 typedef struct {
-	_Bool esperandoRec;
 	_Bool blocked;
 	_Bool marcado;
 	char simbolo;
-	//_Bool muerto;
+	_Bool muerto;
 	t_list* recursos;
 } pers_t;
 
@@ -75,15 +73,6 @@ typedef struct {
 	bool in_x;
 	bool in_y;
 } mov_t;
-typedef struct{
-	int cantidadInstancias;
-	char simbolo;
-}t_caja;
-/*typedef struct{
-	int numeroCaja;
-	int cant_entregada;
-	int cant_pendiente;
-}t_nodo_rec_pedido;*/
 
 //Señales
 void cerrarNivel(char*);
