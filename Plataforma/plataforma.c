@@ -92,11 +92,10 @@ void *orquestador(unsigned short usPuerto) {
 	orq_t orqMsj;
 
 	while (1) {
-
 		socketComunicacion = getSockChanged(&master, &temp, &maxSock, sockListener, &remoteAddress, &orqMsj, sizeof(orq_t), logger, "Orquestador");
 
 		if (socketComunicacion != -1) {
-			int contNiv;
+
 			bool nivelEncontrado;
 
 			pthread_mutex_lock(&semNivel);
@@ -184,9 +183,19 @@ void *orquestador(unsigned short usPuerto) {
 					nivelEncontrado = false;
 					// El personaje pide jugar
 					// Ciclo para verificar los niveles que tiene que hacer el personaje
-					for (contNiv = 0; contNiv <= list_size(listaNiveles); contNiv++) {
+					int iCantidadNiveles = list_size(listaNiveles);
 
-						nivel_t* nivelLevantador = (nivel_t*) list_get_data(listaNiveles, contNiv);
+					if (iCantidadNiveles == 0) {
+						orqMsj.detail = NADA;
+						enviaMensaje(socketComunicacion, &orqMsj, sizeof(orq_t), logger, "No hay niveles conectados a la plataforma");
+						break;
+					}
+
+					int iNivelLoop;
+
+					for (iNivelLoop = 0; iNivelLoop <= iCantidadNiveles; iNivelLoop++) {
+
+						nivel_t* nivelLevantador = (nivel_t*) list_get_data(listaNiveles, iNivelLoop);
 
 						// Validacion del nivel encontrado
 						if (string_equals_ignore_case(nivelLevantador->nombre, orqMsj.name)) {
