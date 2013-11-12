@@ -39,11 +39,8 @@
 #define INI_Y 0
 
 typedef struct {
-	_Bool esperandoRec;
-	_Bool blocked;
-	_Bool marcado;
+	_Bool bloqueado;
 	char simbolo;
-	//_Bool muerto;
 	t_list* recursos;
 } pers_t;
 
@@ -79,28 +76,26 @@ typedef struct{
 	int cantidadInstancias;
 	char simbolo;
 }t_caja;
-/*typedef struct{
-	int numeroCaja;
-	int cant_entregada;
-	int cant_pendiente;
-}t_nodo_rec_pedido;*/
 
 //Señales
 void cerrarNivel(char*);
 void cerrarForzado(int sig);
 //Enemigos
 void *enemigo(void * args);
-_Bool personajeMuerto(t_list *list_personajes, char name);
-void KillPersonaje(t_list *list_personajes, char name);
+void *deteccionInterbloqueo (void *parametro);
+//_Bool personajeMuerto(t_list *list_personajes, char name);
+//void KillPersonaje(t_list *list_personajes, char name);
 void moverme(int *victimaX, int *victimaY, int *posX, int *posY, mov_t *movimiento);
-void validarPosSobreRecurso(t_list *list_items, mov_t movimiento, int *posX,int *posY);
-void matar(enemigo_t *enemigo, pers_t *pjVictima, int indice, char*ip_plataforma, int puertoPlan);
+//void validarPosSobreRecurso(t_list *list_items, mov_t movimiento, int *posX,int *posY);
+//void matar(enemigo_t *enemigo, pers_t *pjVictima, int indice, char*ip_plataforma, int puertoPlan);
 void actualizaPosicion(int *contMovimiento, int *posX, int *posY);
-bool hayAlgunEnemigoArriba(int posPerX, int posPerY);
-pers_t* hayAlgunEnemigoArribaDeAlgunPersonaje();
+//bool hayAlgunEnemigoArriba(int posPerX, int posPerY);
+//pers_t* hayAlgunEnemigoArribaDeAlgunPersonaje();
 //Nivel
-void liberarRecursos(pers_t *personajeAux, int index_l_personajes);
+void levantarArchivoConf(char*);
+void liberarRecsPersonaje(char);
+//void liberarRecursos(pers_t *personajeAux, int index_l_personajes);
 static void personaje_destroyer(pers_t *personaje);
-static void recurso_destroyer(char *recurso);
+//static void recurso_destroyer(char *recurso);
 
 #endif /* NIVEL_H_ */

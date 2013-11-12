@@ -10,7 +10,7 @@
 #define TAM_EVENTO (sizeof(struct inotify_event)+24)
 #define TAM_BUFER (1024*TAM_EVENTO)
 
-t_list *lista_cajas;
+//t_list *lista_cajas;
 t_log *logger; //R-W
 t_list *list_personajes; //R-W
 t_list *list_items; //R-W
@@ -31,21 +31,19 @@ int timeCheck;
 char* ip_plataforma;
 char* port_orq;
 
-pthread_mutex_t semNivel; //R -W
-pthread_mutex_t mutexEnemigos;
-pthread_mutex_t semaforo1;
+int sockPlanif;
 
-void levantarArchivoConf(char*);
+pthread_mutex_t semMSJ;
+pthread_mutex_t semItems;
 
 int main(int argc, char *argv[]) {
 	signal(SIGINT, cerrarForzado);
 	char buferNotify[TAM_BUFER];
-	int i,vigilante,rv,descriptorNotify,sockOrq,sockPlanif;
+	int i,vigilante,rv,descriptorNotify,sockOrq;
 	struct pollfd uDescriptores[2];
 	pers_t pjNew;
-	pthread_mutex_init(&semNivel, NULL );
-	pthread_mutex_init(&mutexEnemigos, NULL );
-	pthread_mutex_init(&semaforo1,NULL);
+	pthread_mutex_init(&semMSJ, NULL );
+	pthread_mutex_init(&semItems,NULL);
 	int posX = 0, posY = 0;// Para los personajes
 	int posRecY = 0, posRecX = 0;// Para los recursos
 
@@ -61,27 +59,25 @@ int main(int argc, char *argv[]) {
 	//LEVANTAR EL ARCHIVO CONFIGURACION EN VARIABLES GLOBALES
 	levantarArchivoConf(argv[1]);
 
-	//--------------------SALUDO - INFO - INFO_PLANIFICADOR - WHATS_UP--------------------//
-	// Definiciones para el uso de sockets
+	//SOCKETS
 	sockOrq = connectServer(ip_plataforma, atoi(port_orq), logger, "orquestador");
-	// Armo mensaje inicial de SALUDO con el orquestador
+
+	// MENSAJE INICIAL A ORQUESTADOR (SALUDO)
 	orq_t orqMsj;
 	orqMsj.type = NIVEL;
 	orqMsj.detail = SALUDO;
 	strcpy(orqMsj.name, nom_nivel);
-	// Envía el "Saludo" al orquestador
 	enviaMensaje(sockOrq, &orqMsj, sizeof(orq_t), logger, "Saludo Orquestador");
-	// Arma mensaje INFO con la informacion para pasarle al planificador
+	// MENSAJE DE NOTIFICACION DE ALGORITMO
 	orqMsj.type = INFO;
 	orqMsj.detail = quantum;
 	orqMsj.port = retardo;
 	strcpy(orqMsj.name, algoritmo);
-	// Envía msj INFO y el orquestador lanza el hilo planificador para este nivel
 	enviaMensaje(sockOrq, &orqMsj, sizeof(orq_t), logger, "Info de Planificacion");
 
-	//-------------Recibe puerto e ip del planificador para hacer el connect------------//
-	//Esto se podría sacar y directamente hacer un listen y accept, pero es mejor con solo un connect
+	//RECIBIENDO CONTESTACION (puerto e ip de planificador)
 	recibeMensaje(sockOrq, &orqMsj, sizeof(orq_t), logger, "Recibi puerto de mi planificador");
+
 	int puertoPlan;
 	if (orqMsj.type == INFO_PLANIFICADOR) {
 		puertoPlan = orqMsj.port;
@@ -89,33 +85,31 @@ int main(int argc, char *argv[]) {
 			log_warning(logger, "WARN: Las ip del archivo config y la que recibo del orquestador no coinciden");
 			exit(EXIT_FAILURE);
 		}
-
 	} else {
 		log_error(logger, "Tipo de mensaje incorrecto: se esperaba INFO_PLANIFICADOR del orquestador");
 		exit(EXIT_FAILURE);
 	}
 
-	//-------------Recibe puerto e ip del planificador para hacer el connect------------//
-	//Me conecto al planificador
+	//CONEXION CON PLANIFICADOR A TRAVES DE UN NUEVO SOCKET (???)
 	sockPlanif = connectServer(ip_plataforma, puertoPlan, logger, "planificador");
 	//Fuerzo un envio de mensaje al planificador para que me agregue a su lista de sockets y pueda mandar mensajes
-
 	msj.type = NIVEL;
 	msj.detail = WHATS_UP;
 	enviaMensaje(sockPlanif, &msj, sizeof(message_t), logger, "Whats up man");
-	// Logueo la conexion con el orquestador
+
+	// LOGUEO DE CONEXION CON PLANIFICADOR
 	log_info(logger, "Conexión con el planificador con puerto %d", puertoPlan);
 
-		//INOTIFY
-		descriptorNotify=inotify_init();
-		vigilante=inotify_add_watch(descriptorNotify,argv[1],IN_MODIFY);
-		if(vigilante==1) puts("error en inotify add_watch");
+	//INOTIFY
+	descriptorNotify=inotify_init();
+	vigilante=inotify_add_watch(descriptorNotify,argv[1],IN_MODIFY);
+	if(vigilante==-1) puts("error en inotify add_watch");
 
-		//POLL
-		uDescriptores[0].fd=sockPlanif;
-		uDescriptores[0].events=POLLIN;
-		uDescriptores[1].fd=descriptorNotify;
-		uDescriptores[1].events=POLLIN;
+	//POLL
+	uDescriptores[0].fd=sockPlanif;
+	uDescriptores[0].events=POLLIN;
+	uDescriptores[1].fd=descriptorNotify;
+	uDescriptores[1].events=POLLIN;
 
 	////CREANDO Y LANZANDO HILOS ENEMIGOS
 	threadEnemy_t *hilosEnemigos;
@@ -129,22 +123,30 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
+	//WHILE PRINCIPAL
 	while (1) {
 		//esperarMensaje(sockPlanif, &msj, sizeof(msj), logger);
 		int contPj;
 		pers_t * personajeAux;
-		pthread_mutex_lock(&semNivel);//---------->???????????????????
 
 		if((rv=poll(uDescriptores,2,-1))==-1) perror("poll");
 		else{
 			if (uDescriptores[1].revents&POLLIN){
 				read(descriptorNotify,buferNotify,TAM_BUFER);
 				struct inotify_event* evento=(struct inotify_event*) &buferNotify[0];
-				if(evento->mask & IN_MODIFY){
+				if(evento->mask & IN_MODIFY){//avisar a planificador que cambio el archivo config
 					levantarArchivoConf(argv[1]);
-
-					//avisar a planificador que cambio el archivo config
-					exit(EXIT_FAILURE);
+					pthread_mutex_lock(&semMSJ);
+					msj.type=NIVEL;
+					msj.detail=INFO;
+					//msj.detail2=algoritmo;
+					//faltaria mandar quantum o retardo, ANTES HIZO:
+					//orqMsj.type = INFO;
+					//orqMsj.detail = quantum;
+					//orqMsj.port = retardo;
+					//strcpy(orqMsj.name, algoritmo);
+					enviaMensaje(sockOrq, &orqMsj, sizeof(orq_t), logger, "Info de Planificacion");
+					pthread_mutex_unlock(&semMSJ);
 				}
 			}
 			if(uDescriptores[0].revents & POLLIN){
@@ -152,39 +154,45 @@ int main(int argc, char *argv[]) {
 				switch (msj.type) {
 				case SALUDO: //El planificador SALUDA al nivel pasandole el nuevo personaje que quiere jugar
 					//Creo el personaje en el mapa
+					pthread_mutex_lock(&semItems);
 					CrearPersonaje(list_items, msj.name, INI_X, INI_Y);
+					pthread_mutex_unlock(&semItems);
 					// TODO validar que no haya otro personaje con el mismo simbolo jugando en el nivel
 					pjNew.simbolo  = msj.name;
-					pjNew.blocked  = true;
-					//pjNew.muerto   = false;
+					pjNew.bloqueado  = false;
+					//pjNew.esperandoRec=false;
 					pjNew.recursos = list_create();
 					// Logueo el personaje recien agregado
 					log_info(logger, "Se agregó al personaje %c", pjNew.simbolo);
 					// Devuelvo msj SALUDO al planificador.
+					pthread_mutex_lock(&semMSJ);
 					msj.type    = NIVEL;
 					msj.detail  = INI_X;
 					msj.detail2 = INI_Y;
-					// Envio la posicion inicial del personaje al planificador
-					enviaMensaje(sockPlanif, &msj, sizeof(message_t), logger,"Posicion inicial");
+					enviaMensaje(sockPlanif, &msj, sizeof(message_t), logger,"Posicion inicial");// Envio la posicion inicial del personaje al planificador
+					pthread_mutex_unlock(&semMSJ);
 					// Agrego el personaje a la lista de personajes del nivel
+					//semaforo con liberarRecursos para que no meta mientras otro saca
 					list_add_new(list_personajes, (void *) &pjNew, sizeof(pers_t));
 				break;
-				case POSICION_RECURSO:
-					// El personaje le pidio la posicion del siguiente recurso a buscar al planificador, y este me lo pide a mi
+				case POSICION_RECURSO:// El personaje le pidio la posicion del siguiente recurso a buscar al planificador, y este me lo pide a mi
 					// Busco la posicion del recurso pedido en el mapa
 					getPosRecurso(list_items, msj.detail2, &posRecX, &posRecY);
+					pthread_mutex_lock(&semMSJ);
 					msj.type = POSICION_RECURSO;
 					msj.detail = posRecX;
 					msj.detail2 = posRecY;
-					// Envio mensaje al planificador con la posicion para que éste le mande la posicion al personaje
-					enviaMensaje(sockPlanif, &msj, sizeof(message_t), logger,"Posicion del recurso");
+					enviaMensaje(sockPlanif, &msj, sizeof(message_t), logger,"Posicion del recurso");// Envio mensaje con la posicion
+					pthread_mutex_unlock(&semMSJ);
 				break;
 				case MOVIMIENTO:
+					pthread_mutex_lock(&semItems);
 					// Busco la posicion actual del personaje
 					getPosPersonaje(list_items, msj.name, &posX, &posY);
 					//Buscar la posicion del recurso que esta presiguiendo el personaje
 					getPosRecurso(list_items, msj.detail, &posRecX, &posRecY);
 					// calculo el movimiento
+					pthread_mutex_unlock(&semItems);
 					switch (msj.detail2) {
 						case ARRIBA:
 							if (posY > 1) posY--;
@@ -202,9 +210,7 @@ int main(int argc, char *argv[]) {
 
 					MoverPersonaje(list_items, msj.name, posX, posY);
 
-					//TODO desbloquear, para el deadlock es esto
-					//Si llegó al recurso
-					if ((posX == posRecX) && (posY == posRecY)) {
+					if ((posX == posRecX) && (posY == posRecY)) { //Si llegó al recurso
 						//Agrego el recurso a la lista de recursos del personaje
 						for (contPj = 0; contPj < list_size(list_personajes); contPj++) {
 							// Recorro la lista y voy levantado personajes
@@ -220,55 +226,51 @@ int main(int argc, char *argv[]) {
 						if (cantInstancias >= 0) {
 							// Loqueo que al personaje se le dio un recurso
 							log_info(logger, "Al personaje %c se le dio el recurso %c",personajeAux->simbolo, msj.detail);
-							personajeAux->blocked = false;
-							//msj.type = MOVIMIENTO; //El msj.type se setea cuando verifica pos de enemigos
+							pthread_mutex_lock(&semMSJ);
+							msj.type = MOVIMIENTO;
 							msj.detail2 = msj.detail;
 							msj.detail = OTORGADO;
 							msj.name = personajeAux->simbolo;
 							// Envio mensaje donde confirmo la otorgacion del recurso pedido
 							enviaMensaje(sockPlanif, &msj, sizeof(message_t), logger,"Se otorgo el recurso pedido");
+							pthread_mutex_unlock(&semMSJ);
 						} else {
 							// Logueo el bloqueo del personaje
 							log_info(logger,"El personaje %c se bloqueo por el recurso %c",personajeAux->simbolo, msj.detail);
-							//Lo pongo como bloqueado
-							personajeAux->blocked = true;
-							//msj.type = MOVIMIENTO; //El msj.type se setea cuando verifica pos de enemigos
+							//se bloquea esperando que le den el recurso
+							personajeAux->bloqueado=true;
+							pthread_mutex_lock(&semMSJ);
+							msj.type = MOVIMIENTO;
 							msj.detail2 = msj.detail;
 							msj.detail = BLOCK;
 							msj.name = personajeAux->simbolo;
-							// Envio mensaje donde denego el pedido del recurso
-							enviaMensaje(sockPlanif, &msj, sizeof(message_t), logger,"Se denego el pedido del recurso");
+							enviaMensaje(sockPlanif, &msj, sizeof(message_t), logger,"Se denego el pedido del recurso");// Envio mensaje denego el recurso
+							pthread_mutex_unlock(&semMSJ);
 						}
 					}else { //Si no llego al recurso sigue moviendose tranquilamente
-						//msj.type = MOVIMIENTO; //El msj.type se setea cuando verifica pos de enemigos
+						pthread_mutex_lock(&semMSJ);
+						msj.type = MOVIMIENTO;
 						msj.detail2 = msj.detail;
 						msj.detail = NADA;
 						msj.name = personajeAux->simbolo;
 						// Envio mensaje donde denego el pedido del recurso
 						enviaMensaje(sockPlanif, &msj, sizeof(message_t), logger,"Se movio el personaje;");
+						pthread_mutex_unlock(&semMSJ);
 					}
 				break;
-				case SALIR:
-					// Un personaje termino o murio y debo liberar instancias de recursos que tenia asignado
-					for (contPj = 0; contPj < list_size(list_personajes); contPj++) {
-						personajeAux = (pers_t *) list_get(list_personajes, contPj);
-						// Recorro los personajes
-						if (personajeAux->simbolo == msj.name) {
-							liberarRecursos(personajeAux, contPj);
-							//Armo mensaje SALIR y confirmo al planificador la salida del personaje
-							msj.type = SALIR;
-							enviaMensaje(sockPlanif, &msj, sizeof(msj), logger,"Confirma salir al planificador");
-							// Salgo del ciclo de recorrer personajes
-				          break;
-			             }
-					}
+				case SALIR:// Un personaje termino o murio y debo liberar instancias de recursos que tenia asignado
+					pthread_mutex_lock(&semItems);
+					liberarRecsPersonaje(msj.name);
+					pthread_mutex_unlock(&semItems);
+					pthread_mutex_lock(&semMSJ);
+					msj.type=SALIR;
+					enviaMensaje(sockPlanif, &msj, sizeof(msj), logger,"Confirma salir al planificador");
+					pthread_mutex_unlock(&semMSJ);
 				break;
 				} //Fin del switch
 			}
 		//nivel_gui_dibujar(list_items, nom_nivel);------------>DIBUJAN LOS HILOS ENEMIGOS
 		}
-		pthread_mutex_unlock(&semNivel);
-
 	}
 	inotify_rm_watch(descriptorNotify,vigilante);
 	close(descriptorNotify);
@@ -296,8 +298,10 @@ void levantarArchivoConf(char* argumento){
 			cerrarNivel(messageLimitErr);
 			exit(EXIT_FAILURE);
 		}
+		pthread_mutex_lock(&semItems);
 		// Si la validacion fue exitosa creamos la caja de recursos
 		CrearCaja(list_items, arrCaja[1][0], atoi(arrCaja[3]), atoi(arrCaja[4]), atoi(arrCaja[2]));
+		pthread_mutex_unlock(&semItems);
 		// Rearma el cajaAux para la iteracion
 		sprintf(cajaAux, "Caja%d", ++t);
 		// Armo estructura de lista
@@ -341,7 +345,7 @@ void *enemigo(void * args) {
 	CreateEnemy(list_items,enemigo->num_enemy,enemigo->posX,enemigo->posY);
 
 	while (1) {
-		bool personajeBloqueado(pers_t* personaje){return(personaje->esperandoRec==false);}
+		bool personajeBloqueado(pers_t* personaje){return(personaje->bloqueado==false);}
 		cantPersonajesActivos=list_count_satisfying(list_personajes,(void*)personajeBloqueado);
 
 		if (cantPersonajesActivos == 0) {
@@ -429,10 +433,11 @@ void *enemigo(void * args) {
 			list_iterate(list_items,(void*)esUnRecurso2);
 		} else { //ELEGIR O PERSEGUIR A LA VICTIMA
 			pers_t* persVictima;
-			if(victimaAsignada=='0'){     //reordenar viendo cual es la victima mas cercana
+
+			if(victimaAsignada=='0'){     //No tiene victima =>reordenar viendo cual es la victima mas cercana
 				for(i=0;i<cantPersonajesActivos;i++){
 					persVictima=list_get(list_personajes,i);
-					if(persVictima->esperandoRec==false){ //el personaje no esta quieto esperando por un recurso
+					if(persVictima->bloqueado==false){ //el personaje no esta quieto esperando por un recurso
 						bool esElPersonaje(ITEM_NIVEL* personaje){return(personaje->id==persVictima->simbolo);}
 						item=list_find(list_items,(void*)esElPersonaje);
 						dist1=(enemigo->posX-item->posx)*(enemigo->posX-item->posx)+(enemigo->posY-item->posy)*(enemigo->posY-item->posy);
@@ -443,44 +448,45 @@ void *enemigo(void * args) {
 					}
 				}
 			}else{//ya teiene una victima asignada
-				bool unPersonaje(ITEM_NIVEL* item){	return (item->id==victimaAsignada);	}
-				item=list_find(list_personajes,(void*)unPersonaje);
-				if(enemigo->posY==item->posy){
-					if(enemigo->posX<item->posx) contMovimiento=1;
-					if(enemigo->posX>item->posx){ contMovimiento=3;}
-					else {//se esta en la misma posicion que la victima =>matarla
-						log_debug(logger, "El personaje %c esta muerto", msj.name);
-						msj.type = MOVIMIENTO;
-						msj.detail = MUERTO_ENEMIGOS;
-						//msj.name= yaesta el simbolo
-						enviaMensaje(enemigo->sockP, &msj, sizeof(msj), logger,	"Se mato a alguien :P");
-
-
-						//KillPersonaje(list_personajes,item->id);
-						victimaAsignada='0';
+				bool buscarPersonaje(pers_t personaje){return (personaje.simbolo==item->id);}
+				persVictima=list_find(list_personajes,(void*)buscarPersonaje);
+				if(persVictima->bloqueado==true){//ver si el personaje que estaba persiguiendo se bloqueo en un recurso=>habra que elegir otra victima
+					victimaAsignada='0';
+				}else{
+					bool unPersonaje(ITEM_NIVEL* item){	return (item->id==victimaAsignada);	}
+					item=list_find(list_personajes,(void*)unPersonaje);
+					if(enemigo->posY==item->posy){
+						if(enemigo->posX<item->posx) contMovimiento=1;
+						if(enemigo->posX>item->posx) contMovimiento=3;
+						else {//se esta en la misma posicion que la victima =>matarla
+							//un semaforo para que no mande mensaje al mismo tiempo que otros enemigos o el while principal
+							//otro semaforo para que no desasigne y se esten evaluando otros
+							log_debug(logger, "El personaje %c esta muerto", msj.name);
+							pthread_mutex_lock(&semMSJ);
+							msj.type = MOVIMIENTO;
+							msj.detail = MUERTO_ENEMIGOS;
+							msj.name= item->id;
+							enviaMensaje(enemigo->sockP, &msj, sizeof(msj), logger,	"Se mato a alguien :P");
+							pthread_mutex_unlock(&semMSJ);
+							pthread_mutex_lock(&semItems);
+							liberarRecsPersonaje(item->id);
+							pthread_mutex_unlock(&semItems);
+							victimaAsignada='0';
 						}
 					}else{ //acercarse por fila
 						if(enemigo->posY<item->posy) contMovimiento=4;
 						if(enemigo->posY>item->posy) contMovimiento=2;
-						}
-				//ver si el personaje que estaba persiguiendo se bloqueo en un recurso
-				bool buscarPersonaje(pers_t personaje){return (personaje.simbolo==item->id);}
-				persVictima=list_find(list_personajes,(void*)buscarPersonaje);
-				if(persVictima->esperandoRec==true){//elegir otra victima
-					victimaAsignada='0';
+				    }
 				}
 				actualizaPosicion(&contMovimiento, &(enemigo->posX),&(enemigo->posY));
-				void esUnRecurso2(ITEM_NIVEL *item){
-					if (item->item_type==RECURSO_ITEM_TYPE&&item->posx==enemigo->posX&&item->posy==enemigo->posY)
-						enemigo->posX--;
-					}
+				void esUnRecurso2(ITEM_NIVEL *item){if (item->item_type==RECURSO_ITEM_TYPE&&item->posx==enemigo->posX&&item->posy==enemigo->posY)	enemigo->posX--;}
 				list_iterate(list_items,(void*)esUnRecurso2);
 			}
 		} //Fin de else
-		pthread_mutex_lock(&semaforo1);
+		pthread_mutex_lock(&semItems);
 		MoveEnemy(list_items, enemigo->num_enemy, enemigo->posX,enemigo->posY);
 		nivel_gui_dibujar(list_items, nom_nivel);
-		pthread_mutex_unlock(&semaforo1);
+		pthread_mutex_unlock(&semItems);
 		usleep(sleep_enemigos);
 	} //Fin de while(1)
 	pthread_exit(NULL );
@@ -490,12 +496,13 @@ void *deteccionInterbloqueo (void *parametro){
 	int i,j,k,fila;
 	ITEM_NIVEL* item;
 	pers_t* personaje;
+	t_list* personajesBloqueados;
 	struct timespec dormir;
 	dormir.tv_sec=(time_t)(timeCheck/1000);
 	dormir.tv_nsec=(long)((timeCheck%1000)*1000000);
 
 	while(1){
-		pthread_mutex_lock (&semaforo1);//nadie se mueve hasta que no se evalue el interbloqueo
+		pthread_mutex_lock (&semItems);//nadie mueve un pelo hasta que no se evalue el interbloqueo
 		int cantPersonajes=list_size(list_personajes);
 		int matAsignacion[cantPersonajes][cantRecursos];
 		int matSolicitud[cantPersonajes][cantRecursos];
@@ -522,13 +529,16 @@ void *deteccionInterbloqueo (void *parametro){
 				indice++;
 			}
 		}
-		for(i=0;i<cantPersonajes;i++){
-			personaje=list_get(list_personajes,i);
+		personajesBloqueados=list_create();
+		bool estaBloqueado(pers_t* persoj){return (persoj->bloqueado==true);}
+		personajesBloqueados=list_filter(list_personajes,(void*)estaBloqueado);
+		for(i=0;i<list_size(personajesBloqueados);i++){
+			personaje=list_get(personajesBloqueados,i);
 			for(j=0;j<list_size(personaje->recursos);j++){
 				caja=list_get(personaje->recursos,j);
 				for(k=0;k<cantRecursos;k++){
 					if(vecCajas[k].simbolo==caja->simbolo){
-						if((personaje->blocked==true)&&(j==list_size(personaje->recursos)-1)){
+						if(j==list_size(personaje->recursos)-1){
 							matSolicitud[i][k]+=1;
 						}else{
 							matAsignacion[i][k]+=1;
@@ -538,7 +548,7 @@ void *deteccionInterbloqueo (void *parametro){
 			}
 		}
 		//detectando el interbloqueo
-		for(i=0;i<cantPersonajes;i++){
+		for(i=0;i<list_size(personajesBloqueados);i++){
 			fila=0;
 			for(j=0;j<cantRecursos;j++){ if((matSolicitud[i][j]-vecCajas[j].cantidadInstancias)<=0) fila++;}//recDisponibles[j])<=0) fila++;}
 			if((fila==cantRecursos)&&(vecSatisfechos[i]!=0)){ //los recursos disponibles satisfacen algun proceso
@@ -554,113 +564,45 @@ void *deteccionInterbloqueo (void *parametro){
 			//NO HAY INTERBLOQUEO
 		}else{
 			if(recovery==1){
-				//notificar a plataforma
+				//notificar a plataforma, entonces vecSatisfechos contendra -1-->el personaje quedo bloqueado
+				pthread_mutex_lock(&semMSJ);
+				msj.type=NIVEL;
+				msj.detail=INFO;
+				msj.detail2=list_size(personajesBloqueados)-cantPersonajesSatisfechos;
+				enviaMensaje(sockPlanif, &msj, sizeof(msj), logger,	"Enviando aviso de bloqueo");
+				for(i=0;i<list_size(personajesBloqueados)-cantPersonajesSatisfechos;i++){
+					//ESPERAR CONTESTACION???
+					personaje=list_get(personajesBloqueados,i);
+					if(vecSatisfechos[i]==-1){
+						msj.name=personaje->simbolo;
+						enviaMensaje(sockPlanif, &msj, sizeof(msj), logger,	"Enviando el id del personaje bloqueado");
+					}
+				}
+				pthread_mutex_unlock(&semMSJ);
 			}
 		}
-		pthread_mutex_unlock (&semaforo1);
+		pthread_mutex_unlock (&semItems);
 		nanosleep(&dormir,NULL);
 	}
 	return 0;
 }
-/*
-void KillPersonaje(t_list *list_personajes, char name) {
-	int i;
-	pers_t *pjAux;
-	for (i = 0; i < list_size(list_personajes); i++) {
-		pjAux = list_get(list_personajes, i);
-		if (pjAux->simbolo == name)
-			pjAux->muerto = true;
+void liberarRecsPersonaje(char id){
+	pers_t* personaje;
+
+	bool buscarPersonaje(pers_t* perso){return(perso->simbolo==id);}
+	//eliminar al personaje de list_personajes y devolverlo para desasignar sus recursos:
+	personaje=list_find(list_personajes,(void*)buscarPersonaje);
+	list_remove_by_condition(list_personajes,(void*)buscarPersonaje);
+
+	void desasignar(char id1){
+		ITEM_NIVEL* itemAux;
+		bool buscarRecurso(ITEM_NIVEL* item1){return (item1->id==id1);}
+		itemAux=list_find(list_items,(void*)buscarRecurso);
+		itemAux->quantity++;
 	}
+	list_iterate(personaje->recursos,(void*)desasignar);
+	personaje_destroyer(personaje);
 }
-*/
-/*
-_Bool personajeMuerto(t_list *list_personajes, char name) {
-	int i;
-	pers_t *pjAux;
-	for (i = 0; i < list_size(list_personajes); i++) {
-		pjAux = (pers_t *) list_get_data(list_personajes, i);
-		if (pjAux->simbolo == name && pjAux->muerto)
-			return true;
-	}
-	return false;
-}
-*/
-/*
-void matar(enemigo_t *enemigo, pers_t *pjVictima, int indice, char*ip_plataforma, int puertoPlan) {
-	message_t *msj = malloc(sizeof(message_t));
-	msj->type = NIVEL;
-	msj->detail = MUERTO_ENEMIGOS;
-	msj->name = pjVictima->simbolo;
-
-	liberarRecursos(pjVictima, indice);
-	hayQueAsesinar = false;
-
-	enemigo->sockP = connectServer(ip_plataforma, puertoPlan, logger, "planificador");
-
-	enviaMensaje(enemigo->sockP, &msj, sizeof(msj), logger, "Informo asesinato al planificador");
-	recibeMensaje(enemigo->sockP, &msj, sizeof(msj), logger, "Recibo confirmacion");
-	free(msj);
-}*/
-/*
-bool hayAlgunEnemigoArriba(int posPerX, int posPerY) {
-
-	int i;
-	int posEnemyX, posEnemyY;
-	for (i = 1; i <= cant_enemigos; i++) {
-		getPosEnemy(list_items, i, &posEnemyX, &posEnemyY);
-		if (posPerX == posEnemyX && posPerY == posEnemyY)
-			return true;
-	}
-	return false;
-}*/
-/*
-pers_t* hayAlgunEnemigoArribaDeAlgunPersonaje() {
-	int i, j;
-	int posEnemyX, posEnemyY;
-	int posX, posY;
-	for (i = 1; i <= cant_enemigos; i++) {
-
-		getPosEnemy(list_items, i, &posEnemyX, &posEnemyY);
-		for (j = 0; j < list_size(list_personajes); j++) {
-
-			pers_t *pjLev = (pers_t *) list_get(list_personajes, j);
-			getPosPersonaje(list_items, pjLev->simbolo, &posX, &posY);
-			if (posX == posEnemyX && posY == posEnemyY)
-				return pjLev;
-		}
-	}
-	return NULL ;
-}
-*/
-void liberarRecursos(pers_t *personajeAux, int index_l_personajes) {
-
-	int contRec;
-	char* auxRec;
-	// Si lo encontre recorro su lista de recursos y voy liberando lo que tenia
-	for (contRec = 0; contRec < list_size(personajeAux->recursos); contRec++) {
-		auxRec = (char *) list_get(personajeAux->recursos, contRec);
-		sumarInstanciasRecurso(list_items, *auxRec);
-	}
-
-	//Destruyo la lista y los elementos de la lista: libera memoria
-	list_destroy_and_destroy_elements(personajeAux->recursos, (void *) recurso_destroyer);
-
-	/*if (personajeAux->muerto) { //Esto es porque si lo mato un enemigo que no intente borrarlo dos veces
-		hayQueAsesinar = true;
-		log_debug(logger, "El personaje %c esta muerto y reinicia", personajeAux->simbolo);
-	}*/
-
-	BorrarItem(list_items, personajeAux->simbolo);
-
-	// Loqueo la desconexion del personaje
-	log_debug(logger, "El personaje %c se desconecto", personajeAux->simbolo);
-
-	list_remove(list_personajes, index_l_personajes);
-
-	personaje_destroyer(personajeAux);
-
-}
-
 void moverme(int *victimaX, int *victimaY, int *posX, int *posY,
 		mov_t *movimiento) {
 
@@ -691,69 +633,6 @@ void moverme(int *victimaX, int *victimaY, int *posX, int *posY,
 	}
 
 }
-/*
-void validarPosSobreRecurso(t_list *list_items, mov_t movimiento, int *posX, int *posY) {
-
-	int i;
-	ITEM_NIVEL *aux;
-
-	for (i = 0; i < list_size(list_items); i++) {
-
-		aux = (ITEM_NIVEL *) list_get(list_items, i);
-
-		if (aux->item_type == RECURSO_ITEM_TYPE) {
-
-			//Si estoy arriba de una caja de recursos, entonces la esquivo
-			if (*posX == aux->posx && *posY == aux->posy) {
-
-				//Si me movi en el eje X
-				if (movimiento.in_x && !movimiento.in_y) {
-
-					if (movimiento.type_mov_x == izquierda) {
-						(*posX)++; //Vuelvo atras
-						(*posY)--; //Subo un escalon
-					} else {
-						(*posX)--; //Vuelvo un paso atras
-						(*posY)++; //Lo esquivo por abajo
-					}
-				}
-				//Si me movi en el eje Y
-				if (movimiento.in_y && !movimiento.in_x) {
-
-					if (movimiento.type_mov_y == arriba) {
-						(*posY)++; //Vuelvo atras
-						(*posX)++; //Me muevo a la derecha
-					} else {
-						(*posY)--; //Vuelvo un paso atras
-						(*posX)--; //Lo esquivo por la izquierda
-
-					}
-				}
-
-				if (movimiento.in_x && movimiento.in_y) { //diagonales
-					if (movimiento.type_mov_x == izquierda) { //diagonal derecha superior
-						if (movimiento.type_mov_y == abajo)
-							(*posY)++; //Subo un escalon: arriba del recurso estoy ahora
-						else if (movimiento.type_mov_y == arriba) //diagonal derecha inferior
-							(*posY)--;
-					}
-
-					if (movimiento.type_mov_x == derecha) {
-						if (movimiento.type_mov_y == abajo)
-							(*posY)--;
-						else if (movimiento.type_mov_y == arriba)
-							(*posY)--;
-					}
-
-				}
-
-			} //Fin del if de validacion de mi pos contra la de una caja de recursos
-
-		} //Fin del if de validacion de si es un recurso
-
-	} //Fin del for de recorrido de recursos
-}
-*/
 void actualizaPosicion(int *contMovimiento, int *posX, int *posY) {
 
 	switch (*contMovimiento) {
@@ -771,12 +650,10 @@ void actualizaPosicion(int *contMovimiento, int *posX, int *posY) {
 		break;
 	}
 }
-
 //--------------------------------------Señal SIGINT
 void cerrarForzado(int sig) {
 	cerrarNivel("Cerrado Forzoso Nivel.");
 }
-
 void cerrarNivel(char* msjLog) {
 	log_trace(logger, msjLog);
 	nivel_gui_terminar();
@@ -784,12 +661,11 @@ void cerrarNivel(char* msjLog) {
 	exit(EXIT_FAILURE);
 }
 //--------------------------------------Señal SIGINT
-
 // Libera memoria de cada personaje de la lista
 static void personaje_destroyer(pers_t *personaje) {
 	free(personaje);
 }
-
+/*
 static void recurso_destroyer(char *recurso) {
 	free(recurso);
-}
+}*/
