@@ -78,7 +78,6 @@ int main(int argc, char*argv[]) {
 		//hago un print de los niveles que agrego para que
 		//Por cada uno, genero una lista (el malloc esta en el list_create)
 		listaObjetivos = list_create();
-		char * Objetivos2;
 		while (objetivos[j] != NULL ) { //Vuelvo a ciclar por objetivos
 			list_add_new(listaObjetivos, objetivos[j], sizeof(char)); //Armo la lista
 			j++;
@@ -144,7 +143,7 @@ void *jugar(void *args) {
 	int posRecursoX, posRecursoY;
 	//Variables para conectarme al orquestador y planificador
 	int sockOrq, sockPlan;
-	struct sockaddr_in direccion_orq, direccion_plan;
+	struct sockaddr_in;
 	char * ip_planif = malloc(sizeof(char) * 23);  //TODO hacer free
 	int puertoPlanif;
 	bool finalice = false;
