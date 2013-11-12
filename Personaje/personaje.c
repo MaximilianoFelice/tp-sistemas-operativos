@@ -143,7 +143,6 @@ void *jugar(void *args) {
 	int posRecursoX, posRecursoY;
 	//Variables para conectarme al orquestador y planificador
 	int sockOrq, sockPlan;
-	struct sockaddr_in;
 	char * ip_planif = malloc(sizeof(char) * 23);  //TODO hacer free
 	int puertoPlanif;
 	bool finalice = false;
