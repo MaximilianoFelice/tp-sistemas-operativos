@@ -584,7 +584,7 @@ int set_position (int *pointer_block, int *data_block, size_t size, off_t offset
 int delete_nodes_upto (struct grasa_file_t *file_data, int pointer_upto, int data_upto){
 	t_bitarray *bitarray;
 	size_t file_size = file_data->file_size;
-	int node_to_delete;
+	int node_to_delete, node_pointer_to_delete;
 	ptrGBloque *aux; // Auxiliar utilizado para saber que nodo redireccionar
 	int data_pos, pointer_pos;
 
@@ -613,12 +613,12 @@ int delete_nodes_upto (struct grasa_file_t *file_data, int pointer_upto, int dat
 		else if (data_pos == 0){
 //			if ((data_pos == 0) & (pointer_pos ==0)) return 0;
 
-			aux = &(file_data->blk_indirect[pointer_pos]);
-			node_to_delete = aux[0];
+			node_pointer_to_delete = file_data->blk_indirect[pointer_pos]; // Ubica el numero de nodo de punteros a borrar.
+			aux = (ptrGBloque *) &(header_start[node_pointer_to_delete]); // Entra a dicho nodo de punteros.
+			node_to_delete = aux[0];	// Selecciona el nodo 0 de dicho bloque de punteros.
+			bitarray_clean_bit(bitarray, node_pointer_to_delete);
 			bitarray_clean_bit(bitarray, node_to_delete);
-			node_to_delete = file_data->blk_indirect[pointer_pos];
 			file_data->blk_indirect[pointer_pos] = 0; // Se utiliza el 0 como referencia a bloque no indicado.
-			bitarray_clean_bit(bitarray, node_to_delete); // C OLIMPICO: ESTA JUMPEANDO ESTA POSICION.
 
 			// Reubica el offset
 			data_pos = 1023;
