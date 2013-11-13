@@ -59,17 +59,12 @@ int main(int argc, char*argv[]) {
 }
 
 void *orquestador(unsigned short usPuerto) {
+	t_list *lPlanificadores;
+	threadPlanificador_t *pPlanificador;
 
-	threadPlanificador_t *hilosPlanif;
-
-	// Pongo que solo se puedan de a 20 planificadores por ves, despues ver como hacer bien esto.
-	hilosPlanif = calloc(20, sizeof(threadPlanificador_t));
-
-	// Cantidad de hilos inicial
-	int cantHilos = 0;
-
-	// Creo la lista de niveles
-	listaNiveles = list_create();
+	// Creo la lista de niveles y planificadores
+	listaNiveles    = list_create();
+	lPlanificadores = list_create();
 
 	// Defino un puerto para el planificador, luego cuando tire cada hilo planificador
 	// voy a ir aumentando el numero para que cada uno tenga un puerto diferente
@@ -103,23 +98,40 @@ void *orquestador(unsigned short usPuerto) {
 			case NIVEL:
 				switch (orqMsj.detail) {
 				case SALUDO:
-
 					// Un nuevo nivel se conecta
 
-					// TODO validar que no haya otro nivel con el mismo nombre
+					// Se verifica que no exista uno con le mismo nombre
+					if (!list_is_empty(lPlanificadores)) {
+						threadPlanificador_t *pPlanifGuardado;
+						int bEncontrado = 0;
+						int iPlanificadorLoop = 0;
+						int iCantPlanificadores = list_size(lPlanificadores);
 
+						for (iPlanificadorLoop = 0; (iPlanificadorLoop < iCantPlanificadores) && (bEncontrado == 0); iPlanificadorLoop++) {
+							pPlanifGuardado = list_get(lPlanificadores, iPlanificadorLoop);
+							bEncontrado = (strcmp (pPlanifGuardado->nivel.nombre, orqMsj.name) == 0);
+						}
+
+						if (bEncontrado == 1) {
+							orqMsj.type = REPETIDO;
+							enviaMensaje(socketComunicacion, &orqMsj, sizeof(orq_t), logger, "Ya se encuentra conectado al orquestador un nivel con el mismo nombre");
+							break;
+						}
+					}
+
+					pPlanificador = (threadPlanificador_t*) malloc(sizeof(threadPlanificador_t));
 					// Logueo la conexion del nivel
 					log_debug(logger, "Recibe msj SALUDO de %s", orqMsj.name);
 
 					// Armo estructura para ese nuevo nivel disponible y lo agrego a la lista de niveles
-					hilosPlanif[cantHilos].nivel.sock = socketComunicacion;
-					hilosPlanif[cantHilos].nivel.puertoPlan = lastPlan; //Puerto del planificador asociado
-					strcpy(hilosPlanif[cantHilos].nivel.nombre, orqMsj.name);
+					pPlanificador->nivel.sock = socketComunicacion;
+					pPlanificador->nivel.puertoPlan = lastPlan; //Puerto del planificador asociado
+					strcpy(pPlanificador->nivel.nombre, orqMsj.name);
 
 					// Cada nivel va a tener su cola de bloqueados, listos y finalizados
-					hilosPlanif[cantHilos].nivel.l_personajesBlk = list_create();
-					hilosPlanif[cantHilos].nivel.l_personajesRdy = list_create();
-					hilosPlanif[cantHilos].nivel.l_personajesDie = list_create();
+					pPlanificador->nivel.l_personajesBlk = list_create();
+					pPlanificador->nivel.l_personajesRdy = list_create();
+					pPlanificador->nivel.l_personajesDie = list_create();
 
 					// Logueo la conexion del nivel
 					log_trace(logger, "Se conectó el nivel: %s", orqMsj.name);
@@ -131,15 +143,15 @@ void *orquestador(unsigned short usPuerto) {
 					if (orqMsj.type == INFO) {
 
 						// Asigno los valores a las variables del nivel
-						strcpy(hilosPlanif[cantHilos].nivel.algoritmo,orqMsj.name);
-						hilosPlanif[cantHilos].nivel.quantum = orqMsj.detail;
-						hilosPlanif[cantHilos].nivel.retardo = orqMsj.port;
+						strcpy(pPlanificador->nivel.algoritmo,orqMsj.name);
+						pPlanificador->nivel.quantum = orqMsj.detail;
+						pPlanificador->nivel.retardo = orqMsj.port;
 
 						// Agrego el nivel a la lista de niveles
-						list_add_new(listaNiveles, (void *) &hilosPlanif[cantHilos].nivel, sizeof(nivel_t));
+						list_add_new(listaNiveles, (void *) &pPlanificador->nivel, sizeof(nivel_t));
 
 						// Tira el nuevo hilo; valido errores
-						if (pthread_create(&hilosPlanif[cantHilos].hiloPlan, NULL, planificador, (void *) &hilosPlanif[cantHilos].nivel)) {
+						if (pthread_create(&pPlanificador->hiloPlan, NULL, planificador, (void *) &pPlanificador->nivel)) {
 
 							// Mandamos al hilo t0do el nivel
 							log_error(logger, "pthread_create: %s",strerror(errno));
@@ -148,8 +160,8 @@ void *orquestador(unsigned short usPuerto) {
 
 						// Logueo el nuevo hilo recien creado
 						log_debug(logger, "Nuevo planificador del nivel: '%s' que atiende puerto: %d y planifica con: %s",
-								hilosPlanif[cantHilos].nivel.nombre, lastPlan,
-								hilosPlanif[cantHilos].nivel.algoritmo);
+								pPlanificador->nivel.nombre, lastPlan,
+								pPlanificador->nivel.algoritmo);
 
 						//Envio el puerto e ip del planificador para que el nivel haga el connect
 						orqMsj.type = INFO_PLANIFICADOR;
@@ -159,7 +171,7 @@ void *orquestador(unsigned short usPuerto) {
 						enviaMensaje(socketComunicacion, &orqMsj, sizeof(orq_t), logger, "Envio de puerto e ip del planificador al nivel");
 
 						//Luego de crear el hilo aumento en uno el contador de hilos para el siguiente planificador
-						cantHilos++;
+						list_add(lPlanificadores, pPlanificador);
 
 						// Incremento el puerto
 						lastPlan = lastPlan + 15;

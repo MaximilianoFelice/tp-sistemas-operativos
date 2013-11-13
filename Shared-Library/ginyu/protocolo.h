@@ -19,6 +19,7 @@
 #define TURNO 7
 #define SALIR 8
 #define NADA 20
+#define REPETIDO 99
 
 //Estado
 #define BLOCK 10
@@ -35,6 +36,7 @@
 //Emisor
 #define NIVEL 16
 #define PERSONAJE 17
+#define PLATAFORMA 80
 
 typedef struct{
 	int8_t type;
