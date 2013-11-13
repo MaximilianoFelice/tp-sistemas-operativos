@@ -10,7 +10,7 @@
 #ifndef NIVEL_H_
 #define NIVEL_H_
 
-#include "gui/tad_items.h"//<gui/tad_items.h> //Este importa GUI
+#include "gui/tad_items.h" //No le pongan <> porque me tira error plis!!
 #include <ginyu/protocolo.h>
 #include <ginyu/config.h>
 #include <ginyu/sockets.h>
@@ -18,7 +18,6 @@
 #include <ginyu/log.h>
 
 #include <sys/inotify.h>
-#include <sys/poll.h>
 
 #include <time.h>
 #include <stdlib.h>
@@ -39,8 +38,10 @@
 #define INI_Y 0
 
 typedef struct {
-	_Bool bloqueado;
+	_Bool blocked;
+	_Bool marcado;
 	char simbolo;
+	_Bool muerto;
 	t_list* recursos;
 } pers_t;
 
@@ -72,30 +73,23 @@ typedef struct {
 	bool in_x;
 	bool in_y;
 } mov_t;
-typedef struct{
-	int cantidadInstancias;
-	char simbolo;
-}t_caja;
 
 //Señales
 void cerrarNivel(char*);
 void cerrarForzado(int sig);
 //Enemigos
 void *enemigo(void * args);
-void *deteccionInterbloqueo (void *parametro);
-//_Bool personajeMuerto(t_list *list_personajes, char name);
-//void KillPersonaje(t_list *list_personajes, char name);
+_Bool personajeMuerto(t_list *list_personajes, char name);
+void KillPersonaje(t_list *list_personajes, char name);
 void moverme(int *victimaX, int *victimaY, int *posX, int *posY, mov_t *movimiento);
-//void validarPosSobreRecurso(t_list *list_items, mov_t movimiento, int *posX,int *posY);
-//void matar(enemigo_t *enemigo, pers_t *pjVictima, int indice, char*ip_plataforma, int puertoPlan);
+void validarPosSobreRecurso(t_list *list_items, mov_t movimiento, int *posX,int *posY);
+void matar(enemigo_t *enemigo, pers_t *pjVictima, int indice, char*ip_plataforma, int puertoPlan);
 void actualizaPosicion(int *contMovimiento, int *posX, int *posY);
-//bool hayAlgunEnemigoArriba(int posPerX, int posPerY);
-//pers_t* hayAlgunEnemigoArribaDeAlgunPersonaje();
+bool hayAlgunEnemigoArriba(int posPerX, int posPerY);
+pers_t* hayAlgunEnemigoArribaDeAlgunPersonaje();
 //Nivel
-void levantarArchivoConf(char*);
-void liberarRecsPersonaje(char);
-//void liberarRecursos(pers_t *personajeAux, int index_l_personajes);
+void liberarRecursos(pers_t *personajeAux, int index_l_personajes);
 static void personaje_destroyer(pers_t *personaje);
-//static void recurso_destroyer(char *recurso);
+static void recurso_destroyer(char *recurso);
 
 #endif /* NIVEL_H_ */

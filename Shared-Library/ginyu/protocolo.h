@@ -5,6 +5,7 @@
 
 #include <stdint.h> //para los "int8_t"//////
 #include <unistd.h> //para que no tire warning el close(i);
+#include <string.h>
 
 //HandShakes
 #define SALUDO 1
@@ -18,6 +19,7 @@
 #define TURNO 7
 #define SALIR 8
 #define NADA 20
+#define REPETIDO 99
 
 //Estado
 #define BLOCK 10
@@ -34,6 +36,7 @@
 //Emisor
 #define NIVEL 16
 #define PERSONAJE 17
+#define PLATAFORMA 80
 
 typedef struct{
 	int8_t type;
@@ -49,5 +52,12 @@ typedef struct{// Desde el punto de vista del orquestador
 	char ip[16]; 	// Recibe Ip				-	Manda Ip
 	char name[16]; // Nombre de nivel			-	Nombre de nivel pedido
 } orq_t;
+
+//Para el planificador
+message_t armarMsj_return(char name, int8_t type, int8_t detail, int8_t detail2);
+void armarMsj(message_t *msj, char name, int8_t type, int8_t detail, int8_t detail2);
+//Para el orquestador
+orq_t armarOrqMsj_return(char *name, int8_t type, int8_t detail, char *ip, int port);
+void armarOrqMsj(orq_t *msj, char *name, int8_t type, int8_t detail, char *ip, int port);
 
 #endif /* PROTOCOLO_H_ */

@@ -30,9 +30,7 @@
 #include <pthread.h>
 #include <errno.h>
 
-#define PUERTO_ORQ 5000
 #define PUERTO_PLAN 5050
-
 
 typedef struct {
 	char name;
@@ -66,7 +64,7 @@ typedef struct {
 	nivel_t nivel;
 } threadPlanificador_t;
 
-void *orquestador();
+void *orquestador(unsigned short usPuerto);
 void *planificador(void *);
 bool estaMuerto(t_list * end, char name);
 bool exist_personaje(t_list *list, char name_pj, int  *indice_pj);
