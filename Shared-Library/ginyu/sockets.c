@@ -120,6 +120,44 @@ signed int getSockChanged(fd_set *master, fd_set *temp, int *maxSock, int sockLi
 	return -1;
 }
 
+
+
+signed int multiplexar(fd_set *master, fd_set *temp,int *maxSock, void *buffer, int bufferSize, t_log* logger) {
+
+	int i;
+	int nBytes;
+	memcpy(temp, master, sizeof(fd_set));
+
+	//--Multiplexa conexiones
+	if (select(*maxSock + 1, temp, NULL, NULL, NULL) == -1) {
+		log_error(logger, "select: %s", strerror(errno));
+		exit(1);
+	}
+
+	//--Cicla las conexiones para ver cual cambió
+	for (i = 0; i <= *maxSock; i++) {
+		if (FD_ISSET(i, temp)) {
+			//--Gestiona un cliente ya conectado
+			if ((nBytes = recv(i, buffer, bufferSize, 0)) <= 0) {
+				//--Si cerró la conexión o hubo error
+				if (nBytes == 0)
+					log_trace(logger,"Planificador: Fin de conexion de %d.", i);
+				else
+					log_error(logger, "Planificador: recv: %s",
+							strerror(errno));
+				//--Cierra la conexión y lo saca de la lista
+				close(i);
+				FD_CLR(i, master);
+			} else { //Tengo info!!
+				return i;
+			}
+
+		}
+	}
+	return -1;
+}
+
+
 signed int getSockChangedNB(fd_set *master, fd_set *temp, int *maxSock, int sockListener, struct sockaddr_in *remoteAddress, void *buf, int bufSize, t_log* logger, int secs) {
 
 	int addressLength;

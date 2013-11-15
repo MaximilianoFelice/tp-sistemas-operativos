@@ -25,6 +25,7 @@ int selectSocks(fd_set *master, fd_set *temp, int *maxSock, int sockListener,
 signed int getSockChanged(fd_set *master, fd_set *temp, int *maxSock,
 		int sockListener, struct sockaddr_in *remoteAddress, void *buf,
 		int bufSize, t_log* logger, char *);
+signed int multiplexar(fd_set *master, fd_set *temp,int *maxSock, void *buffer, int bufferSize, t_log*) ;
 signed int getSockChangedNB(fd_set *master, fd_set *temp, int *maxSock,
 		int sockListener, struct sockaddr_in *remoteAddress, void *buf,
 		int bufSize, t_log* logger, int secs);
