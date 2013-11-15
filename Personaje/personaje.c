@@ -170,7 +170,10 @@ void *jugar(void *args) {
 
 			handshake_orq(&sockOrq, &puertoPlanif, ip_planif, nivelQueJuego->nomNivel);
 
+			//todo sacar el coonect server y usar directamente el sockOrq
 			sockPlan = connectServer(ip_plataforma, puertoPlanif, logger, "planificador");
+
+			//handshake_planif(&sockOrq, &posX, &posY);
 
 			handshake_planif(&sockPlan, &posX, &posY);
 
