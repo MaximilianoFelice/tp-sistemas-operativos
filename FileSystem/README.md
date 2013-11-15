@@ -61,3 +61,13 @@ proyecto por separado para conocer a fondo cada herramienta.
 IMPORTANTE:
 	Recordar que para crear un nuevo disco, se debe utilizar un comando al estilo:
     dd if=/dev/urandom of=disco.bin bs=1024 count=10240
+
+_Desmontando el Disco_
+-----------------------
+
+Para desmontar el disco se utiliza el comando: 'fusermount' con el parametro -u, indicando la ruta de montaje del FileSystem
+
+Por ejemplo: 
+    fusermount -u /tmp/fusea
+
+(siendo /tmp/fusea la ruta en donde se monto FUSE).
