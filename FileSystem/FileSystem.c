@@ -861,6 +861,7 @@ int grasa_write (const char *path, const char *buf, size_t size, off_t offset, s
 
 	}
 
+	// TODO Agregar fecha de modificacion node->m_date= ???
 	// Devuelve el lock de escritura.
 	pthread_rwlock_unlock(&rwlock);
 			log_lock_trace(logger, "Write: Devuelve lock escritura. En cola: %d", rwlock.__data.__nr_writers_queued);
@@ -922,6 +923,7 @@ int grasa_mknod (const char* path, mode_t mode, dev_t dev){
 	node->file_size = 0; // El tamanio se ira sumando a medida que se escriba en el archivo.
 	node->parent_dir_block = nodo_padre;
 	node->blk_indirect[0] = 0; // Se utiliza esta marca para avisar que es un archivo nuevo. De esta manera, la funcion add_node conoce que esta recien creado.
+	// TODO Agregar fecha de creacion. node->c_date = node->m_date = ???
 	res = 0;
 
 	// Obtiene un bloque libre para escribir.
@@ -993,6 +995,26 @@ int grasa_rename (const char* oldpath, const char* newpath){
 }
 
 /*
+ *
+ */
+int grasa_setattr(const char* path, const char* name, const char* value, size_t size, int flags){
+	int node_number = determinar_nodo(path);
+	struct grasa_file_t *node = &(node_table_start[node_number]);
+	char *nombre, *super_path;
+	split_path(path, &super_path, &nombre);
+	if (strcmp(name,nombre) != 0) grasa_rename(path, strcat(super_path, name));
+
+	// Chequea el size del archivo.
+	if (node->file_size != size) {
+		pthread_rwlock_wrlock(&rwlock);
+		node->file_size = size;
+		pthread_rwlock_unlock(&rwlock);
+	}
+
+	return 0;
+}
+
+/*
  * 	@DESC
  * 		Obtiene y registra la cantidad de bloques de datos libres.
  */
@@ -1026,7 +1048,7 @@ int obtain_free_blocks(){
  *  	0 - Access granted
  *  	-1 - Access denied
  */
-int grasa_access(){
+int grasa_access(const char* path, int flags){
 
 	return 0;
 }
@@ -1048,7 +1070,9 @@ static struct fuse_operations grasa_oper = {
 		.write = grasa_write,		// OK
 		.mknod = grasa_mknod,		// OK
 		.unlink = grasa_unlink,		// OK
-		.rename = grasa_rename,
+		.rename = grasa_rename,		// OK
+		.setxattr = grasa_setattr,
+		.access = grasa_access,
 };
 
 /** keys for FUSE_OPT_ options */

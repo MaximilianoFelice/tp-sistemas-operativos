@@ -328,7 +328,6 @@ t_list* list_map(t_list* self, void*(*transformer)(void*)){
  */
 
 void list_sort(t_list *self, bool (*comparator)(void *, void *)) {
-	// TODO: optimizar (usar un algoritmo mas copado)
 	int unsorted_elements = self->elements_count;
 	if(unsorted_elements < 2) {
 		return;
