@@ -884,27 +884,14 @@ int grasa_write (const char *path, const char *buf, size_t size, off_t offset, s
  */
 int grasa_mknod (const char* path, mode_t mode, dev_t dev){
 		log_info(logger, "Mknod: Path: %s", path);
-	int fd, nodo_padre, i, res = 0;
+	int nodo_padre, i, res = 0;
 	int new_free_node;
-	struct grasa_file_t *node, *inicio, *inicio_data_block;
+	struct grasa_file_t *node;
 	char *nombre = malloc(strlen(path) + 1), *nom_to_free = nombre;
 	char *dir_padre = malloc(strlen(path) + 1), *dir_to_free = dir_padre;
 	char *data_block;
 
-	// Obtiene el nombre del path:
-	strcpy(nombre, path);
-	if (lastchar(nombre, '/')){
-		nombre[strlen(nombre) -1] = '\0';
-	}
-	nombre = strrchr(nombre, '/');
-	nombre = &(nombre[1]);
-
-	// Obtiene el directorio superior:
-	strcpy(dir_padre, path);
-	if (lastchar(dir_padre, '/')){
-		dir_padre[strlen(dir_padre) -1] = '\0';
-	}
-	(strrchr(dir_padre, '/'))[1] = '\0'; 	// Borra el nombre del dir_padre.
+	split_path(path, &dir_padre, &nombre);
 
 	// Ubica el nodo correspondiente. Si es el raiz, lo marca como 0, Si es menor a 0, lo crea (mismos permisos).
 	if (strcmp(dir_padre, "/") == 0){
@@ -913,14 +900,13 @@ int grasa_mknod (const char* path, mode_t mode, dev_t dev){
 		grasa_mkdir(path, mode);
 	}
 
+
+	node = node_table_start;
+
 	// Toma un lock de escritura.
 			log_lock_trace(logger, "Mknod: Pide lock escritura. Escribiendo: %d. En cola: %d.", rwlock.__data.__writer, rwlock.__data.__nr_writers_queued);
 	pthread_rwlock_wrlock(&rwlock);
 			log_lock_trace(logger, "Mknod: Recibe lock escritura.");
-	// Abrir conexion y traer directorios, guarda el bloque de inicio para luego liberar memoria
-	if ((fd = open(DISC_PATH, O_RDWR, 0)) == -1) printf("ERROR");
-	node = (void*) mmap(NULL, ACTUAL_DISC_SIZE_B , PROT_WRITE | PROT_READ | PROT_EXEC, MAP_SHARED, fd, (GFILEBYBLOCK)*BLOCKSIZE);
-	inicio = node;
 
 	// Busca el primer nodo libre (state 0) y cuando lo encuentra, lo crea:
 	for (i = 0; (node->state != 0) & (i < NODE_TABLE_SIZE); i++) node = &(node[1]);
@@ -941,14 +927,12 @@ int grasa_mknod (const char* path, mode_t mode, dev_t dev){
 	// Obtiene un bloque libre para escribir.
 	new_free_node = get_node();
 
-
 	// Actualiza la informacion del archivo.
-	inicio_data_block = &inicio[BITMAP_BLOCK_SIZE + NODE_TABLE_SIZE];
 	add_node(node, new_free_node);
 
 	// Lo relativiza al data block.
 	new_free_node -= (GHEADERBLOCKS + NODE_TABLE_SIZE + BITMAP_BLOCK_SIZE);
-	data_block = (char*) &(inicio_data_block[new_free_node]);
+	data_block = (char*) &(data_block_start[new_free_node]);
 
 	// Escribe en ese bloque de datos.
 	memset(data_block, '\0', BLOCKSIZE);
@@ -957,9 +941,6 @@ int grasa_mknod (const char* path, mode_t mode, dev_t dev){
 	free(nom_to_free);
 	free(dir_to_free);
 
-	if (munmap(inicio, ACTUAL_DISC_SIZE_B) == -1) printf("ERROR");
-
-	close(fd);
 	// Devuelve el lock de escritura.
 	pthread_rwlock_unlock(&rwlock);
 			log_lock_trace(logger, "Mknod: Devuelve lock escritura. En cola: %d", rwlock.__data.__nr_writers_queued);
