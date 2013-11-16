@@ -82,7 +82,7 @@ int recibirPaquete(int socketReceptor, int* tipoMensaje, void** buffer, t_log* p
 	int bytesRecibidos;
 
 	log_debug(pLogger, "<<< %s", sMensajeLogger);
-	bytesRecibidosHeader = recv(socketReceptor, &header, 4, MSG_WAITALL);
+	bytesRecibidosHeader = recv(socketReceptor, &header, sizeof(tHeader), MSG_WAITALL);
 
 	if (bytesRecibidosHeader == 0) {
 		return 0;	// CERRO CONEXION

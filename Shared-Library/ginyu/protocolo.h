@@ -7,67 +7,104 @@
 #include <unistd.h> //para que no tire warning el close(i);
 #include <string.h>
 
-//HandShakes
-#define SALUDO 1
-#define INFO 2
-#define INFO_PLANIFICADOR 22
-#define WHATS_UP 24
-
-//Acciones
-#define MOVIMIENTO 3
-#define POSICION_RECURSO 4
-#define TURNO 7
-#define SALIR 8
-#define NADA 20
-#define REPETIDO 99
-
-//Estado
-#define BLOCK 10
-#define OTORGADO 11
-#define MUERTO_DEADLOCK 78
-#define MUERTO_ENEMIGOS 77
-
-//Emisor
-#define NIVEL 16
-#define PERSONAJE 17
-#define PLATAFORMA 80
-
+/*
+ * Formato del tipo del paquete:
+ * 		[emisor]_[mensaje]
+ * Emisor:
+ * 		N: Nivel
+ * 		P: Personaje
+ * 		PL: Plataforma
+ *
+ * 	aviso: significa que no manda nada
+ */
 typedef enum {
-	N_HANDSHAKE
+	N_HANDSHAKE,
+	P_HANDSHAKE,
+	PL_HANDSHAKE,
+	P_POS_RECURSO,
+	PL_POS_RECURSO,
+	PL_OTORGA_TURNO,
+	P_MOVIMIENTO,	 	// movimiento que hace el personaje
+	PL_CONFIRMACION_MOV,  // Plataforma le manda al personaje
+	PL_MOV_PERSONAJE, 	  // Plataforma le manda a nivel
+	N_MUERTO_POR_ENEMIGO, // tSimbolo
+	PL_MUERTO_POR_ENEMIGO,
+	N_PERSONAJES_DEADLOCK, // tSimbolo (el personaje que ya se murio)
+	PL_MUERTO_POR_DEADLOCK, // AVISO
+	P_SIN_VIDAS,			// manda simbolo
+	P_DESCONECTARSE_MUERTE, // AVISO
+	PL_DESCONECTARSE_MUERTE,// AVISO
+	P_DESCONECTARSE_FINALIZADO,// AVISO
+	PL_DESCONECTARSE_MUERTE,// AVISO
+	N_CONFIRMACION_ELIMINACION,// AVISO
+	PL_CONFIRMACION_ELIMINACION,// AVISO
+	PL_NIVEL_YA_EXISTENTE,// AVISO
+	PL_NIVEL_INEXISTENTE,// AVISO
+	N_ESTADO_PERSONAJE   // Los estados posibles despues del movimiento
 } tMensaje;
+
+typedef int8_t tSimbolo;
 
 typedef enum {
 	arriba,
 	abajo,
 	derecha,
 	izquierda
-} tMovimientos;
+} tDirMovimiento;
 
 typedef enum {
 	RR,
 	SRDF
 } tAlgoritmo;
 
+typedef enum {
+	bloqueado,
+	otorgado,
+	ok
+} tEstado;
+
+
+/*
+ * Aca se definen los payloads que se van a mandar en los paquetes
+ */
+
+typedef struct {
+	tSimbolo simbolo;
+	char* nombreNivel;
+} tHandshakePers;
+
+typedef struct {
+	int8_t delay;
+	int8_t quantum;
+	tAlgoritmo algoritmo;
+	char* nombreNivel;
+} tHandshakeNivel;
+
+// El movimiento que le manda el personaje a la plataforma
+typedef struct {
+	tDirMovimiento direccion;
+} tMovimiento;
+
+typedef struct {
+	tSimbolo recurso;
+	tSimbolo simbolo;
+} tPregPosicion;
+
+typedef struct {
+	int8_t posX;
+	int8_t posY;
+} tRtaPosicion;
+
+typedef struct {
+	int8_t posX;
+	int8_t posY;
+} tRtaPosicion;
+
 typedef struct{
-	int8_t type;
-	int8_t detail;
-	int8_t detail2;
-	char name;
-} message_t;
+	tEstado estadoPersonaje;
+} tRtaEstadoPers;
 
-typedef struct{// Desde el punto de vista del orquestador
-	int8_t type; 	// Nivel					-	Personaje
-	int8_t detail;	// Saludo/Salir
-	int	port; // Recibe puerto del nivel	-	Manda puerto del nivel
-	char ip[16]; 	// Recibe Ip				-	Manda Ip
-	char name[16]; // Nombre de nivel			-	Nombre de nivel pedido
-} orq_t;
+typedef char* tPersonajesDeadlock; // un array con todos los simbolos de los personajes que se bloquearon
 
-//Para el planificador
-message_t armarMsj_return(char name, int8_t type, int8_t detail, int8_t detail2);
-void armarMsj(message_t *msj, char name, int8_t type, int8_t detail, int8_t detail2);
-//Para el orquestador
-orq_t armarOrqMsj_return(char *name, int8_t type, int8_t detail, char *ip, int port);
-void armarOrqMsj(orq_t *msj, char *name, int8_t type, int8_t detail, char *ip, int port);
 
 #endif /* PROTOCOLO_H_ */
