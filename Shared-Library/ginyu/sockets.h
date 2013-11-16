@@ -15,6 +15,19 @@
 #include "../commons/log.h"
 #include <errno.h>
 
+#define MAX_BUFFER 1024
+
+typedef struct {
+	int8_t  type;
+	int16_t length;
+} tHeader;
+
+typedef struct {
+	int8_t  type;
+	int16_t length;
+	char    payload[MAX_BUFFER];
+} tPaquete;
+
 void iniSocks(fd_set *master, fd_set *temp, struct sockaddr_in *myAddress,
 		struct sockaddr_in remoteAddress, int *maxSock, int *sockListener,
 		int puerto, t_log* logger);

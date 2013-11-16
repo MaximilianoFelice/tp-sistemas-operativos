@@ -27,16 +27,26 @@
 #define MUERTO_DEADLOCK 78
 #define MUERTO_ENEMIGOS 77
 
-//Movimientos
-#define ARRIBA 12
-#define DERECHA 13
-#define ABAJO 14
-#define IZQUIERDA 15
-
 //Emisor
 #define NIVEL 16
 #define PERSONAJE 17
 #define PLATAFORMA 80
+
+typedef enum {
+	N_HANDSHAKE
+} tMensaje;
+
+typedef enum {
+	arriba,
+	abajo,
+	derecha,
+	izquierda
+} tMovimientos;
+
+typedef enum {
+	RR,
+	SRDF
+} tAlgoritmo;
 
 typedef struct{
 	int8_t type;

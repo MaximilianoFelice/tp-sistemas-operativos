@@ -69,7 +69,6 @@ void *orquestador(unsigned short usPuerto) {
 
 	// Definicion de variables para los sockets
 	fd_set master;
-	fd_set temp;
 	struct sockaddr_in myAddress;
 	struct sockaddr_in remoteAddress;
 	int maxSock;
@@ -77,13 +76,14 @@ void *orquestador(unsigned short usPuerto) {
 	int socketComunicacion; // Aqui va a recibir el numero de socket que retornar getSockChanged()
 
 	// Inicializacion de sockets y actualizacion del log
-	iniSocks(&master, &temp, &myAddress, remoteAddress, &maxSock, &sockListener, usPuerto, logger);
+	iniSocks(&master, &myAddress, remoteAddress, &maxSock, &sockListener, usPuerto, logger);
 
 	// Mensaje del orquestador
-	orq_t orqMsj;
+	tMensaje tipoMensaje;
+	char * sPayload;
 
 	while (1) {
-		socketComunicacion = getSockChanged(&master, &temp, &maxSock, sockListener, &remoteAddress, &orqMsj, sizeof(orq_t), logger, "Orquestador");
+		socketComunicacion = getConnection(&master, &maxSock, sockListener, &remoteAddress, &tipoMensaje, &sPayload, logger, "Orquestador");
 
 		if (socketComunicacion != -1) {
 
@@ -91,9 +91,7 @@ void *orquestador(unsigned short usPuerto) {
 
 			pthread_mutex_lock(&semNivel);
 
-			switch (orqMsj.type) {
-			case NIVEL:
-				switch (orqMsj.detail) {
+				switch (tipoMensaje) {
 				case SALUDO: // Un nuevo nivel se conecta
 
 					if (!list_is_empty(listaNiveles)) {
@@ -109,7 +107,7 @@ void *orquestador(unsigned short usPuerto) {
 
 						if (bEncontrado == 1) { //TODO avisar a los q hacen pesonaje que traten este mensaje
 							orqMsj.type = REPETIDO;
-							enviaMensaje(socketComunicacion, &orqMsj, sizeof(orq_t), logger, "Ya se encuentra conectado al orquestador un nivel con el mismo nombre");
+							enviarPaquete(socketComunicacion, &orqMsj, logger, "Ya se encuentra conectado al orquestador un nivel con el mismo nombre");
 							break;
 						}
 					}
@@ -120,7 +118,7 @@ void *orquestador(unsigned short usPuerto) {
 					char * name_auxi = strdup(orqMsj.name);
 
 					// Ahora debo esperar a que me llegue la informacion de planificacion.
-					recibeMensaje(socketComunicacion, &orqMsj, sizeof(orq_t), logger, "Recibe mensaje INFO de planificacion");
+					recibirPaquete(socketComunicacion, &tipoMensaje, &sPayload, logger, "Recibe mensaje INFO de planificacion");
 
 					// Validacion de que el nivel me envia informacion correcta
 					if (orqMsj.type == INFO) {
@@ -142,19 +140,15 @@ void *orquestador(unsigned short usPuerto) {
 						exit(EXIT_FAILURE);
 					}
 					break;
-				}
 				break;
 
-			case PERSONAJE:
-				// Un nuevo personaje se conecta
-				switch (orqMsj.detail) {
 				case SALUDO:
 
 					iCantidadNiveles = list_size(listaNiveles);
 
 					if (iCantidadNiveles == 0) {
 						orqMsj.detail = NADA;
-						enviaMensaje(socketComunicacion, &orqMsj, sizeof(orq_t), logger, "No hay niveles conectados a la plataforma");
+						enviarPaquete(socketComunicacion, &orqMsj, logger, "No hay niveles conectados a la plataforma");
 						break;
 					}
 
@@ -172,18 +166,16 @@ void *orquestador(unsigned short usPuerto) {
 						signal_personajes(&nivel_pedido->hay_personajes);
 
 						// Le aviso al personaje sobre el planificador a donde se va a conectar
-						enviaMensaje(socketComunicacion, &orqMsj, sizeof(orq_t), logger, "Envio al personaje la info del planificador del nivel");
+						enviarPaquete(socketComunicacion, &orqMsj, logger, "Envio al personaje la info del planificador del nivel");
 
 					} else {
 						// El nivel solicitado no se encuentra conectado todavia
 						orqMsj.detail = NADA;
-						enviaMensaje(socketComunicacion, &orqMsj, sizeof(orq_t), logger, "No se encontro el nivel pedido");
+						enviarPaquete(socketComunicacion, &orqMsj, logger, "No se encontro el nivel pedido");
 					}
 
 					break; //break del case SALUDO dentro del personaje
 				}
-				break; //break del case PERSONAJE
-			}//Fin del switch
 
 			pthread_mutex_unlock(&semNivel);
 		}//Fin del if
@@ -255,13 +247,13 @@ void* planificador(void *argumentos) {
 						reMultiplex.condition = false;
 
 						msj.type = SALUDO;
-						enviaMensaje(nivel->sock, &msj, sizeof(message_t), logger, "Saludo Nivel");
-						recibeMensaje(nivel->sock, &msj, sizeof(message_t), logger, "Recibe SALUDO del nivel con pos inicial");
+						enviarPaquete(nivel->sock, &msj, logger, "Saludo Nivel");
+						recibirPaquete(nivel->sock, &tipoMensaje, &sPayload, logger, "Recibe SALUDO del nivel con pos inicial");
 
 						msj.type    = SALUDO;
 						//msj.detail  = pos inicial x
 						//msj.detail2 = pos inicial y
-						enviaMensaje(iSocketConexion, &msj, sizeof(message_t), logger,"Envio SALUDO al personaje");
+						enviarPaquete(iSocketConexion, &msj, logger,"Envio SALUDO al personaje");
 
 						// Logueo la modificacion de la cola y notifico por pantalla
 						log_trace(logger,"Se agrego el personaje %c a la cola de listos",pjLevantador->name);
@@ -282,15 +274,15 @@ void* planificador(void *argumentos) {
 						reMultiplex.condition = false;
 
 						msj.type = SALUDO;
-						enviaMensaje(nivel->sock, &msj, sizeof(message_t), logger, "Saludo Nivel");
+						enviarPaquete(nivel->sock, &msj, logger, "Saludo Nivel");
 
-						recibeMensaje(nivel->sock, &msj, sizeof(message_t), logger, "Recibe SALUDO del nivel con pos inicial");
+						recibirPaquete(nivel->sock, &tipoMensaje, &sPayload, logger, "Recibe SALUDO del nivel con pos inicial");
 						msj.type    = SALUDO;
 						//msj.detail  = pos inicial x
 						//msj.detail2 = pos inicial y
 
 						// Envio la informacion de posicion al personaje
-						enviaMensaje(iSocketConexion, &msj, sizeof(message_t), logger,"Envio SALUDO al personaje");
+						enviarPaquete(iSocketConexion, &msj, logger,"Envio SALUDO al personaje");
 
 						// Logueo la modificacion de la cola y notifico por pantalla
 						log_trace(logger,"Se agrego el personaje %c a la cola de listos",personajeNuevo.name);
@@ -304,10 +296,10 @@ void* planificador(void *argumentos) {
 					msj.type = POSICION_RECURSO;
 
 					// Envio mensaje al nivel con la informacion
-					enviaMensaje(nivel->sock, &msj, sizeof(message_t),logger, "Solicito posicion de recurso al nivel");
+					enviarPaquete(nivel->sock, &msj, logger, "Solicito posicion de recurso al nivel");
 
 					// Recibo informacion de la posicion del recurso
-					recibeMensaje(nivel->sock, &msj, sizeof(message_t),logger, "Recibo posicion de recurso del nivel");
+					recibirPaquete(nivel->sock, &tipoMensaje, &sPayload, logger, "Recibo posicion de recurso del nivel");
 
 					//Armo mensaje para enviar al personaje
 					msj.type = POSICION_RECURSO;
@@ -316,7 +308,7 @@ void* planificador(void *argumentos) {
 					//msj.name = simbolo
 
 					// Envio la informacion al personaje
-					enviaMensaje(iSocketConexion, &msj, sizeof(msj), logger, "Envio posicion del recurso");
+					enviarPaquete(iSocketConexion, &msj, logger, "Envio posicion del recurso");
 
 					//Si soy el primer personaje que entra al planificador, entonces le doy un turno
 					if (primerPj.condition) {
@@ -390,7 +382,7 @@ void* planificador(void *argumentos) {
 						log_trace(logger, "%s: Turno(TURNO) para %c con quantum=%d",nivel->nombre, pjLevantador->name, q);
 
 						usleep(nivel->delay);
-						enviaMensaje(pjLevantador->sockID, &msj,sizeof(message_t), logger,"Envia proximo turno");
+						enviarPaquete(pjLevantador->sockID, &msj, logger,"Envia proximo turno");
 
 					} else {
 						log_error(logger, "Me quedo en cero: %d",list_size(nivel->l_personajesRdy));
@@ -409,9 +401,9 @@ void* planificador(void *argumentos) {
 					msj.name = pjLevantador->name;
 
 					// Le envio al nivel el movimiento del personaje
-					enviaMensaje(nivel->sock, &msj, sizeof(message_t), logger, "Envio movimiento del personaje");
+					enviarPaquete(nivel->sock, &msj, logger, "Envio movimiento del personaje");
 
-					recibeMensaje(nivel->sock, &msj, sizeof(message_t), logger, "Recibo estado en el que quedo el personaje");
+					recibirPaquete(nivel->sock, &tipoMensaje, &sPayload, logger, "Recibo estado en el que quedo el personaje");
 
 					if (msj.detail == MUERTO_ENEMIGOS) {
 
@@ -424,9 +416,9 @@ void* planificador(void *argumentos) {
 						msj.type = SALIR;
 						msj.name = pjLevantador->name;
 
-						enviaMensaje(nivel->sock, &msj, sizeof(msj), logger,"Salida del nivel");
+						enviarPaquete(nivel->sock, &msj, logger,"Salida del nivel");
 
-						recibeMensaje(nivel->sock, &msj, sizeof(msj), logger,"Recibe confirmacion del nivel");
+						recibirPaquete(nivel->sock, &tipoMensaje, &sPayload, logger,"Recibe confirmacion del nivel");
 
 						//Limpio la lista de recursos que tenia hasta que se murio
 						list_clean(pjLevantador->recursos);
@@ -437,7 +429,7 @@ void* planificador(void *argumentos) {
 
 						msj.type=MOVIMIENTO;
 						msj.detail = MUERTO_ENEMIGOS;
-						enviaMensaje(iSocketConexion, &msj, sizeof(msj), logger, "El personaje ha perdido una vida por enemigos");
+						enviarPaquete(iSocketConexion, &msj, logger, "El personaje ha perdido una vida por enemigos");
 
 						if (list_size(nivel->l_personajesRdy) > 0) {
 							proxPj--;
@@ -500,7 +492,7 @@ void* planificador(void *argumentos) {
 					if (msj.detail!=BLOCK) {
 						msj.type = MOVIMIENTO;
 						msj.detail=NADA;
-						enviaMensaje(iSocketConexion, &msj, sizeof(msj), logger, "El personaje se movio");
+						enviarPaquete(iSocketConexion, &msj, logger, "El personaje se movio");
 					}
 
 					break;
@@ -522,9 +514,9 @@ void* planificador(void *argumentos) {
 						msj.type = SALIR;
 						msj.name = pjLevantador->name;
 
-						enviaMensaje(nivel->sock, &msj, sizeof(msj), logger,"Salida del nivel");
+						enviarPaquete(nivel->sock, &msj, logger,"Salida del nivel");
 
-						recibeMensaje(nivel->sock, &msj, sizeof(msj), logger,"Recibe confirmacion del nivel");
+						recibirPaquete(nivel->sock, &tipoMensaje, &sPayload, logger,"Recibe confirmacion del nivel");
 
 						//Limpio la lista de recursos del personaje
 						list_clean(pjLevantador->recursos);
@@ -542,7 +534,7 @@ void* planificador(void *argumentos) {
 					msj.detail = EXIT_SUCCESS;
 					char *msjInfo = malloc(sizeof(char) * 100);
 					sprintf(msjInfo, "Confirmacion de Salir al personaje %c", pjLevantador->name);
-					enviaMensaje(iSocketConexion, &msj, sizeof(msj), logger, msjInfo);
+					enviarPaquete(iSocketConexion, &msj, logger, msjInfo);
 
 					//Libero memoria
 					free(msjInfo);
@@ -570,7 +562,7 @@ void* planificador(void *argumentos) {
 						//--Cachear pj
 						msj.detail = TURNO;
 						usleep(nivel->delay);
-						enviaMensaje(pjAux->sockID, &msj, sizeof(message_t), logger, "Forzado de turno");//TODO aqui tiene un bug
+						enviarPaquete(pjAux->sockID, &msj, logger, "Forzado de turno");//TODO aqui tiene un bug
 
 					}
 					log_debug(logger, "Libere recursos");
@@ -720,7 +712,7 @@ void turno(turno_t *turno, int delay, char *msjInfo){
 	armarMsj(&msj, 0, 0, TURNO, 0);
 	turno->condition=false;
 	usleep(delay);
-	enviaMensaje(turno->sock, &msj, sizeof(message_t), logger, msjInfo);
+	enviarPaquete(turno->sock, &msj, logger, msjInfo);
 }
 
 void setTurno(turno_t *turno, bool condition_changed, int sock){
@@ -757,7 +749,7 @@ void desbloquearPersonajes(t_list* block, t_list *ready, personaje_t *pjLevantad
 					//Envio mensaje para desbloquear al chaboncito
 					msj->type = MOVIMIENTO;
 					log_debug(logger,"Se ha desbloqueado al personaje %c",pjLevantadorBlk->name);
-					enviaMensaje(pjLevantadorBlk->sockID, &msj,sizeof(msj), logger,"Se desbloqueo un personaje");
+					enviarPaquete(pjLevantadorBlk->sockID, &msj, logger,"Se desbloqueo un personaje");
 
 					imprimirLista(nom_nivel,ready,block,proxPj - 1);
 					break;
