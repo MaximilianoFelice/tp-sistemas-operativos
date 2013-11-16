@@ -56,11 +56,15 @@ void iniSocks(fd_set *master, struct sockaddr_in *myAddress, struct sockaddr_in 
 	*maxSock = *sockListener;
 }
 
+/*
+ * Esta funcion deberia recibir el tipo de dato del paquete y luego encapsular el mensaje con su tamaño
+ * en vez de recibir el buffer ya armado.
+ */
 int enviarPaquete(int socketServidor, tPaquete* buffer, t_log* logger, char* info)
 {
 	int byteEnviados;
 	log_debug(logger, ">>> %s", info);
-
+	// DEBERIA HACER ESTA FUNCION EL CALCULO DEL
 	byteEnviados = send(socketServidor, (char *)buffer, sizeof(tHeader) + buffer->length, 0);
 
 	if (byteEnviados == -1) {
