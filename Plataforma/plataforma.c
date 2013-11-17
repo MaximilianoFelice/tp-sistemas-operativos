@@ -136,7 +136,6 @@ void *orquestador(unsigned short usPuerto) {
 						// Logueo el nuevo hilo recien creado
 						log_debug(logger, "Nuevo planificador del nivel: '%s' y planifica con: %s", nivelNuevo->nombre, nivelNuevo->algoritmo);
 
-
 					} else {
 						log_error(logger,"Tipo de mensaje incorrecto: se esperaba INFO del nivel");
 						exit(EXIT_FAILURE);
@@ -237,6 +236,12 @@ void* planificador(void *argumentos) {
 			case PERSONAJE:
 				switch (msj.detail) {
 				case SALUDO:
+
+
+					//TODO armar una funcion con t0d0 este choclo del SALUDO y meterlo en el SALUDO del orquestador.
+					//TODO luego sacar el booleano hayPersonajes, y en lugar de preguntar por ese valor preguntar
+					//TODO (en función wait_personajes() y en signal_personajes())
+					//TODO directamente por si hay personajes en la lista de Ready
 
 					//Me fijo si esta en la cola de finalizados
 					if (exist_personaje(nivel->l_personajesDie, msj.name, &contPj)) {
@@ -506,6 +511,7 @@ void* planificador(void *argumentos) {
 					break;
 
 				case SALIR: //En el case SALIR principalmente Libero memoria y recursos en el nivel
+					//TODO arreglar el tema de cuando un personaje sale, de acuerdo a lo acordado el otro día
 
 					if (msj.detail2 != MUERTO_ENEMIGOS) {
 						//El personaje se quedo sin vidas pero ya devolvio recursos en el case de MOVIMIENTO
