@@ -12,6 +12,7 @@ pthread_mutex_t semPersonaje;
 
 char simbolo;
 int vidas;
+int vidasMaximas;
 t_config *configPersonaje;
 t_list *listaNiveles;
 t_log *logger;
@@ -34,74 +35,20 @@ int main(int argc, char*argv[]) {
 	// Inicializa el log.
 	logger = logInit(argv, "PERSONAJE");
 
-	// TODO CREAR FUNCION QUE CARGUE LAS VARIABLES DE CONFIG
-	// ======================
+
 	// Creamos el archivo de Configuración
-	// FIXME Implementar validacion de la existencia de las variables globales
-	configPersonaje = config_try_create(argv[1], "nombre,simbolo,planDeNiveles,vidas,orquestador");
-
-	// Obtenemos el nombre - global de solo lectura
-	nombre_pj = config_get_string_value(configPersonaje, "nombre");
-
-	// Obtenemos el simbolo - global de solo lectura
-	simbolo = config_get_string_value(configPersonaje, "simbolo")[0];
-
-	// Obetenemos los datos del orquestador
-	char * dir_orq = config_get_string_value(configPersonaje, "orquestador");
-	//todo implementa funcion que divida el ip del puerto
-	ip_plataforma  = strtok(dir_orq, ":"); // Separar ip - Global
-	puerto_orq 	   = strtok(NULL, ":"); // Separar puerto - Local
-
-	char** niveles = config_try_get_array_value(configPersonaje, "planDeNiveles");
-	t_list* listaObjetivos;
-	listaNiveles = list_create();
-	int j, i = 0;
-	nivel_t aux;
-	// ======================
-
-	char *stringABuscar = malloc(sizeof(char) * 25);
-
-	int cantThreads = 0;
-
-	//Cuento la cantidad de threads que voy a tirar: uno por cada nivel
-	while (niveles[cantThreads] != NULL ) {
-		cantThreads++;
-	}
-
+	cargarArchivoConfiguracion(argv[1]);
+	int cantidadNiveles =list_size(listaNiveles);
 	threadNivel_t *hilosNiv;
-	hilosNiv = calloc(cantThreads, sizeof(threadNivel_t));
+	hilosNiv = calloc(cantidadNiveles, sizeof(threadNivel_t));
 
-	//Armamos lista de niveles con sus listas de objetivos del config
-	while (niveles[i] != NULL ) {  //Cicla los niveles
-
-		sprintf(stringABuscar, "obj[%s]", niveles[i]); //Arma el string a buscar
-
-		//TODO pasarlo a la funcion que cargue las variables globales del archivo de configuracion
-		// =====================
-		char** objetivos = config_try_get_array_value(configPersonaje,
-				stringABuscar);        //Lo busco
-
-		j = 0;
-
-		//Por cada uno, genero una lista
-		listaObjetivos = list_create();
-		while (objetivos[j] != NULL ) { //Vuelvo a ciclar por objetivos
-			list_add_new(listaObjetivos, objetivos[j], sizeof(char)); //Armo la lista
-			j++;
-		}
-
-		aux.nomNivel = malloc(sizeof(char) * strlen(niveles[i]));
-		strcpy(aux.nomNivel, niveles[i]);
-		aux.Objetivos = listaObjetivos;
-		list_add_new(listaNiveles, &aux, sizeof(nivel_t));
-
+	int i=0;
+	int indiceNivel;
+	for( indiceNivel = 0;  indiceNivel < cantidadNiveles; indiceNivel ++) {
 		//creo estructura del nivel que va a jugar cada hilo
-		hilosNiv[i].nivel.nomNivel = aux.nomNivel;
-		hilosNiv[i].nivel.Objetivos = aux.Objetivos;
-		hilosNiv[i].nivel.num_of_thread = i;
-
-		// =====================
-
+		hilosNiv[i].nivel.nomNivel = ((nivel_t*) list_get_data(listaNiveles,indiceNivel))->nomNivel;
+		hilosNiv[i].nivel.Objetivos = ((nivel_t*) list_get_data(listaNiveles,	indiceNivel))->Objetivos;
+		hilosNiv[i].nivel.num_of_thread = indiceNivel;
 
 		//Tiro el hilo para jugar de cada nivel
 		if (pthread_create(&hilosNiv[i].thread, NULL, jugar, (void *) &hilosNiv[i].nivel)) {
@@ -111,10 +58,9 @@ int main(int argc, char*argv[]) {
 
 		i++;
 	}
-	free(stringABuscar);
 
 	char *join_return;
-	for (i = 0; i < cantThreads; i++) {
+	for (i = 0; i < cantidadNiveles; i++) {
 		pthread_join(hilosNiv[i].thread, (void**)&join_return);
 	}
 
@@ -126,8 +72,9 @@ int main(int argc, char*argv[]) {
 
 	log_destroy(logger);
 	config_destroy(configPersonaje); // TODO PASAR A IMPLEMENTACION GLOBAL
-	for (j = 0; j < list_size(listaNiveles); j++) {
-		nivel_t *aux = (nivel_t *) list_get(listaNiveles, j);
+
+	for (i = 0; i < list_size(listaNiveles); i++) {
+		nivel_t *aux = (nivel_t *) list_get(listaNiveles, i);
 		list_destroy(aux->Objetivos);
 	}
 	list_destroy_and_destroy_elements(listaNiveles, (void *) nivel_destroyer);
@@ -138,6 +85,65 @@ int main(int argc, char*argv[]) {
 
 }
 
+void cargarArchivoConfiguracion(char* archivoConfiguracion){
+	//valida que los campos basicos esten en el archivo
+	configPersonaje = config_try_create(archivoConfiguracion, "nombre,simbolo,planDeNiveles,vidas,orquestador");
+
+	// Obtenemos el nombre del personaje - global de solo lectura
+	nombre_pj = config_get_string_value(configPersonaje, "nombre");
+
+	// Obtenemos el simbolo - global de solo lectura
+	simbolo = config_get_string_value(configPersonaje, "simbolo")[0];
+
+	vidasMaximas = config_get_int_value(configPersonaje, "vidas"); //Obtenemos las vidas
+
+	// Obetenemos los datos del orquestador
+	char * dir_orq = config_get_string_value(configPersonaje, "orquestador");
+	obtenerIpYPuerto(dir_orq, ip_plataforma, puerto_orq);
+
+	//Obtenemos el plan de niveles
+	char** niveles = config_try_get_array_value(configPersonaje, "planDeNiveles");
+	t_list* listaObjetivos;
+	listaNiveles = list_create();
+	int j, i = 0;
+	nivel_t aux;
+
+	char *stringABuscar = malloc(sizeof(char) * 25);
+
+
+	//Armamos lista de niveles con sus listas de objetivos del config
+	while (niveles[i] != NULL ) {  //Cicla los niveles
+
+		sprintf(stringABuscar, "obj[%s]", niveles[i]); //Arma el string a buscar
+
+		char** objetivos = config_try_get_array_value(configPersonaje, stringABuscar);
+
+		j = 0;
+
+		//Por cada nivel, genero una lista de objetivos
+		listaObjetivos = list_create();
+		while (objetivos[j] != NULL ) { //Por cada objetivo
+			list_add_new(listaObjetivos, objetivos[j], sizeof(char)); //Agrego a la lista
+			j++;
+		}
+
+		//agregamos el nivel a la lista de niveles
+		aux.nomNivel = malloc(sizeof(char) * strlen(niveles[i]));
+		strcpy(aux.nomNivel, niveles[i]);
+		aux.Objetivos = listaObjetivos;
+		list_add_new(listaNiveles, &aux, sizeof(nivel_t));
+
+		i++;
+	}
+	free(stringABuscar);
+
+}
+
+void obtenerIpYPuerto(char *dirADividir, char * ip,  char * puerto){
+	ip_plataforma  = strtok(dirADividir, ":"); // Separar ip
+	puerto_orq 	   = strtok(NULL, ":"); // Separar puerto
+
+}
 static void nivel_destroyer(nivel_t*nivel) {
 	free(nivel->nomNivel);
 	free(nivel);
@@ -154,8 +160,8 @@ void *jugar(void *args) {
 	int posRecursoX, posRecursoY;
 
 	//Variables para conectarme al orquestador y planificador
-	int sockOrq, sockPlan;
-
+	//int sockOrq, sockPlan;
+	int socketPlataforma;
 	//fixme el socket orquestador deberia ser global y llamarse socketPlataforma,  el socket del planificador no deberia existir
 
 	char * ip_planif = malloc(sizeof(char) * 23);  //TODO hacer free
@@ -169,7 +175,7 @@ void *jugar(void *args) {
 		// TODO Armar una funcion que genere las variables globales con el archivo de config.
 		// ============================== PASAR A VARIABLE GLOBAL
 		if (!inicializeVidas) { //Si no inicialice vidas, las inicializo
-			vidas = config_get_int_value(configPersonaje, "vidas"); //Obtenemos las vidas
+			vidas=vidasMaximas;
 			inicializeVidas = true; //Esta variable solo se pone en false cuando el chaboncito se queda sin vidas y quiere reiniciar
 			//reiniciar=false;
 		}

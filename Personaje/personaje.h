@@ -52,6 +52,8 @@ void handshake_planif(int *sockPlan, int *posX, int *posY);
 void actualizaPosicion(int movimiento, int *posX, int *posY);
 void morir(char* causaMuerte, int *currObj);
 bool devolverRecursos(int *sockPlan, message_t *message);
+void cargarArchivoConfiguracion(char* archivoConfiguracion);
+void obtenerIpYPuerto(char *dirADividir, char * ip,  char * puerto);
 bool validarSenial(bool *murioPersonaje);
 bool estaMuerto(int8_t, bool *);
 void cerrarConexiones(int *, int *);
