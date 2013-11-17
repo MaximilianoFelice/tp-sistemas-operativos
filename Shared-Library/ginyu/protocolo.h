@@ -67,7 +67,6 @@ typedef enum {
 /*
  * Aca se definen los payloads que se van a mandar en los paquetes
  */
-
 typedef struct {
 	tSimbolo simbolo;
 	char* nombreNivel;
@@ -79,11 +78,6 @@ typedef struct {
 	tAlgoritmo algoritmo;
 	char* nombreNivel;
 } tHandshakeNivel;
-
-// El movimiento que le manda el personaje a la plataforma
-typedef struct {
-	tDirMovimiento direccion;
-} tMovimiento;
 
 typedef struct {
 	tSimbolo recurso;
@@ -100,11 +94,24 @@ typedef struct {
 	int8_t posY;
 } tRtaPosicion;
 
-typedef struct{
-	tEstado estadoPersonaje;
-} tRtaEstadoPers;
-
 typedef char* tPersonajesDeadlock; // un array con todos los simbolos de los personajes que se bloquearon
 
+int serializarHandshakePers(tHandshakePers *pHandshakePersonaje, char* payload);
+tHandshakePers* deserializarHandshakePers(char * payload);
+
+int serializarHandshakeNivel(tHandshakeNivel *pHandshakeNivel, char* payload);
+tHandshakeNivel* deserializarHandshakeNivel(char * payload);
+
+int serializarPregPosicion(tPregPosicion *pPregPosicion, char* payload);
+tPregPosicion* deserializarPregPosicion(char * payload);
+
+int serializarRtaPosicion(tRtaPosicion *pRtaPosicion, char* payload);
+tRtaPosicion* deserializarRtaPosicion(char * payload);
+
+int serializarMovimiento(tDirMovimiento *pDirMovimiento, char* payload);
+tDirMovimiento* deserializarMovimiento(char * payload);
+
+int serializarEstado(tEstado *pEstadoPersonaje, char* payload);
+tEstado* deserializarEstado(char * payload);
 
 #endif /* PROTOCOLO_H_ */
