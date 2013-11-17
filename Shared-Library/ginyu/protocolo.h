@@ -1,7 +1,12 @@
+/*
+ * Sistemas Operativos - Super Mario Proc RELOADED.
+ * Grupo       : C o no ser.
+ * Nombre      : protocolo.h.
+ * Descripcion : Este archivo contiene el protocolo de comunicacion entre procesos.
+ */
 
 #ifndef PROTOCOLO_H_
 #define PROTOCOLO_H_
-
 
 #include <stdint.h> //para los "int8_t"//////
 #include <unistd.h> //para que no tire warning el close(i);

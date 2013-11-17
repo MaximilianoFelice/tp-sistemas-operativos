@@ -1,22 +1,14 @@
-#include <stdlib.h>
-#include <curses.h>
-#include <string.h>
-#include <unistd.h>
-#include <netinet/in.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <sys/time.h>
-#include <signal.h>
-#include "../commons/log.h"
-#include "protocolo.h"
+/*
+ * Sistemas Operativos - Super Mario Proc RELOADED.
+ * Grupo       : C o no ser.
+ * Nombre      : sockets.c
+ * Descripcion : Este archivo los implementacion de la libreria de sockets.
+ */
+
 #include "sockets.h"
 
-
-
-
-void iniSocks(fd_set *master, struct sockaddr_in *myAddress, struct sockaddr_in remoteAddress, int *maxSock, int *sockListener, int puerto, t_log* logger) {
-
+void iniSocks(fd_set *master, struct sockaddr_in *myAddress, struct sockaddr_in remoteAddress, int *maxSock, int *sockListener, int puerto, t_log* logger)
+{
 	int yes = 1;
 	fd_set *temp;
 	FD_ZERO(master);
@@ -25,13 +17,13 @@ void iniSocks(fd_set *master, struct sockaddr_in *myAddress, struct sockaddr_in 
 	//--Crea el socket
 	if ((*sockListener = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
 		log_error(logger, "socket: %s", strerror(errno));
-		exit(1);
+		exit(EXIT_FAILURE);
 	}
 
 	//--Setea las opciones para que pueda escuchar varios al mismo tiempo
 	if (setsockopt(*sockListener, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {
 		log_error(logger, "setsockopt: %s", strerror(errno));
-		exit(1);
+		exit(EXIT_FAILURE);
 	}
 
 	//--Arma la información que necesita para mandar cosas
@@ -42,13 +34,13 @@ void iniSocks(fd_set *master, struct sockaddr_in *myAddress, struct sockaddr_in 
 	//--Bindear socket al proceso server
 	if (bind(*sockListener, (struct sockaddr *) myAddress, sizeof(*myAddress)) == -1) {
 		log_error(logger, "bind: %s", strerror(errno));
-		exit(1);
+		exit(EXIT_FAILURE);
 	}
 
 	//--Escuchar
 	if (listen(*sockListener, 100) == -1) {
 		log_error(logger, "listen: %s", strerror(errno));
-		exit(1);
+		exit(EXIT_FAILURE);
 	}
 
 	//--Prepara la lista
@@ -56,10 +48,7 @@ void iniSocks(fd_set *master, struct sockaddr_in *myAddress, struct sockaddr_in 
 	*maxSock = *sockListener;
 }
 
-/*
- * Esta funcion deberia recibir el tipo de dato del paquete y luego encapsular el mensaje con su tamaño
- * en vez de recibir el buffer ya armado.
- */
+
 int enviarPaquete(int socketServidor, tPaquete* buffer, t_log* logger, char* info)
 {
 	int byteEnviados;
@@ -117,8 +106,8 @@ int recibirPaquete(int socketReceptor, int* tipoMensaje, void** buffer, t_log* p
  * 	<0 = Se cerro el soquet que devuelce
  * 	>0 = Cambio el soquet que devuelce
  */
-signed int getConnection(fd_set *master, int *maxSock, int sockListener, struct sockaddr_in *remoteAddress, tMensaje *tipoMensaje, void **buffer, t_log* logger, char* emisor) {
-
+signed int getConnection(fd_set *master, int *maxSock, int sockListener, struct sockaddr_in *remoteAddress, tMensaje *tipoMensaje, void **buffer, t_log* logger, char* emisor)
+{
 	int addressLength;
 	int i;
 	int newSock;
@@ -129,7 +118,7 @@ signed int getConnection(fd_set *master, int *maxSock, int sockListener, struct 
 	//--Multiplexa conexiones
 	if (select(*maxSock + 1, temp, NULL, NULL, NULL ) == -1) {
 		log_error(logger, "select: %s", strerror(errno));
-		exit(1);
+		exit(EXIT_FAILURE);
 	}
 
 	//--Cicla las conexiones para ver cual cambió
@@ -178,8 +167,8 @@ signed int getConnection(fd_set *master, int *maxSock, int sockListener, struct 
 
 
 
-signed int multiplexar(fd_set *master, fd_set *temp,int *maxSock, void *buffer, int bufferSize, t_log* logger) {
-
+signed int multiplexar(fd_set *master, fd_set *temp,int *maxSock, void *buffer, int bufferSize, t_log* logger)
+{
 	int i;
 	int nBytes;
 	memcpy(temp, master, sizeof(fd_set));
@@ -187,24 +176,27 @@ signed int multiplexar(fd_set *master, fd_set *temp,int *maxSock, void *buffer, 
 	//--Multiplexa conexiones
 	if (select(*maxSock + 1, temp, NULL, NULL, NULL) == -1) {
 		log_error(logger, "select: %s", strerror(errno));
-		exit(1);
+		exit(EXIT_FAILURE);
 	}
 
 	//--Cicla las conexiones para ver cual cambió
 	for (i = 0; i <= *maxSock; i++) {
+
 		if (FD_ISSET(i, temp)) {
 			//--Gestiona un cliente ya conectado
+
 			if ((nBytes = recv(i, buffer, bufferSize, 0)) <= 0) {
 				//--Si cerró la conexión o hubo error
-				if (nBytes == 0)
+				if (nBytes == 0) {
 					log_trace(logger,"Planificador: Fin de conexion de %d.", i);
-				else
-					log_error(logger, "Planificador: recv: %s",
-							strerror(errno));
+				} else {
+					log_error(logger, "Planificador: recv: %s", strerror(errno));
+				}
 				//--Cierra la conexión y lo saca de la lista
 				close(i);
 				FD_CLR(i, master);
-			} else { //Tengo info!!
+
+			} else { //Tengo info
 				return i;
 			}
 
@@ -214,19 +206,21 @@ signed int multiplexar(fd_set *master, fd_set *temp,int *maxSock, void *buffer, 
 }
 
 
-void esperarMensaje(int sock, void *msj, int size, t_log* logger){
+void esperarMensaje(int sock, void *msj, int size, t_log* logger)
+{
 	if ((recv(sock, msj, size, 0)) == -1) {
-			log_error(logger, "recv: %s", strerror(errno));
-			exit(EXIT_FAILURE);
+		log_error(logger, "recv: %s", strerror(errno));
+		exit(EXIT_FAILURE);
 	}
 }
 
-void esperarTurno(int sock, void *msj, int size, t_log* logger){
+void esperarTurno(int sock, void *msj, int size, t_log* logger)
+{
 	esperarMensaje(sock, msj, size, logger);
 }
 
-signed int connectServer(char *ip_server, int puerto, t_log *logger, char *host) {
-
+signed int connectServer(char *ip_server, int puerto, t_log *logger, char *host)
+{
 	int sockfd; 	// Escuchar sobre sock_fd, nuevas conexiones sobre new_fd
 	struct sockaddr_in their_addr; 	// Información sobre mi dirección
 

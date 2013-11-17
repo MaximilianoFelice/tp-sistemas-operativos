@@ -1,19 +1,27 @@
 /*
- * sockets.h
- *
- *  Created on: 08/05/2013
- *      Author: utnso
+ * Sistemas Operativos - Super Mario Proc RELOADED.
+ * Grupo       : C o no ser.
+ * Nombre      : sockets.h.
+ * Descripcion : Este archivo los prototipos de la libreria de sockets.
  */
 
-#ifndef GINYUSOCKETS_H_
-#define GINYUSOCKETS_H_
+#ifndef LIBSOCKETS_H_
+#define LIBSOCKETS_H_
 
 #include <netinet/in.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include "../commons/log.h"
+#include <commons/log.h>
 #include <errno.h>
+#include <stdlib.h>
+#include <curses.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/time.h>
+#include <signal.h>
+
+#include "protocolo.h"
 
 #define MAX_BUFFER 1024
 
@@ -28,30 +36,20 @@ typedef struct {
 	char    payload[MAX_BUFFER];
 } tPaquete;
 
-void iniSocks(fd_set *master, fd_set *temp, struct sockaddr_in *myAddress,
-		struct sockaddr_in remoteAddress, int *maxSock, int *sockListener,
-		int puerto, t_log* logger);
+void iniSocks(fd_set *master, struct sockaddr_in *myAddress, struct sockaddr_in remoteAddress, int *maxSock, int *sockListener, int puerto, t_log* logger);
 
-int selectSocks(fd_set *master, fd_set *temp, int *maxSock, int sockListener,
-		struct sockaddr_in remoteAddress, void *buf);
+int enviarPaquete(int socketServidor, tPaquete* buffer, t_log* logger, char* info);
 
-signed int getSockChanged(fd_set *master, fd_set *temp, int *maxSock,
-		int sockListener, struct sockaddr_in *remoteAddress, void *buf,
-		int bufSize, t_log* logger, char *);
-signed int multiplexar(fd_set *master, fd_set *temp,int *maxSock, void *buffer, int bufferSize, t_log*) ;
-signed int getSockChangedNB(fd_set *master, fd_set *temp, int *maxSock,
-		int sockListener, struct sockaddr_in *remoteAddress, void *buf,
-		int bufSize, t_log* logger, int secs);
-void enviaMensaje(int numSock, void* message, int size, t_log* logger,
-		char* info);
-void mandarMensaje(int numSock, void* message, int size, t_log *logger);
+int recibirPaquete(int socketReceptor, int* tipoMensaje, void** buffer, t_log* pLogger, char* sMensajeLogger);
 
-void recibeMensaje(int numSock, void* message, int size, t_log* logger,
-		char* info);
+signed int getConnection(fd_set *master, int *maxSock, int sockListener, struct sockaddr_in *remoteAddress, tMensaje *tipoMensaje, void **buffer, t_log* logger, char* emisor);
+
+signed int multiplexar(fd_set *master, fd_set *temp,int *maxSock, void *buffer, int bufferSize, t_log* logger);
 
 void esperarMensaje(int sock, void *msj, int size, t_log* logger);
+
 void esperarTurno(int sock, void *msj, int size, t_log* logger);
 
 signed int connectServer(char *ip_server, int puerto, t_log *logger, char *host);
 
-#endif /* SOCKETS_H_ */
+#endif /* LIBSOCKETS_H_ */

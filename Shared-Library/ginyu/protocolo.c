@@ -1,4 +1,9 @@
-
+/*
+ * Sistemas Operativos - Super Mario Proc RELOADED.
+ * Grupo       : C o no ser.
+ * Nombre      : protocolo.c.
+ * Descripcion : Este archivo contiene la implementacion del protocolo de comunicacion entre procesos.
+ */
 #include "protocolo.h"
 
 int serializarHandshakePers(tHandshakePers *pHandshakePersonaje, char* payload) {
@@ -74,7 +79,7 @@ tHandshakeNivel * deserializarHandshakeNivel(char * payload) {
 
 	offset   =+ tmp_size;
 	tmp_size = sizeof(tAlgoritmo);
-	memcpy(&pHandshakeNivel->algortimo, payload + offset, tmp_size);
+	memcpy(&pHandshakeNivel->algoritmo, payload + offset, tmp_size);
 
 	offset =+ tmp_size;
 	for (tmp_size = 1; (payload + offset)[tmp_size-1] != '\0'; tmp_size++);
