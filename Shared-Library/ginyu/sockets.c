@@ -7,12 +7,10 @@
 
 #include "sockets.h"
 
-void iniSocks(fd_set *master, struct sockaddr_in *myAddress, struct sockaddr_in remoteAddress, int *maxSock, int *sockListener, int puerto, t_log* logger)
+void iniSocks(fd_set* master, struct sockaddr_in *myAddress, struct sockaddr_in remoteAddress, int *maxSock, int *sockListener, int puerto, t_log* logger)
 {
 	int yes = 1;
-	fd_set *temp;
 	FD_ZERO(master);
-	FD_ZERO(temp);
 
 	//--Crea el socket
 	if ((*sockListener = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
@@ -64,7 +62,7 @@ int enviarPaquete(int socketServidor, tPaquete* buffer, t_log* logger, char* inf
 	}
 }
 
-int recibirPaquete(int socketReceptor, int* tipoMensaje, void** buffer, t_log* pLogger, char* sMensajeLogger)
+int recibirPaquete(int socketReceptor, tMensaje* tipoMensaje, void** buffer, t_log* pLogger, char* sMensajeLogger)
 {
 	tHeader header;
 	int bytesRecibidosHeader;
@@ -85,7 +83,7 @@ int recibirPaquete(int socketReceptor, int* tipoMensaje, void** buffer, t_log* p
 
 	bytesRecibidos = recv(socketReceptor, *buffer, header.length, MSG_WAITALL);
 
-	*tipoMensaje = (int) header.type;
+	*tipoMensaje = (tMensaje) header.type;
 
 	if (bytesRecibidos < 0) {
 		log_error(pLogger, "%s: %s", sMensajeLogger,  strerror(errno));
@@ -109,33 +107,39 @@ int recibirPaquete(int socketReceptor, int* tipoMensaje, void** buffer, t_log* p
 signed int getConnection(fd_set *master, int *maxSock, int sockListener, struct sockaddr_in *remoteAddress, tMensaje *tipoMensaje, void **buffer, t_log* logger, char* emisor)
 {
 	int addressLength;
-	int i;
+	int unSocket;
 	int newSock;
 	int nBytes;
-	fd_set *temp;
-	*temp = *master;
+	fd_set temp;
+	FD_ZERO(&temp);
+	temp = *master;
 
 	//--Multiplexa conexiones
-	if (select(*maxSock + 1, temp, NULL, NULL, NULL ) == -1) {
+	if (select(*maxSock + 1, &temp, NULL, NULL, NULL ) == -1) {
 		log_error(logger, "select: %s", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 
 	//--Cicla las conexiones para ver cual cambió
-	for (i = 0; i <= *maxSock; i++) {
+	for (unSocket = 0; unSocket <= *maxSock; unSocket++) {
+
 		//--Si el i° socket cambió
-		if (FD_ISSET(i, temp)) {
+		if (FD_ISSET(unSocket, &temp)) {
 			//--Si el que cambió, es el listener
-			if (i == sockListener) {
+
+			if (unSocket == sockListener) {
 				addressLength = sizeof(*remoteAddress);
 				//--Gestiona nueva conexión
 				newSock = accept(sockListener, (struct sockaddr *) remoteAddress, (socklen_t *) &addressLength);
 				log_trace(logger, "%s: Nueva conexion en %d", emisor, newSock);
+
 				if (newSock == -1) {
 					log_error(logger, "accept: %s", strerror(errno));
+
 				} else {
 					//--Agrega el nuevo listener
 					FD_SET(newSock, master);
+
 					if (newSock > *maxSock) {
 						*maxSock = newSock;
 					}
@@ -143,21 +147,22 @@ signed int getConnection(fd_set *master, int *maxSock, int sockListener, struct 
 
 			} else {
 				//--Gestiona un cliente ya conectado
-				if ((nBytes = recibirPaquete(i, tipoMensaje, buffer, logger, "Se recibe informacion")) <= 0) {
+				if ((nBytes = recibirPaquete(unSocket, tipoMensaje, buffer, logger, "Se recibe informacion")) <= 0) {
 
 					//--Si cerró la conexión o hubo error
 					if (nBytes == 0) {
-						log_trace(logger, "%s: Fin de conexion de %d.", emisor, i);
+						log_trace(logger, "%s: Fin de conexion de %d.", emisor, unSocket);
 
 					} else {
 						log_error(logger, "recv: %s", strerror(errno));
 					}
 
 					//--Cierra la conexión y lo saca de la lista
-					close(i);
-					FD_CLR(i, master);
+					close(unSocket);
+					FD_CLR(unSocket, master);
+
 				} else {
-					return i;
+					return unSocket;
 				}
 			}
 		}

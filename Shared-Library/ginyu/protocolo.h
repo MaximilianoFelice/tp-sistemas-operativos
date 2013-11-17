@@ -8,8 +8,8 @@
 #ifndef PROTOCOLO_H_
 #define PROTOCOLO_H_
 
-#include <stdint.h> //para los "int8_t"//////
-#include <unistd.h> //para que no tire warning el close(i);
+#include <stdlib.h>
+#include <stdint.h> //para los "int8_t"
 #include <string.h>
 
 /*
@@ -40,7 +40,6 @@ typedef enum {
 	P_DESCONECTARSE_MUERTE, // AVISO
 	PL_DESCONECTARSE_MUERTE,// AVISO
 	P_DESCONECTARSE_FINALIZADO,// AVISO
-	PL_DESCONECTARSE_MUERTE,// AVISO
 	N_CONFIRMACION_ELIMINACION,// AVISO
 	PL_CONFIRMACION_ELIMINACION,// AVISO
 	PL_NIVEL_YA_EXISTENTE,// AVISO
@@ -88,11 +87,6 @@ typedef struct {
 	tSimbolo recurso;
 	tSimbolo simbolo;
 } tPregPosicion;
-
-typedef struct {
-	int8_t posX;
-	int8_t posY;
-} tRtaPosicion;
 
 typedef struct {
 	int8_t posX;

@@ -40,7 +40,7 @@ void iniSocks(fd_set *master, struct sockaddr_in *myAddress, struct sockaddr_in 
 
 int enviarPaquete(int socketServidor, tPaquete* buffer, t_log* logger, char* info);
 
-int recibirPaquete(int socketReceptor, int* tipoMensaje, void** buffer, t_log* pLogger, char* sMensajeLogger);
+int recibirPaquete(int socketReceptor, tMensaje* tipoMensaje, void** buffer, t_log* pLogger, char* sMensajeLogger);
 
 signed int getConnection(fd_set *master, int *maxSock, int sockListener, struct sockaddr_in *remoteAddress, tMensaje *tipoMensaje, void **buffer, t_log* logger, char* emisor);
 

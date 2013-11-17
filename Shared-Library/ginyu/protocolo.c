@@ -23,7 +23,7 @@ int serializarHandshakePers(tHandshakePers *pHandshakePersonaje, char* payload) 
 	return length;
 }
 
-tHandshakePers * deserializarHandshakePers(char * payload) {
+tHandshakePers* deserializarHandshakePers(char * payload) {
 	tHandshakePers *pHandshakePersonaje = malloc(sizeof(tHandshakePers));
 	int offset   = 0;
 	int tmp_size = 0;
