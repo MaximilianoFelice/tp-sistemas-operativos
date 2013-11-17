@@ -591,8 +591,44 @@ void* planificador(void *argumentos) {
 				case INFO: //TODO actualizar campos que me mandan
 					log_debug(logger, "Vergaaaaaaaaa");
 					break;
-				}
+				case MUERTO_DEADLOCK: //TODO arreglar esto una vez que este solucionado lo de el nuevo formato de mensajes
+					//TODO hablar con cesar
+					log_trace(logger, "Llego mensaje de deadlock en nivel de socket %d", iSocketConexion);
+					if ( list_size(nivel->l_personajesBlk) != 0) {
 
+						//Para avisarle al personaje
+						message_t message;
+						personaje_t victima;
+						victima.index = 99;
+
+						int contPjDLk, tope = 0; //La inicializo para que no se queje el eclipse
+						//tope = strlen(personajesDeadloqueados) //Aqui va la cantidad de personajes deadlockeados
+						//Ahora va a aser un strlen(array de simbolos)
+
+						// TODO va a ciclar hasta que llegue al final del array de simbolos
+						for (contPjDLk = 1; contPjDLk <= tope; contPjDLk++) {
+							//recibeMensaje(i, &message, sizeof(message), logger, "Personajes con DDL");
+
+							// TODO Levanto el simbolo del personaje deadlockeado
+							int simbolo = '&'; //La inicializo para que no se queje el eclipse
+							pjLevantador = search_pj_by_name_with_return(nivel->l_personajesBlk, simbolo);
+
+							//--Si el índice es mayor, setear nueva víctima
+							if (victima.index > pjLevantador->index)
+								victima = *pjLevantador;
+						}
+
+						log_info(logger, "\n>>>>>VICTIMA: %c\n", victima.name);
+						message.detail = MUERTO_DEADLOCK;
+						//--Matar víctima
+						enviaMensaje(victima.sockID, &message, sizeof(message), logger, "Victima del DDL");
+						//TODO organizar que hacemos aquí, onda libero recursos aqui
+						//TODO o hago que me mande un mensaje el personaje?
+						break;
+					}
+
+					break;
+				}
 				break;
 
 			} //Fin de switch(msj.type)
