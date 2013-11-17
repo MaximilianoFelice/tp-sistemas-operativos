@@ -47,16 +47,17 @@ void iniSocks(fd_set* master, struct sockaddr_in *myAddress, struct sockaddr_in 
 }
 
 
-int enviarPaquete(int socketServidor, tPaquete* buffer, t_log* logger, char* info)
+int enviarPaquete(int socketServidor, tPaquete* pPaqueteAEnviar, t_log* logger, char* info)
 {
 	int byteEnviados;
 	log_debug(logger, ">>> %s", info);
-	// DEBERIA HACER ESTA FUNCION EL CALCULO DEL
-	byteEnviados = send(socketServidor, (char *)buffer, sizeof(tHeader) + buffer->length, 0);
+
+	byteEnviados = send(socketServidor, (char *)pPaqueteAEnviar, sizeof(tHeader) + pPaqueteAEnviar->length, 0);
 
 	if (byteEnviados == -1) {
 		log_error(logger, "%s: %s", info, strerror(errno));
 		return -1;
+
 	} else {
 		return byteEnviados;
 	}
@@ -147,6 +148,7 @@ signed int getConnection(fd_set *master, int *maxSock, int sockListener, struct 
 
 			} else {
 				//--Gestiona un cliente ya conectado
+
 				if ((nBytes = recibirPaquete(unSocket, tipoMensaje, buffer, logger, "Se recibe informacion")) <= 0) {
 
 					//--Si cerró la conexión o hubo error
@@ -172,7 +174,7 @@ signed int getConnection(fd_set *master, int *maxSock, int sockListener, struct 
 
 
 
-signed int multiplexar(fd_set *master, fd_set *temp,int *maxSock, void *buffer, int bufferSize, t_log* logger)
+signed int multiplexar(fd_set *master, fd_set *temp, int *maxSock, tMensaje* tipoMensaje, void **buffer, t_log* logger)
 {
 	int i;
 	int nBytes;
@@ -190,7 +192,7 @@ signed int multiplexar(fd_set *master, fd_set *temp,int *maxSock, void *buffer, 
 		if (FD_ISSET(i, temp)) {
 			//--Gestiona un cliente ya conectado
 
-			if ((nBytes = recv(i, buffer, bufferSize, 0)) <= 0) {
+			if ((nBytes = recibirPaquete(i, tipoMensaje, buffer, logger, "Se recibe Mensaje")) <= 0) {
 				//--Si cerró la conexión o hubo error
 				if (nBytes == 0) {
 					log_trace(logger,"Planificador: Fin de conexion de %d.", i);

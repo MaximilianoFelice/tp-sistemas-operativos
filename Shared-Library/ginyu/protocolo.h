@@ -23,28 +23,31 @@
  * 	aviso: significa que no manda nada
  */
 typedef enum {
-	N_HANDSHAKE,
-	P_HANDSHAKE,
+	/* Mensajes de la plataforma */
 	PL_HANDSHAKE,
-	P_POS_RECURSO,
 	PL_POS_RECURSO,
 	PL_OTORGA_TURNO,
-	P_MOVIMIENTO,	 	// movimiento que hace el personaje
-	PL_CONFIRMACION_MOV,  // Plataforma le manda al personaje
-	PL_MOV_PERSONAJE, 	  // Plataforma le manda a nivel
-	N_MUERTO_POR_ENEMIGO, // tSimbolo
+	PL_CONFIRMACION_MOV,  		// Plataforma le manda al personaje
+	PL_MOV_PERSONAJE, 	  		// Plataforma le manda a nivel
+	PL_DESCONECTARSE_MUERTE,	// AVISO
 	PL_MUERTO_POR_ENEMIGO,
-	N_PERSONAJES_DEADLOCK, // tSimbolo (el personaje que ya se murio)
-	PL_MUERTO_POR_DEADLOCK, // AVISO
-	P_SIN_VIDAS,			// manda simbolo
-	P_DESCONECTARSE_MUERTE, // AVISO
-	PL_DESCONECTARSE_MUERTE,// AVISO
-	P_DESCONECTARSE_FINALIZADO,// AVISO
-	N_CONFIRMACION_ELIMINACION,// AVISO
+	PL_MUERTO_POR_DEADLOCK, 	// AVISO
 	PL_CONFIRMACION_ELIMINACION,// AVISO
-	PL_NIVEL_YA_EXISTENTE,// AVISO
-	PL_NIVEL_INEXISTENTE,// AVISO
-	N_ESTADO_PERSONAJE   // Los estados posibles despues del movimiento
+	PL_NIVEL_YA_EXISTENTE,		// AVISO
+	PL_NIVEL_INEXISTENTE,		// AVISO
+	/* Mensajes del nivel */
+	N_HANDSHAKE,
+	N_CONFIRMACION_ELIMINACION,	// AVISO
+	N_MUERTO_POR_ENEMIGO, 		// tSimbolo
+	N_PERSONAJES_DEADLOCK, 		// tSimbolo (el personaje que ya se murio)
+	N_ESTADO_PERSONAJE,   		// Los estados posibles despues del movimiento
+	/* Mensajes del personaje */
+	P_HANDSHAKE,
+	P_MOVIMIENTO,	 			// movimiento que hace el personaje
+	P_POS_RECURSO,
+	P_SIN_VIDAS,				// manda simbolo
+	P_DESCONECTARSE_MUERTE, 	// AVISO
+	P_DESCONECTARSE_FINALIZADO	// AVISO
 } tMensaje;
 
 typedef int8_t tSimbolo;
@@ -92,6 +95,11 @@ typedef struct {
 	int8_t posX;
 	int8_t posY;
 } tRtaPosicion;
+
+typedef struct {
+	tSimbolo simbolo;
+	tDirMovimiento direccion;
+} tMovimientoPers;
 
 typedef char* tPersonajesDeadlock; // un array con todos los simbolos de los personajes que se bloquearon
 

@@ -65,7 +65,7 @@ void *orquestador(unsigned short usPuerto) {
 
 	// Creo la lista de niveles y planificadores
 	lPlanificadores = list_create();
-	listaNiveles = list_create();
+	listaNiveles    = list_create();
 
 	// Definicion de variables para los sockets
 	fd_set master;
@@ -78,7 +78,6 @@ void *orquestador(unsigned short usPuerto) {
 	// Inicializacion de sockets y actualizacion del log
 	iniSocks(&master, &myAddress, remoteAddress, &maxSock, &sockListener, usPuerto, logger);
 
-	// Mensaje del orquestador
 	tMensaje tipoMensaje;
 	char * sPayload;
 
@@ -86,36 +85,38 @@ void *orquestador(unsigned short usPuerto) {
 		socketComunicacion = getConnection(&master, &maxSock, sockListener, &remoteAddress, &tipoMensaje, &sPayload, logger, "Orquestador");
 
 		if (socketComunicacion != -1) {
-
 			int iCantidadNiveles;
-
 			pthread_mutex_lock(&semNivel);
-
+			
 				switch (tipoMensaje) {
-				case SALUDO: // Un nuevo nivel se conecta
+				case N_HANDSHAKE: // Un nuevo nivel se conecta
+					tHandshakeNivel* pHandshakeNivel;
+					pHandshakeNivel = deserializarHandshakeNivel(sPayload);
 
 					if (!list_is_empty(listaNiveles)) {
 						nivel_t *nNivelGuardado;
-						int bEncontrado = 0;
-						int iNivelLoop = 0;
+						int bEncontrado  = 0;
+						int iNivelLoop   = 0;
 						int iCantNiveles = list_size(listaNiveles);
 
 						for (iNivelLoop = 0; (iNivelLoop < iCantNiveles) && (bEncontrado == 0); iNivelLoop++) {
 							nNivelGuardado = (nivel_t *)list_get(listaNiveles, iNivelLoop);
-							bEncontrado = (strcmp (nNivelGuardado->nombre, orqMsj.name) == 0);
+							bEncontrado    = (strcmp (nNivelGuardado->nombre, pHandshakeNivel->nombreNivel) == 0);
 						}
 
 						if (bEncontrado == 1) { //TODO avisar a los q hacen pesonaje que traten este mensaje
-							orqMsj.type = REPETIDO;
-							enviarPaquete(socketComunicacion, &orqMsj, logger, "Ya se encuentra conectado al orquestador un nivel con el mismo nombre");
+							tPaquete pkgNivelRepetido;
+							pkgNivelRepetido.type   = PL_NIVEL_YA_EXISTENTE;
+							pkgNivelRepetido.length = 0;
+							enviarPaquete(socketComunicacion, &pkgNivelRepetido, logger, "Ya se encuentra conectado al orquestador un nivel con el mismo nombre");
 							break;
 						}
 					}
 
 					nivel_t *nivelNuevo = (nivel_t *) malloc(sizeof(nivel_t));
 					pPlanificador = (pthread_t *) malloc(sizeof(pthread_t));
-					log_debug(logger, "SALUDO: se conecto el nivel %s", orqMsj.name);
-					char * name_auxi = strdup(orqMsj.name);
+					log_debug(logger, "Se conecto el nivel %s", pHandshakeNivel->nombreNivel);
+					char * name_auxi = strdup(pHandshakeNivel->nombreNivel);
 
 					// Ahora debo esperar a que me llegue la informacion de planificacion.
 					recibirPaquete(socketComunicacion, &tipoMensaje, &sPayload, logger, "Recibe mensaje INFO de planificacion");
@@ -139,49 +140,59 @@ void *orquestador(unsigned short usPuerto) {
 						log_error(logger,"Tipo de mensaje incorrecto: se esperaba INFO del nivel");
 						exit(EXIT_FAILURE);
 					}
-					break;
-				break;
 
-				case SALUDO:
+					free(pHandshakeNivel);
+					break;
+
+				case P_HANDSHAKE:
 
 					iCantidadNiveles = list_size(listaNiveles);
 
 					if (iCantidadNiveles == 0) {
-						orqMsj.detail = NADA;
-						enviarPaquete(socketComunicacion, &orqMsj, logger, "No hay niveles conectados a la plataforma");
+						tPaquete pkgNivelInexistente;
+						pkgNivelInexistente.type   = PL_NIVEL_INEXISTENTE;
+						pkgNivelInexistente.length = 0;
+						enviarPaquete(socketComunicacion, &pkgNivelInexistente, logger, "No hay niveles conectados a la plataforma");
 						break;
 					}
 
-					nivel_t * nivel_pedido = search_nivel_by_name_with_return(orqMsj.name);
+					tHandshakePers* pHandshakePers;
+					pHandshakePers = deserializarHandshakePersonaje(sPayload);
 
-					if(existeNivel(nivel_pedido)){
+					nivel_t * nivel_pedido = search_nivel_by_name_with_return(pHandshakePers->nombreNivel);
+
+					if (existeNivel(nivel_pedido)) {
 						// Logueo del pedido de nivel del personaje
-						log_trace(logger, "Se conectó el personaje: %c en sock %d, Pide nivel: %s",orqMsj.ip[0], socketComunicacion, orqMsj.name);
+						log_trace(logger, "Se conectó el personaje %c. Pide nivel: %s", pHandshakePers->simbolo, pHandshakePers->nombreNivel);
 
 						// Armo mensaje SALUDO para el personaje con la info del planificador
-						orqMsj.detail = SALUDO;
-
+						tPaquete pkgHandshake;
+						pkgHandshake.type   = PL_HANDSHAKE;
+						pkgHandshake.length = 0;
 						delegarConexion(&nivel_pedido->masterfds, &master, &socketComunicacion, &nivel_pedido->maxSock);
 
 						signal_personajes(&nivel_pedido->hay_personajes);
 
 						// Le aviso al personaje sobre el planificador a donde se va a conectar
-						enviarPaquete(socketComunicacion, &orqMsj, logger, "Envio al personaje la info del planificador del nivel");
+						enviarPaquete(socketComunicacion, &pkgHandshake, logger, "Envio al personaje la info del planificador del nivel");
 
 					} else {
 						// El nivel solicitado no se encuentra conectado todavia
-						orqMsj.detail = NADA;
-						enviarPaquete(socketComunicacion, &orqMsj, logger, "No se encontro el nivel pedido");
+						tPaquete pkgNivelInexistente;
+						pkgNivelInexistente.type   = PL_NIVEL_INEXISTENTE;
+						pkgNivelInexistente.length = 0;
+						enviarPaquete(socketComunicacion, &pkgNivelInexistente, logger, "No se encontro el nivel pedido");
 					}
 
-					break; //break del case SALUDO dentro del personaje
+					free(pHandshakePers);
+					break;
 				}
 
 			pthread_mutex_unlock(&semNivel);
 		}//Fin del if
 	}//Fin del while
 
-	return NULL ;
+	return NULL;
 }
 
 void* planificador(void *argumentos) {
@@ -194,7 +205,6 @@ void* planificador(void *argumentos) {
 	int iSocketConexion;
 	fd_set readfds;
 	FD_ZERO(&readfds);
-	message_t msj;
 
 	int indice_personaje = 0; //Esto es para guardar un indice de c/personaje
 	int contPj; //Esto es para recorrer las listas de personajes
@@ -206,17 +216,20 @@ void* planificador(void *argumentos) {
 
 	turno_t reMultiplex, primerPj, casiListo;
 	reMultiplex.condition = false;
-	primerPj.condition = false;
-	casiListo.condition = false;
+	primerPj.condition    = false;
+	casiListo.condition   = false;
 
 	_Bool first_time = true;
+
+	tMensaje tipoMensaje;
+	char* sPayload;
 
 	// Ciclo donde se multiplexa para escuchar personajes que se conectan
 	while (1) {
 
 		wait_personajes(&nivel->hay_personajes);
 
-		iSocketConexion = multiplexar(&nivel->masterfds, &readfds, &nivel->maxSock, &msj, sizeof(msj), logger);
+		iSocketConexion = multiplexar(&nivel->masterfds, &readfds, &nivel->maxSock, &tipoMensaje, sPayload, logger);
 
 		if (iSocketConexion != -1) {
 
@@ -224,10 +237,8 @@ void* planificador(void *argumentos) {
 
 			pthread_mutex_lock(&semNivel);
 			//Esto lo pongo pero esta al pedo porque siempre va a recibir del personaje
-			switch (msj.type) {
 
-			case PERSONAJE:
-				switch (msj.detail) {
+			switch (tipoMensaje) {
 				case SALUDO:
 
 					//Me fijo si esta en la cola de finalizados
@@ -251,8 +262,7 @@ void* planificador(void *argumentos) {
 						recibirPaquete(nivel->sock, &tipoMensaje, &sPayload, logger, "Recibe SALUDO del nivel con pos inicial");
 
 						msj.type    = SALUDO;
-						//msj.detail  = pos inicial x
-						//msj.detail2 = pos inicial y
+
 						enviarPaquete(iSocketConexion, &msj, logger,"Envio SALUDO al personaje");
 
 						// Logueo la modificacion de la cola y notifico por pantalla
@@ -278,8 +288,6 @@ void* planificador(void *argumentos) {
 
 						recibirPaquete(nivel->sock, &tipoMensaje, &sPayload, logger, "Recibe SALUDO del nivel con pos inicial");
 						msj.type    = SALUDO;
-						//msj.detail  = pos inicial x
-						//msj.detail2 = pos inicial y
 
 						// Envio la informacion de posicion al personaje
 						enviarPaquete(iSocketConexion, &msj, logger,"Envio SALUDO al personaje");
@@ -290,25 +298,27 @@ void* planificador(void *argumentos) {
 					}
 					break;
 
-				case POSICION_RECURSO:
+				case P_POS_RECURSO:
 
 					// Armo mensaje a enviar al nivel
-					msj.type = POSICION_RECURSO;
+					tPaquete pkgPosicionRecurso;
+					pkgPosicionRecurso.type    = PL_POS_RECURSO;
+					pkgPosicionRecurso.length  = sizeof(sPayload);
+					pkgPosicionRecurso.payload = sPayload;
 
 					// Envio mensaje al nivel con la informacion
-					enviarPaquete(nivel->sock, &msj, logger, "Solicito posicion de recurso al nivel");
+					enviarPaquete(nivel->sock, &pkgPosicionRecurso, logger, "Solicito posicion de recurso al nivel");
 
 					// Recibo informacion de la posicion del recurso
 					recibirPaquete(nivel->sock, &tipoMensaje, &sPayload, logger, "Recibo posicion de recurso del nivel");
 
 					//Armo mensaje para enviar al personaje
-					msj.type = POSICION_RECURSO;
-					//msj.detail=pos en X
-					//msj.detail2= pos en Y
-					//msj.name = simbolo
+					pkgPosicionRecurso.type    = PL_POS_RECURSO;
+					pkgPosicionRecurso.length  = sizeof(sPayload);
+					pkgPosicionRecurso.payload = sPayload;
 
 					// Envio la informacion al personaje
-					enviarPaquete(iSocketConexion, &msj, logger, "Envio posicion del recurso");
+					enviarPaquete(iSocketConexion, &pkgPosicionRecurso, logger, "Envio posicion del recurso");
 
 					//Si soy el primer personaje que entra al planificador, entonces le doy un turno
 					if (primerPj.condition) {
@@ -344,6 +354,7 @@ void* planificador(void *argumentos) {
 					reMultiplex.condition = false;
 
 					break;
+					
 				case TURNO:
 
 					//Si no lo mato un enemigo, le doy turnos normalmente
@@ -357,7 +368,7 @@ void* planificador(void *argumentos) {
 							//Avanzo al proximo personaje
 							proxPj++;
 
-							if (proxPj== list_size(nivel->l_personajesRdy))
+							if (proxPj == list_size(nivel->l_personajesRdy))
 								proxPj = 0;
 
 							q = 1;
@@ -391,13 +402,13 @@ void* planificador(void *argumentos) {
 					reMultiplex.condition = false;
 					break;
 
-				case MOVIMIENTO:
+				case P_MOVIMIENTO:
 
 					pjLevantador = search_pj_by_socket_with_return(nivel->l_personajesRdy, iSocketConexion);
-
+					tHandshakeNivel* pHandshakeNivel;
+					pHandshakeNivel = deserializarHandshakeNivel(sPayload);
 					msj.type = MOVIMIENTO;
 					msj.detail = msj.name;
-					//msjPlan.detail2 = calculaMovimiento
 					msj.name = pjLevantador->name;
 
 					// Le envio al nivel el movimiento del personaje
@@ -505,11 +516,9 @@ void* planificador(void *argumentos) {
 
 						encontrado = false;
 
-						encontrado = sacarPersonajeDeListas(nivel->l_personajesRdy, nivel->l_personajesBlk,
-														iSocketConexion, pjLevantador);
+						encontrado = sacarPersonajeDeListas(nivel->l_personajesRdy, nivel->l_personajesBlk, iSocketConexion, pjLevantador);
 
-						desbloquearPersonajes(nivel->l_personajesBlk, nivel->l_personajesRdy,
-												pjLevantador, encontrado, nivel->nombre, proxPj);
+						desbloquearPersonajes(nivel->l_personajesBlk, nivel->l_personajesRdy, pjLevantador, encontrado, nivel->nombre, proxPj);
 
 						msj.type = SALIR;
 						msj.name = pjLevantador->name;
@@ -586,11 +595,9 @@ void* planificador(void *argumentos) {
 
 		} //Fin de if(i!=-1)
 
-
-	} //Fin de while(1)
-
-	return NULL ;
+	return NULL;
 }
+
 
 void create_level(nivel_t * nivelNuevo, int sock, char *level_name, char *alg, int q, int delay){
 	strcpy(nivelNuevo->nombre, level_name);
@@ -606,32 +613,38 @@ void create_level(nivel_t * nivelNuevo, int sock, char *level_name, char *alg, i
 	list_add(listaNiveles, nivelNuevo);
 }
 
+
 void create_personaje(t_list *lista, char simbolo, int sock, int indice){
 	personaje_t personajeNuevo;
 	personajeNuevo.name   = simbolo;
 	personajeNuevo.sockID = sock;
 	personajeNuevo.ready  = false;
 	personajeNuevo.kill   = false;
-	personajeNuevo.index = indice;
+	personajeNuevo.index  = indice;
 	personajeNuevo.recursos = list_create();
 	list_add_new(lista, (void *)&personajeNuevo, sizeof(personaje_t));
 }
 
 void crearHiloPlanificador(pthread_t *pPlanificador, nivel_t *nivelNuevo, t_list *list_p){
+
 	if (pthread_create(pPlanificador, NULL, planificador, (void *)nivelNuevo)) {
 		log_error(logger, "pthread_create: %s",strerror(errno));
 		exit(EXIT_FAILURE);
 	}
+
 	list_add(list_p, pPlanificador);
 }
 
 nivel_t * search_nivel_by_name_with_return(char *level_name){
 	int i;
-	for(i = 0; i<list_size(listaNiveles); i++){
+
+	for(i = 0; i<list_size(listaNiveles); i++) {
 		nivel_t* nivel = (nivel_t*) list_get(listaNiveles, i);
+
 		if(string_equals_ignore_case(nivel->nombre, level_name))
 			return nivel;
 	}
+
 	return NULL;
 }
 
@@ -647,8 +660,10 @@ void marcarPersonajeComoReady(t_list *ready, int sock){
 personaje_t *search_pj_by_name_with_return(t_list *lista, char name){
 	int contPj;
 	personaje_t *pjLevantador;
-	for(contPj =0 ; contPj<list_size(lista); contPj++){
+
+	for(contPj =0 ; contPj<list_size(lista); contPj++) {
 		pjLevantador = list_get(lista, contPj);
+
 		if(pjLevantador->name == name)
 			return pjLevantador;
 	}
@@ -669,8 +684,10 @@ personaje_t *search_pj_by_socket_with_return(t_list *lista, int sock){
 
 void search_pj_by_socket(t_list *lista, int sock, personaje_t *personaje){
 	int contPj;
+
 	for(contPj =0 ; contPj<list_size(lista); contPj++){
 		personaje = list_get(lista, contPj);
+
 		if(personaje->sockID == sock)
 			break;
 	}
@@ -688,8 +705,10 @@ void search_pj_by_name(t_list *lista, char name, personaje_t *personaje){
 
 int search_index_of_pj_by_name(t_list *lista, char name, personaje_t *personaje){
 	int contPj;
+
 	for(contPj =0 ; contPj<list_size(lista); contPj++){
 		personaje = list_get(lista, contPj);
+
 		if(personaje->name == name)
 			return contPj;
 	}
@@ -698,8 +717,10 @@ int search_index_of_pj_by_name(t_list *lista, char name, personaje_t *personaje)
 
 int search_index_of_pj_by_socket(t_list *lista, int sock, personaje_t *personaje){
 	int contPj;
+
 	for(contPj =0 ; contPj<list_size(lista); contPj++){
 		personaje = list_get(lista, contPj);
+
 		if(personaje->sockID == sock)
 			return contPj;
 	}
