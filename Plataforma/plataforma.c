@@ -68,20 +68,20 @@ void *orquestador(unsigned short usPuerto) {
 	listaNiveles    = list_create();
 
 	// Definicion de variables para los sockets
-	fd_set master;
-	struct sockaddr_in remoteAddress;
+	fd_set socketsOrquestador;
 	int maxSock;
 	int socketEscucha;
 	int socketComunicacion; // Aqui va a recibir el numero de socket que retornar getSockChanged()
 
 	// Inicializacion de sockets y actualizacion del log
-	socketEscucha = crearSocketEscucha(&master, remoteAddress, &maxSock, usPuerto, logger);
+	socketEscucha = crearSocketEscucha(usPuerto, logger);
+	maxSock = socketEscucha;
 
 	tMensaje tipoMensaje;
 	char * sPayload;
 
 	while (1) {
-		socketComunicacion = getConnection(&master, &maxSock, socketEscucha, &remoteAddress, &tipoMensaje, &sPayload, logger, "Orquestador");
+		socketComunicacion = getConnection(&socketsOrquestador, &maxSock, socketEscucha, &tipoMensaje, &sPayload, logger, "Orquestador");
 
 		if (socketComunicacion != -1) {
 			int iCantidadNiveles;
@@ -134,7 +134,7 @@ void *orquestador(unsigned short usPuerto) {
 
 						inicializarConexion(&nivelNuevo->masterfds, &nivelNuevo->maxSock, &socketComunicacion);
 
-						delegarConexion(&nivelNuevo->masterfds, &master, &socketComunicacion, &nivelNuevo->maxSock);
+						delegarConexion(&nivelNuevo->masterfds, &socketsOrquestador, &socketComunicacion, &nivelNuevo->maxSock);
 
 						// Logueo el nuevo hilo recien creado
 						log_debug(logger, "Nuevo planificador del nivel: '%s' y planifica con: %s", nivelNuevo->nombre, nivelNuevo->algoritmo);
@@ -173,7 +173,7 @@ void *orquestador(unsigned short usPuerto) {
 						tPaquete pkgHandshake;
 						pkgHandshake.type   = PL_HANDSHAKE;
 						pkgHandshake.length = 0;
-						delegarConexion(&nivel_pedido->masterfds, &master, &socketComunicacion, &nivel_pedido->maxSock);
+						delegarConexion(&nivel_pedido->masterfds, &socketsOrquestador, &socketComunicacion, &nivel_pedido->maxSock);
 
 						signal_personajes(&nivel_pedido->hay_personajes);
 

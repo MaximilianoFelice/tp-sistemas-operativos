@@ -47,10 +47,9 @@ void escucharEn(int unSocket)
 }
 
 
-int crearSocketEscucha(fd_set* master, struct sockaddr_in remoteAddress, int *maxSock, int puerto, t_log* logger)
+int crearSocketEscucha(int puerto, t_log* logger)
 {
 	struct sockaddr_in myAddress;
-	FD_ZERO(master);
 	int socketEscucha;
 
 	socketEscucha = crearSocket(logger);
@@ -65,10 +64,6 @@ int crearSocketEscucha(fd_set* master, struct sockaddr_in remoteAddress, int *ma
 
 	//--Escuchar
 	escucharEn(socketEscucha);
-
-	//--Prepara la lista
-	FD_SET(socketEscucha, master);
-	*maxSock = socketEscucha;
 
 	return socketEscucha;
 }
@@ -124,23 +119,26 @@ int recibirPaquete(int socketReceptor, tMensaje* tipoMensaje, void** buffer, t_l
 
 
 /*
- * @NAME: getSockChanged
+ * @NAME: getConnection
  * @DESC: Multiplexa con Select
  *
  * 	Valores de salida:
- * 	=0 = se agrego un nuevo soquet
- * 	<0 = Se cerro el soquet que devuelce
- * 	>0 = Cambio el soquet que devuelce
+ * 	=0 = se agrego un nuevo socket
+ * 	<0 = Se cerro el socket que devuelve
+ * 	>0 = Cambio el socket que devuelve
  */
-signed int getConnection(fd_set *master, int *maxSock, int sockListener, struct sockaddr_in *remoteAddress, tMensaje *tipoMensaje, void **buffer, t_log* logger, char* emisor)
+signed int getConnection(fd_set *master, int *maxSock, int sockListener, tMensaje *tipoMensaje, void **buffer, t_log* logger, char* emisor)
 {
-	int addressLength;
+	FD_ZERO(master);
 	int unSocket;
 	int newSock;
 	int nBytes;
 	fd_set temp;
 	FD_ZERO(&temp);
 	temp = *master;
+
+	struct sockaddr_in remoteAddress;
+	socklen_t addressLength;
 
 	//--Multiplexa conexiones
 	if (select(*maxSock + 1, &temp, NULL, NULL, NULL ) == -1) {
@@ -156,9 +154,8 @@ signed int getConnection(fd_set *master, int *maxSock, int sockListener, struct 
 			//--Si el que cambió, es el listener
 
 			if (unSocket == sockListener) {
-				addressLength = sizeof(*remoteAddress);
 				//--Gestiona nueva conexión
-				newSock = accept(sockListener, (struct sockaddr *) remoteAddress, (socklen_t *) &addressLength);
+				newSock = accept(sockListener, (struct sockaddr*) &remoteAddress, (socklen_t *) &addressLength);
 				log_trace(logger, "%s: Nueva conexion en %d", emisor, newSock);
 
 				if (newSock == -1) {

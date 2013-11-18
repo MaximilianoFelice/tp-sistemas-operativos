@@ -42,7 +42,7 @@ int enviarPaquete(int socketServidor, tPaquete* buffer, t_log* logger, char* inf
 
 int recibirPaquete(int socketReceptor, tMensaje* tipoMensaje, void** buffer, t_log* pLogger, char* sMensajeLogger);
 
-signed int getConnection(fd_set *master, int *maxSock, int sockListener, struct sockaddr_in *remoteAddress, tMensaje *tipoMensaje, void **buffer, t_log* logger, char* emisor);
+signed int getConnection(fd_set *master, int *maxSock, int sockListener, tMensaje *tipoMensaje, void **buffer, t_log* logger, char* emisor);
 
 signed int multiplexar(fd_set *master, fd_set *temp, int *maxSock, tMensaje* tipoMensaje, void **buffer, t_log* logger);
 
