@@ -40,53 +40,44 @@ tHandshakePers* deserializarHandshakePers(char * payload) {
 }
 
 
-int serializarHandshakeNivel(tHandshakeNivel *pHandshakeNivel, char* payload) {
+int serializarInfoNivel(tInfoNivel *pInfoNivel, char* payload) {
 	int offset   = 0;
 	int tmp_size = 0;
 	int length;
 
-	tmp_size = sizeof(pHandshakeNivel->delay);
-	memcpy(payload, &pHandshakeNivel->delay, tmp_size);
+	tmp_size = sizeof(pInfoNivel->delay);
+	memcpy(payload, &pInfoNivel->delay, tmp_size);
 
 	offset   = tmp_size;
-	tmp_size = sizeof(pHandshakeNivel->quantum);
-	memcpy(payload, &pHandshakeNivel->quantum, tmp_size);
+	tmp_size = sizeof(pInfoNivel->quantum);
+	memcpy(payload, &pInfoNivel->quantum, tmp_size);
 
 	offset   =+ tmp_size;
-	tmp_size = sizeof(pHandshakeNivel->algoritmo);
-	memcpy(payload, &pHandshakeNivel->algoritmo, tmp_size);
-
-	offset   =+ tmp_size;
-	tmp_size = strlen(pHandshakeNivel->nombreNivel) + 1;
-	memcpy(payload + offset, pHandshakeNivel->nombreNivel, tmp_size);
+	tmp_size = sizeof(pInfoNivel->algoritmo);
+	memcpy(payload, &pInfoNivel->algoritmo, tmp_size);
 
 	length = offset + tmp_size;
 
 	return length;
 }
 
-tHandshakeNivel * deserializarHandshakeNivel(char * payload) {
-	tHandshakeNivel *pHandshakeNivel = malloc(sizeof(tHandshakeNivel));
+tInfoNivel * deserializarInfoNivel(char * payload) {
+	tInfoNivel *pInfoNivel = malloc(sizeof(tInfoNivel));
 	int offset   = 0;
 	int tmp_size = 0;
 
 	tmp_size = sizeof(int8_t);
-	memcpy(&pHandshakeNivel->delay, payload, tmp_size);
+	memcpy(&pInfoNivel->delay, payload, tmp_size);
 
 	offset   = tmp_size;
 	tmp_size = sizeof(int8_t);
-	memcpy(&pHandshakeNivel->quantum, payload + offset, tmp_size);
+	memcpy(&pInfoNivel->quantum, payload + offset, tmp_size);
 
 	offset   =+ tmp_size;
 	tmp_size = sizeof(tAlgoritmo);
-	memcpy(&pHandshakeNivel->algoritmo, payload + offset, tmp_size);
+	memcpy(&pInfoNivel->algoritmo, payload + offset, tmp_size);
 
-	offset =+ tmp_size;
-	for (tmp_size = 1; (payload + offset)[tmp_size-1] != '\0'; tmp_size++);
-	pHandshakeNivel->nombreNivel = malloc(tmp_size);
-	memcpy(pHandshakeNivel->nombreNivel, payload + offset, tmp_size);
-
-	return pHandshakeNivel;
+	return pInfoNivel;
 }
 
 

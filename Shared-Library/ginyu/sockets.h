@@ -36,7 +36,7 @@ typedef struct {
 	char    payload[MAX_BUFFER];
 } tPaquete;
 
-void iniSocks(fd_set *master, struct sockaddr_in *myAddress, struct sockaddr_in remoteAddress, int *maxSock, int *sockListener, int puerto, t_log* logger);
+int crearSocketEscucha(fd_set* master, struct sockaddr_in remoteAddress, int *maxSock, int puerto, t_log* logger);
 
 int enviarPaquete(int socketServidor, tPaquete* buffer, t_log* logger, char* info);
 

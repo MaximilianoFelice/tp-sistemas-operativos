@@ -41,6 +41,7 @@ typedef enum {
 	N_MUERTO_POR_ENEMIGO, 		// tSimbolo
 	N_PERSONAJES_DEADLOCK, 		// tSimbolo (el personaje que ya se murio)
 	N_ESTADO_PERSONAJE,   		// Los estados posibles despues del movimiento
+	N_DATOS,
 	/* Mensajes del personaje */
 	P_HANDSHAKE,
 	P_MOVIMIENTO,	 			// movimiento que hace el personaje
@@ -80,11 +81,14 @@ typedef struct {
 } tHandshakePers;
 
 typedef struct {
+	char* nombreNivel;
+} tHandshakeNivel;
+
+typedef struct {
 	int8_t delay;
 	int8_t quantum;
 	tAlgoritmo algoritmo;
-	char* nombreNivel;
-} tHandshakeNivel;
+} tInfoNivel;
 
 typedef struct {
 	tSimbolo recurso;
@@ -106,8 +110,8 @@ typedef char* tPersonajesDeadlock; // un array con todos los simbolos de los per
 int serializarHandshakePers(tHandshakePers *pHandshakePersonaje, char* payload);
 tHandshakePers* deserializarHandshakePers(char * payload);
 
-int serializarHandshakeNivel(tHandshakeNivel *pHandshakeNivel, char* payload);
-tHandshakeNivel* deserializarHandshakeNivel(char * payload);
+int serializarInfoNivel(tInfoNivel *pInfoNivel, char* payload);
+tInfoNivel* deserializarInfoNivel(char * payload);
 
 int serializarPregPosicion(tPregPosicion *pPregPosicion, char* payload);
 tPregPosicion* deserializarPregPosicion(char * payload);

@@ -7,43 +7,70 @@
 
 #include "sockets.h"
 
-void iniSocks(fd_set* master, struct sockaddr_in *myAddress, struct sockaddr_in remoteAddress, int *maxSock, int *sockListener, int puerto, t_log* logger)
+#define BACKLOG 100
+
+int crearSocket(t_log* logger)
 {
-	int yes = 1;
-	FD_ZERO(master);
-
+	int unSocket;
+	int si = 1;
 	//--Crea el socket
-	if ((*sockListener = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-		log_error(logger, "socket: %s", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
+	if ((unSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+		log_error(logger, "Creacion socket: %s", strerror(errno));
+		return EXIT_FAILURE;
 
-	//--Setea las opciones para que pueda escuchar varios al mismo tiempo
-	if (setsockopt(*sockListener, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {
-		log_error(logger, "setsockopt: %s", strerror(errno));
+	} else {
+		//--Setea las opciones para que pueda escuchar varios al mismo tiempo
+		if (setsockopt(unSocket, SOL_SOCKET, SO_REUSEADDR, &si, sizeof(int)) == -1) {
+			log_error(logger, "Setsockopt: %s", strerror(errno));
+			return EXIT_FAILURE;
+		}
+
+		return unSocket;
+	}
+}
+
+void bindearSocket(int unSocket, struct sockaddr_in socketInfo, t_log* logger)
+{
+	//--Bindear socket al proceso server
+	if (bind(unSocket, (struct sockaddr*)&socketInfo, sizeof(socketInfo)) == -1) {
+		log_error(logger, "Error al bindear socket escucha: %s", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
+}
+
+void escucharEn(int unSocket)
+{
+	if (listen(unSocket, BACKLOG) == -1) {
+		perror("Error al poner a escuchar socket");
+		exit(EXIT_FAILURE);
+	}
+}
+
+
+int crearSocketEscucha(fd_set* master, struct sockaddr_in remoteAddress, int *maxSock, int puerto, t_log* logger)
+{
+	struct sockaddr_in myAddress;
+	FD_ZERO(master);
+	int socketEscucha;
+
+	socketEscucha = crearSocket(logger);
 
 	//--Arma la información que necesita para mandar cosas
-	myAddress->sin_family = AF_INET;
-	myAddress->sin_addr.s_addr = INADDR_ANY;
-	myAddress->sin_port = htons(puerto);
+	myAddress.sin_family = AF_INET;
+	myAddress.sin_addr.s_addr = INADDR_ANY;
+	myAddress.sin_port = htons(puerto);
+	memset(&(myAddress.sin_zero), '\0', 8);  	 // Poner a cero el resto de la estructura
 
-	//--Bindear socket al proceso server
-	if (bind(*sockListener, (struct sockaddr *) myAddress, sizeof(*myAddress)) == -1) {
-		log_error(logger, "bind: %s", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
+	bindearSocket(socketEscucha, myAddress,logger);
 
 	//--Escuchar
-	if (listen(*sockListener, 100) == -1) {
-		log_error(logger, "listen: %s", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
+	escucharEn(socketEscucha);
 
 	//--Prepara la lista
-	FD_SET(*sockListener, master);
-	*maxSock = *sockListener;
+	FD_SET(socketEscucha, master);
+	*maxSock = socketEscucha;
+
+	return socketEscucha;
 }
 
 

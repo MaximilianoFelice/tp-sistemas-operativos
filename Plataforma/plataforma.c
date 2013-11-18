@@ -69,20 +69,19 @@ void *orquestador(unsigned short usPuerto) {
 
 	// Definicion de variables para los sockets
 	fd_set master;
-	struct sockaddr_in myAddress;
 	struct sockaddr_in remoteAddress;
 	int maxSock;
-	int sockListener;
+	int socketEscucha;
 	int socketComunicacion; // Aqui va a recibir el numero de socket que retornar getSockChanged()
 
 	// Inicializacion de sockets y actualizacion del log
-	iniSocks(&master, &myAddress, remoteAddress, &maxSock, &sockListener, usPuerto, logger);
+	socketEscucha = crearSocketEscucha(&master, remoteAddress, &maxSock, usPuerto, logger);
 
 	tMensaje tipoMensaje;
 	char * sPayload;
 
 	while (1) {
-		socketComunicacion = getConnection(&master, &maxSock, sockListener, &remoteAddress, &tipoMensaje, &sPayload, logger, "Orquestador");
+		socketComunicacion = getConnection(&master, &maxSock, socketEscucha, &remoteAddress, &tipoMensaje, &sPayload, logger, "Orquestador");
 
 		if (socketComunicacion != -1) {
 			int iCantidadNiveles;
@@ -90,8 +89,6 @@ void *orquestador(unsigned short usPuerto) {
 			
 				switch (tipoMensaje) {
 				case N_HANDSHAKE: // Un nuevo nivel se conecta
-					tHandshakeNivel* pHandshakeNivel;
-					pHandshakeNivel = deserializarHandshakeNivel(sPayload);
 
 					if (!list_is_empty(listaNiveles)) {
 						nivel_t *nNivelGuardado;
@@ -101,7 +98,7 @@ void *orquestador(unsigned short usPuerto) {
 
 						for (iNivelLoop = 0; (iNivelLoop < iCantNiveles) && (bEncontrado == 0); iNivelLoop++) {
 							nNivelGuardado = (nivel_t *)list_get(listaNiveles, iNivelLoop);
-							bEncontrado    = (strcmp (nNivelGuardado->nombre, pHandshakeNivel->nombreNivel) == 0);
+							bEncontrado    = (strcmp (nNivelGuardado->nombre, sPayload) == 0);
 						}
 
 						if (bEncontrado == 1) { //TODO avisar a los q hacen pesonaje que traten este mensaje
@@ -115,16 +112,23 @@ void *orquestador(unsigned short usPuerto) {
 
 					nivel_t *nivelNuevo = (nivel_t *) malloc(sizeof(nivel_t));
 					pPlanificador = (pthread_t *) malloc(sizeof(pthread_t));
-					log_debug(logger, "Se conecto el nivel %s", pHandshakeNivel->nombreNivel);
-					char * name_auxi = strdup(pHandshakeNivel->nombreNivel);
+					log_debug(logger, "Se conecto el nivel %s", sPayload);
+					char * name_auxi = strdup(sPayload);
+
+					tPaquete pkgHandshake;
+					pkgHandshake.type   = PL_HANDSHAKE;
+					pkgHandshake.length = 0;
+					enviarPaquete(socketComunicacion, &pkgHandshake, logger, "Handshake Plataforma");
 
 					// Ahora debo esperar a que me llegue la informacion de planificacion.
-					recibirPaquete(socketComunicacion, &tipoMensaje, &sPayload, logger, "Recibe mensaje INFO de planificacion");
+					recibirPaquete(socketComunicacion, &tipoMensaje, &sPayload, logger, "Recibe mensaje informacion del nivel");
+					tInfoNivel* pInfoNivel;
+					pInfoNivel = deserializarInfoeNivel(sPayload);
 
 					// Validacion de que el nivel me envia informacion correcta
-					if (orqMsj.type == INFO) {
+					if (tipoMensaje == N_DATOS) {
 
-						create_level(nivelNuevo, socketComunicacion, name_auxi, orqMsj.name, orqMsj.detail, orqMsj.port);
+						create_level(nivelNuevo, socketComunicacion, name_auxi, pInfoNivel.algoritmo, pInfoNivel.quantum, pInfoNivel.delay);
 
 						crearHiloPlanificador(pPlanificador, nivelNuevo, lPlanificadores);
 
@@ -137,11 +141,11 @@ void *orquestador(unsigned short usPuerto) {
 
 
 					} else {
-						log_error(logger,"Tipo de mensaje incorrecto: se esperaba INFO del nivel");
+						log_error(logger,"Tipo de mensaje incorrecto: se esperaba datos del nivel");
 						exit(EXIT_FAILURE);
 					}
 
-					free(pHandshakeNivel);
+					free(pInfoNivel);
 					break;
 
 				case P_HANDSHAKE:
@@ -210,7 +214,7 @@ void* planificador(void *argumentos) {
 	int contPj; //Esto es para recorrer las listas de personajes
 	int proxPj = 0;
 	int q = 1;
-	int Quantum = nivel->Quantum; //Esta variable se cambia solo cuando se cambia el quantum en el archivo de configuracion del nivel
+	int quantum = nivel->quantum; //Esta variable se cambia solo cuando se cambia el quantum en el archivo de configuracion del nivel
 	personaje_t personajeNuevo;
 	personaje_t *pjLevantador = malloc(sizeof(personaje_t));
 
@@ -234,9 +238,7 @@ void* planificador(void *argumentos) {
 		if (iSocketConexion != -1) {
 
 			bool encontrado;
-
 			pthread_mutex_lock(&semNivel);
-			//Esto lo pongo pero esta al pedo porque siempre va a recibir del personaje
 
 			switch (tipoMensaje) {
 				case SALUDO:
@@ -364,12 +366,13 @@ void* planificador(void *argumentos) {
 						//Para darles un turno debo actualizar su quantum
 
 						//--Si ya terminó su quantum debo pasar al proximo personaje
-						if (q >= Quantum) {
+						if (q >= quantum) {
 							//Avanzo al proximo personaje
 							proxPj++;
 
-							if (proxPj == list_size(nivel->l_personajesRdy))
+							if (proxPj == list_size(nivel->l_personajesRdy)) {
 								proxPj = 0;
+							}
 
 							q = 1;
 						} else {
@@ -481,7 +484,7 @@ void* planificador(void *argumentos) {
 							imprimirLista(nivel->nombre, nivel->l_personajesRdy, nivel->l_personajesBlk, (contPj - 1));
 
 							//Si bien quedo bloqueado, igual tengo que aumentarle su quantum
-							q = Quantum + 1;
+							q = quantum + 1;
 
 						} else {//Si se le otorgo el recurso
 
@@ -606,7 +609,7 @@ void create_level(nivel_t * nivelNuevo, int sock, char *level_name, char *alg, i
 	nivelNuevo->l_personajesRdy = list_create();
 	nivelNuevo->l_personajesDie = list_create();
 	nivelNuevo->sock = sock;
-	nivelNuevo->Quantum = q;
+	nivelNuevo->quantum = q;
 	nivelNuevo->delay = delay;
 	nivelNuevo->maxSock = 0;
 

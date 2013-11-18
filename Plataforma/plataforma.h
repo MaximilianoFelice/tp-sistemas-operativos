@@ -42,15 +42,15 @@ typedef struct {
 
 typedef struct {
 	int sock; //socket con el que se maneja el nivel
-	char nombre[16]; //nombre del nivel
+	char* nombre; //nombre del nivel
 	t_list* l_personajesRdy; //Cola de listos
 	t_list* l_personajesBlk; //Cola de bloqueados
 	t_list* l_personajesDie; //Cola de finalizados
 	fd_set masterfds;
 	bool hay_personajes;
 	int maxSock;
-	char algoritmo[16];
-	int8_t Quantum;
+	tAlgoritmo algoritmo;
+	int8_t quantum;
 	int delay;
 } nivel_t;
 
