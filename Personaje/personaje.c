@@ -194,7 +194,7 @@ void *jugar(void *args) {
 			personajePorNivel.socketPlataforma= connectServer(ip_plataforma, atoi(puerto_orq), logger, "orquestador");
 
 			//fixme adaptar a los nuevos mensajes
-			handshake_orq(&personajePorNivel.socketPlataforma, &puertoPlanif, ip_planif, personajePorNivel.nivelQueJuego->nomNivel);
+			handshake_orq(&personajePorNivel);
 
 			//fixme adaptar a los nuevos mensajes
 			handshake_planif(&personajePorNivel);
@@ -208,7 +208,7 @@ void *jugar(void *args) {
 				//agarra un recurso de la lista de objetivos del nivel
 				char* recurso = (char*) list_get_data(personajePorNivel.nivelQueJuego->Objetivos,	personajePorNivel.currObj);
 
-				pedirPosicionRecurso(&msjPlan, &personajePorNivel, &recurso);
+				pedirPosicionRecurso(&personajePorNivel, recurso);
 
 				while (1) {
 
@@ -246,7 +246,7 @@ void *jugar(void *args) {
 						// Armamos mensaje de movimiento a realizar con el recurso que necesitamos.
 						msjPlan.type = PERSONAJE;
 						msjPlan.detail = MOVIMIENTO;
-						msjPlan.detail2 = mov = calculaMovimiento(posX, posY,posRecursoX, posRecursoY);
+						msjPlan.detail2 = mov = calculaMovimiento(personajePorNivel);
 						msjPlan.name = *recurso;
 
 						//Aviso a planificador que me movi
@@ -261,7 +261,7 @@ void *jugar(void *args) {
 						break;
 
 					//Actualizo mi posición y de acuerdo a eso armo mensaje de TURNO
-					actualizaPosicion(mov, &personajePorNivel.posX, &personajePorNivel.posY);
+					actualizaPosicion(mov, &personajePorNivel);
 
 					if (msjPlan.type != MOVIMIENTO) {
 						log_error(logger, "Llegaron (detail: %d, detail2:%d, name:%c, type:%d) cuando debía llegar MOVIMIENTO",
@@ -294,18 +294,18 @@ void *jugar(void *args) {
 			if (!murioPersonaje) {
 				finalice = true;
 				devolverRecursos(&personajePorNivel.socketPlataforma, &msjPlan);
-				cerrarConexiones(&personajePorNivel.socketPlataforma);//fixme adaptar al nuevo modelo
+				cerrarConexiones(&personajePorNivel.socketPlataforma);
 			}
 
 			if(personaje.vidas <= 0){
 				devolverRecursos(&personajePorNivel.socketPlataforma, &msjPlan);
-				cerrarConexiones(&personajePorNivel.socketPlataforma);//fixme adaptar al nuevo modelo
+				cerrarConexiones(&personajePorNivel.socketPlataforma);
 			}
 
 			//FIXME DEBERIA restarle una vida sola en lugar de matarlo completamente
 			if(muertePorSenial){
 				devolverRecursos(&personajePorNivel.socketPlataforma, &msjPlan);
-				cerrarConexiones(&personajePorNivel.socketPlataforma);//fixme adaptar al nuevo modelo
+				cerrarConexiones(&personajePorNivel.socketPlataforma);
 			}
 			//=======================
 
@@ -319,7 +319,7 @@ void *jugar(void *args) {
 				}
 				personaje.vidas--;
 				log_debug(logger, "Me han matado :/");
-				cerrarConexiones(&personajePorNivel.socketPlataforma); //fixme adaptar al nuevo modelo
+				cerrarConexiones(&personajePorNivel.socketPlataforma);
 			}
 
 			if(muertePorSenial || finalice)
@@ -352,7 +352,7 @@ void *jugar(void *args) {
 
 }
 
-void pedirPosicionRecurso(int socketPlataforma, personajeIndividual_t* personajePorNivel, char *recurso){
+void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char recurso){
 	message_t *msjPlan;
 	//pide la posicion del recurso
 	msjPlan.type = PERSONAJE;
@@ -404,25 +404,28 @@ void handshake_planif(personajeIndividual_t *personajePorNivel) {
 	}
 }
 
-void handshake_orq(int *sockOrq, int *puertoPlanif, char*ip_planif, char *nom_nivel){
+void handshake_orq(personajeIndividual_t *personajePorNivel){
+
+	//-todo cambiar el contenido del metodo adaptandolo al nuevo modelo
 	orq_t msjOrq;
 	msjOrq.type = PERSONAJE;
 	msjOrq.detail = SALUDO;
-	msjOrq.ip[0] = simbolo;
-	strcpy(msjOrq.name, nom_nivel);
+	msjOrq.ip[0] = personaje.simbolo;
+	strcpy(msjOrq.name, personajePorNivel->nivelQueJuego->nomNivel);
 
-	enviaMensaje(*sockOrq, &msjOrq, sizeof(orq_t), logger, "Envio de SALUDO al orquestador");
+	enviaMensaje(*personajePorNivel->socketPlataforma, &msjOrq, sizeof(orq_t), logger, "Envio de SALUDO al orquestador");
 
-	recibeMensaje(*sockOrq, &msjOrq, sizeof(orq_t), logger, "Recibo puerto e ip de mi planificador en SALUDO");
+	recibeMensaje(*personajePorNivel->socketPlataforma, &msjOrq, sizeof(orq_t), logger, "Recibo puerto e ip de mi planificador en SALUDO");
 
 	if (msjOrq.detail == SALUDO) {
-		if (string_equals_ignore_case(msjOrq.ip, ip_plataforma)) {
+		/*FIXME esto ya no existe
+		 * if (string_equals_ignore_case(msjOrq.ip, ip_plataforma)) {
 			strcpy(ip_planif, msjOrq.ip);
 			*puertoPlanif = msjOrq.port;
 		} else {
 			log_warning(logger, "Las ip's del planificador no coinciden: laMia=%s y laQueMePasaron=%s", ip_plataforma, msjOrq.ip);
 			exit(EXIT_FAILURE);
-		}
+		}*/
 	} else {
 		if (msjOrq.detail == NADA) {
 			log_error(logger, "El nivel solicitado no esta disponible");
@@ -434,29 +437,33 @@ void handshake_orq(int *sockOrq, int *puertoPlanif, char*ip_planif, char *nom_ni
 	}
 }
 
-void cerrarConexiones(int * sockPlan, int *sockOrq){
-	close(*sockPlan);
-	close(*sockOrq);
-	log_debug(logger, "Cierro conexion con el orquestador y planificador");
+void cerrarConexiones(int * socketPlataforma){
+	close(*socketPlataforma);
+	log_debug(logger, "Cierro conexion con la plataforma");
 }
+/*
+ *
+ * lo comento porque todavia no se uso
+ *
+ *
+ *
+void morir(char* causaMuerte, personajeIndividual_t personajePorNivel) {
+	log_info(logger, "%s murio por: %s", personaje.nombre, causaMuerte);
+	*personajePorNivel.currObj=1000;
+	personaje.vidas--;
+}*/
 
-void morir(char* causaMuerte, int *currObj) {
-	log_info(logger, "%s murio por: %s", nombre_pj, causaMuerte);
-	*currObj=1000;
-	vidas--;
-}
 
-
-bool devolverRecursos(int *sockPlan, message_t *message) {
+bool devolverRecursos(int *socketPlataforma, message_t *message) {
 
 	message->type = PERSONAJE;
 	message->detail = SALIR;
 	message->detail2 = NADA;
-	message->name = simbolo;
+	message->name = personaje.simbolo;
 
-	enviaMensaje(*sockPlan, message, sizeof(message_t), logger, "Salida al planificador");
+	enviaMensaje(*socketPlataforma, message, sizeof(message_t), logger, "Salida al planificador");
 
-	recibeMensaje(*sockPlan, message, sizeof(message_t), logger, "Confirmo salida");
+	recibeMensaje(*socketPlataforma, message, sizeof(message_t), logger, "Confirmo salida");
 
 	if (message->type == SALIR) {
 		log_trace(logger, "Recursos liberados");
@@ -482,32 +489,32 @@ void morirSenial() {
 }
 
 void aumentarVidas() {
-	vidas++;
-	log_info(logger, "Vidas de %c: %d", simbolo, vidas);
+	personaje.vidas ++;
+	log_info(logger, "Vidas de %c: %d", personaje.simbolo, personaje.vidas);
 }
 
 void restarVidas() {
-	vidas--;
-	log_info(logger, "Vidas de %c: %d", simbolo, vidas);
+	personaje.vidas--;
+	log_info(logger, "Vidas de %c: %d", personaje.simbolo, personaje.vidas);
 }
 //Seniales
 
-int calculaMovimiento(int posX, int posY, int posRX, int posRY) {
+int calculaMovimiento(personajeIndividual_t personajePorNivel){
 
-	if (posX == posRX && posY == posRY)
+	if (personajePorNivel.posX == personajePorNivel.posRecursoX && personajePorNivel.posY == personajePorNivel.posRecursoY)
 		return -1;
 
 	while (1) {
 		r = rand() % 2;
 		if (r) { //Sobre el eje x
-			if (r && posX < posRX)
+			if (r && personajePorNivel.posX < personajePorNivel.posRecursoX)
 				return DERECHA;
-			else if (posX > posRX)
+			else if (personajePorNivel.posX > personajePorNivel.posRecursoX)
 				return IZQUIERDA;
 		} else { // Sobre el eje y
-			if (posY < posRY)
+			if (personajePorNivel.posY < personajePorNivel.posRecursoY)
 				return ABAJO;
-			else if (posY > posRY)
+			else if (personajePorNivel.posY > personajePorNivel.posRecursoY)
 				return ARRIBA;
 		}
 	}
@@ -516,20 +523,20 @@ int calculaMovimiento(int posX, int posY, int posRX, int posRY) {
 }
 
 // Actualiza las variables posicion del personaje a partir del movimiento que recibe por parametro.
-void actualizaPosicion(int movimiento, int *posX, int *posY) {
+void actualizaPosicion(int movimiento, personajeIndividual_t *personajePorNivel) {
 	switch (movimiento) {
 // El eje Y es alreves, por eso para ir para arriba hay que restar en el eje y.
 	case ARRIBA:
-		(*posY)--;
+		(*personajePorNivel->posY)--;
 		break;
 	case ABAJO:
-		(*posY)++;
+		(*personajePorNivel->posY)++;
 		break;
 	case DERECHA:
-		(*posX)++;
+		(*personajePorNivel->posX)++;
 		break;
 	case IZQUIERDA:
-		(*posX)--;
+		(*personajePorNivel->posY)--;
 		break;
 	}
 }

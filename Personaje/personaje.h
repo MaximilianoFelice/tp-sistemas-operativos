@@ -68,19 +68,19 @@ typedef struct PersonajeIndividual{
 
 
 void *jugar(void *argumentos);
-int  calculaMovimiento(int posX, int posY, int posRX, int posRY);
-void handshake_orq(int *sockOrq, int *puertoPlanif, char*ip_planif, char *nom_nivel);
+int calculaMovimiento(personajeIndividual_t personajePorNivel);
+void handshake_orq(personajeIndividual_t *personajePorNivel);
 void handshake_planif(personajeIndividual_t *personajePorNivel);
-void actualizaPosicion(int movimiento, int *posX, int *posY);
-void morir(char* causaMuerte, int *currObj);
-bool devolverRecursos(int *sockPlan, message_t *message);
-void pedirPosicionRecurso(int socketPlataforma, personajeIndividual_t* personajePorNivel, char *recurso);
+void actualizaPosicion(int movimiento, personajeIndividual_t *personajePorNivel);
+void morir(char* causaMuerte, personajeIndividual_t personajePorNivel);
+bool devolverRecursos(int *socketPlataforma, message_t *message);
+void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char recurso);
 void destruirArchivoConfiguracion(t_config *configPersonaje);
 void cargarArchivoConfiguracion(char* archivoConfiguracion);
 void obtenerIpYPuerto(char *dirADividir, char * ip,  char * puerto);
 bool validarSenial(bool *murioPersonaje);
 bool estaMuerto(int8_t, bool *);
-void cerrarConexiones(int *, int *);
+void cerrarConexiones(int * socketPlataforma);
 void aumentarVidas();
 void morirSenial();
 void restarVidas();
