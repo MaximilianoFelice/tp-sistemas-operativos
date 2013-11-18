@@ -45,13 +45,36 @@ typedef struct ThreadNivel{
 	nivel_t nivel;
 } threadNivel_t;
 
+typedef struct PersonajeGlobal{
+	char simbolo;
+	int vidas;
+	int vidasMaximas;
+	t_list *listaNiveles;
+	char * nombre;
+
+} personajeGlobal_t;
+
+typedef struct PersonajeIndividual{
+	int socketPlataforma;
+	int currObj; //objetivo actual
+	int posX;
+	int posY;
+	int posRecursoX;
+	int posRecursoY;
+	nivel_t *nivelQueJuego;
+
+} personajeIndividual_t;
+
+
 void *jugar(void *argumentos);
 int  calculaMovimiento(int posX, int posY, int posRX, int posRY);
 void handshake_orq(int *sockOrq, int *puertoPlanif, char*ip_planif, char *nom_nivel);
-void handshake_planif(int *sockPlan, int *posX, int *posY);
+void handshake_planif(personajeIndividual_t *personajePorNivel);
 void actualizaPosicion(int movimiento, int *posX, int *posY);
 void morir(char* causaMuerte, int *currObj);
 bool devolverRecursos(int *sockPlan, message_t *message);
+void pedirPosicionRecurso(int socketPlataforma, personajeIndividual_t* personajePorNivel, char *recurso);
+void destruirArchivoConfiguracion(t_config *configPersonaje);
 void cargarArchivoConfiguracion(char* archivoConfiguracion);
 void obtenerIpYPuerto(char *dirADividir, char * ip,  char * puerto);
 bool validarSenial(bool *murioPersonaje);
