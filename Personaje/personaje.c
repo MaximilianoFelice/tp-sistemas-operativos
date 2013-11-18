@@ -374,7 +374,7 @@ void pedirPosicionRecurso(int socketPlataforma, personajeIndividual_t* personaje
 		log_error(logger,"Llegaron (%d, %d, %c, %d) cuando debía llegar POSICION_RECURSO", msjPlan.type, msjPlan.detail, msjPlan.detail2,msjPlan.name);
 		exit(EXIT_FAILURE);
 	}
-//para probar el nombre del git
+
 }
 
 bool estaMuerto(int8_t detail, bool *murioPj){//FIXME no deberia devolver nada porque ya pisa el valor y se usa una sola vez
