@@ -66,6 +66,7 @@ typedef struct PersonajeIndividual{
 } personajeIndividual_t;
 
 
+
 void *jugar(void *argumentos);
 int  calculaMovimiento(int posX, int posY, int posRX, int posRY);
 void handshake_orq(int *sockOrq, int *puertoPlanif, char*ip_planif, char *nom_nivel);
