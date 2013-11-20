@@ -13,6 +13,7 @@
 #include <ginyu/config.h>
 #include <ginyu/sockets.h>
 #include <ginyu/list.h>
+#include <commons/collections/queue.h>
 #include <ginyu/log.h>
 
 #include <sys/inotify.h>
@@ -32,32 +33,29 @@
 #define PUERTO_PLAN 5050
 
 typedef struct {
-	char name;
+	char simbolo;
+	int socket;
+	int valorAlgoritmo;
 	t_list *recursos;
-	bool ready;
-	bool kill;
-	int index;
-	int sockID;
-} personaje_t;
+	// Si está planificando con SRDF es la distancia al recurso y si planifica con RR es el quantum actual.
+	//	Si el valor es negativo, es que el personaje no salio de la cola de listos
+} tPersonaje;
 
 typedef struct {
-	int sock; //socket con el que se maneja el nivel
-	char* nombre; //nombre del nivel
-	t_list* l_personajesRdy; //Cola de listos
-	t_list* l_personajesBlk; //Cola de bloqueados
-	t_list* l_personajesDie; //Cola de finalizados
+	int socket; 			 // Socket de conexion con el nivel
+	char* nombre; 			 // Nombre del nivel
+	t_list* cListos; 		 // Cola de listos
+	t_list* cBloqueados; 	 // Cola de bloqueados
+	t_list* cMuertos;		 // Cola de finalizados
 	fd_set masterfds;
+	tAlgoritmo algoritmo;
+	int quantum;
+	int delay;
 	bool hay_personajes;
 	int maxSock;
-	tAlgoritmo algoritmo;
-	int8_t quantum;
-	int delay;
-} nivel_t;
 
-typedef struct{
-	bool condition;
-	int sock;
-} turno_t;
+} tNivel;
+
 
 //Hilos
 void *orquestador(unsigned short usPuerto);
@@ -67,8 +65,6 @@ bool estaMuerto(t_list * end, char name);
 bool exist_personaje(t_list *list, char name_pj, int  *indice_pj);
 bool sacarPersonajeDeListas(t_list *ready, t_list *block, int sock,  personaje_t *pjLevantador);
 void desbloquearPersonajes(t_list* block, t_list *ready, personaje_t *pjLevantador, bool encontrado, char*nom_nivel, int proxPj);
-void setTurno(turno_t *turno, bool condition_changed, int sock);
-void turno(turno_t *turno, int delay, char *msjInfo);
 void imprimirLista(char* nivel, t_list* rdy, t_list* blk, int cont);
 void marcarPersonajeComoReady(t_list *ready, int sock);
 
@@ -81,12 +77,6 @@ void signal_personajes(bool *hay_personajes);
 void wait_personajes(bool *hay_personajes);
 
 //Busquedas
-personaje_t *search_pj_by_name_with_return(t_list *lista, char name);
-personaje_t *search_pj_by_socket_with_return(t_list *lista, int sock);
-void search_pj_by_socket(t_list *lista, int sock, personaje_t *personaje);
-void search_pj_by_name(t_list *lista, char name, personaje_t *personaje);
-int search_index_of_pj_by_name(t_list *lista, char name, personaje_t *personaje);
-int search_index_of_pj_by_socket(t_list *lista, int sock, personaje_t *personaje);
 nivel_t * search_nivel_by_name_with_return(char *level_name);
 bool existeNivel(nivel_t *nivel);
 

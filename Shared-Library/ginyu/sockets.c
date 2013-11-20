@@ -200,7 +200,7 @@ signed int getConnection(fd_set *master, int *maxSock, int sockListener, tMensaj
 
 signed int multiplexar(fd_set *master, fd_set *temp, int *maxSock, tMensaje* tipoMensaje, void **buffer, t_log* logger)
 {
-	int i;
+	int iSocket;
 	int nBytes;
 	memcpy(temp, master, sizeof(fd_set));
 
@@ -211,24 +211,24 @@ signed int multiplexar(fd_set *master, fd_set *temp, int *maxSock, tMensaje* tip
 	}
 
 	//--Cicla las conexiones para ver cual cambió
-	for (i = 0; i <= *maxSock; i++) {
+	for (iSocket = 0; iSocket <= *maxSock; iSocket++) {
 
-		if (FD_ISSET(i, temp)) {
+		if (FD_ISSET(iSocket, temp)) {
 			//--Gestiona un cliente ya conectado
 
-			if ((nBytes = recibirPaquete(i, tipoMensaje, buffer, logger, "Se recibe Mensaje")) <= 0) {
+			if ((nBytes = recibirPaquete(iSocket, tipoMensaje, buffer, logger, "Se recibe Mensaje")) <= 0) {
 				//--Si cerró la conexión o hubo error
 				if (nBytes == 0) {
-					log_trace(logger,"Planificador: Fin de conexion de %d.", i);
+					log_trace(logger,"Planificador: Fin de conexion de %d.", iSocket);
 				} else {
 					log_error(logger, "Planificador: recv: %s", strerror(errno));
 				}
 				//--Cierra la conexión y lo saca de la lista
-				close(i);
-				FD_CLR(i, master);
+				close(iSocket);
+				FD_CLR(iSocket, master);
 
 			} else { //Tengo info
-				return i;
+				return iSocket;
 			}
 
 		}

@@ -41,6 +41,7 @@ typedef enum {
 	N_MUERTO_POR_ENEMIGO, 		// tSimbolo
 	N_PERSONAJES_DEADLOCK, 		// tSimbolo (el personaje que ya se murio)
 	N_ESTADO_PERSONAJE,   		// Los estados posibles despues del movimiento
+	N_POS_RECURSO,
 	N_DATOS,
 	/* Mensajes del personaje */
 	P_HANDSHAKE,
@@ -75,6 +76,7 @@ typedef enum {
 /*
  * Aca se definen los payloads que se van a mandar en los paquetes
  */
+
 typedef struct {
 	tSimbolo simbolo;
 	char* nombreNivel;
