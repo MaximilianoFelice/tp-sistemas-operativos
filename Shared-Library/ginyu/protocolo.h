@@ -35,6 +35,7 @@ typedef enum {
 	PL_CONFIRMACION_ELIMINACION,// AVISO
 	PL_NIVEL_YA_EXISTENTE,		// AVISO
 	PL_NIVEL_INEXISTENTE,		// AVISO
+	PL_SOLICITUD_RECURSO,
 	/* Mensajes del nivel */
 	N_HANDSHAKE,
 	N_CONFIRMACION_ELIMINACION,	// AVISO
@@ -43,13 +44,17 @@ typedef enum {
 	N_ESTADO_PERSONAJE,   		// Los estados posibles despues del movimiento
 	N_POS_RECURSO,
 	N_DATOS,
+	N_ACTUALIZACION_CRITERIOS,
 	/* Mensajes del personaje */
 	P_HANDSHAKE,
 	P_MOVIMIENTO,	 			// movimiento que hace el personaje
 	P_POS_RECURSO,
 	P_SIN_VIDAS,				// manda simbolo
 	P_DESCONECTARSE_MUERTE, 	// AVISO
-	P_DESCONECTARSE_FINALIZADO	// AVISO
+	P_DESCONECTARSE_FINALIZADO,	// AVISO
+	P_SOLICITUD_RECURSO,
+	/* Mensajes comunes */
+	NO_SE_OBTIENE_RESPUESTA
 } tMensaje;
 
 typedef int8_t tSimbolo;

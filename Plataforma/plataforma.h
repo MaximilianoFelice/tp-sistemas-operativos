@@ -46,7 +46,7 @@ typedef struct {
 	char* nombre; 			 // Nombre del nivel
 	t_list* cListos; 		 // Cola de listos
 	t_list* cBloqueados; 	 // Cola de bloqueados
-	t_list* cMuertos;		 // Cola de finalizados
+	t_list* lMuertos;		 // Lista de personajes muertos
 	fd_set masterfds;
 	tAlgoritmo algoritmo;
 	int quantum;
@@ -63,8 +63,8 @@ void *planificador(void *);
 
 bool estaMuerto(t_list * end, char name);
 bool exist_personaje(t_list *list, char name_pj, int  *indice_pj);
-bool sacarPersonajeDeListas(t_list *ready, t_list *block, int sock,  personaje_t *pjLevantador);
-void desbloquearPersonajes(t_list* block, t_list *ready, personaje_t *pjLevantador, bool encontrado, char*nom_nivel, int proxPj);
+bool sacarPersonajeDeListas(t_list *ready, t_list *block, int sock,  tPersonaje *pjLevantador);
+void desbloquearPersonajes(t_list* block, t_list *ready, tPersonaje *pjLevantador, bool encontrado, char*nom_nivel, int proxPj);
 void imprimirLista(char* nivel, t_list* rdy, t_list* blk, int cont);
 void marcarPersonajeComoReady(t_list *ready, int sock);
 
@@ -77,12 +77,12 @@ void signal_personajes(bool *hay_personajes);
 void wait_personajes(bool *hay_personajes);
 
 //Busquedas
-nivel_t * search_nivel_by_name_with_return(char *level_name);
-bool existeNivel(nivel_t *nivel);
+tNivel * search_nivel_by_name_with_return(char *level_name);
+bool existeNivel(tNivel *nivel);
 
 //Constructores y destroyers
-void create_personaje(t_list *lista, char simbolo, int sock, int indice);
-void create_level(nivel_t * nivelNuevo, int sock, char *level_name, char *alg, int q, int delay);
-void crearHiloPlanificador(pthread_t *pPlanificador, nivel_t *nivelNuevo, t_list*);;
+void agregarPersonaje(t_queue *cPersonajes, char simbolo, int socket);
+void crearNivel(t_list* lNiveles, tNivel* nivelNuevo, int socket, char *levelName, tAlgoritmo algoritmo, int quantum, int delay);
+void crearHiloPlanificador(pthread_t *pPlanificador, tNivel *nivelNuevo, t_list*);
 
 #endif /* PLATAFORMA_H_ */
