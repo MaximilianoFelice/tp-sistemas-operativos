@@ -188,7 +188,8 @@ void *jugar(void *args) {
 			finalice = false;
 
 			log_info(logger, "Vidas de %c: %d", personaje.simbolo, personaje.vidas);
-			message_t msjPlan; //TODO crear el mensaje con la estructura actual
+		//	message_t msjPlan; //TODO crear el mensaje con la estructura actual
+
 
 			// todo Hay que chequear que al morir el personaje realize las acciones necesarias.
 			personajePorNivel.socketPlataforma= connectServer(ip_plataforma, atoi(puerto_orq), logger, "orquestador");
@@ -201,12 +202,12 @@ void *jugar(void *args) {
 
 
 			// Por cada objetivo del nivel,
-			for (personajePorNivel.currObj=0; personajePorNivel.currObj < list_size(personajePorNivel.nivelQueJuego->Objetivos); personajePorNivel.currObj++) {
+			for (personajePorNivel.objetivoActual=0; personajePorNivel.objetivoActual < list_size(personajePorNivel.nivelQueJuego->Objetivos); personajePorNivel.objetivoActual++) {
 
 				murioPersonaje = false;
 
 				//agarra un recurso de la lista de objetivos del nivel
-				char* recurso = (char*) list_get_data(personajePorNivel.nivelQueJuego->Objetivos,	personajePorNivel.currObj);
+				char* recurso = (char*) list_get_data(personajePorNivel.nivelQueJuego->Objetivos,	personajePorNivel.objetivoActual);
 
 				pedirPosicionRecurso(&personajePorNivel, recurso);
 
@@ -406,35 +407,18 @@ void handshake_planif(personajeIndividual_t *personajePorNivel) {
 
 void handshake_orq(personajeIndividual_t *personajePorNivel){
 
-	//-todo cambiar el contenido del metodo adaptandolo al nuevo modelo
-	orq_t msjOrq;
-	msjOrq.type = PERSONAJE;
-	msjOrq.detail = SALUDO;
-	msjOrq.ip[0] = personaje.simbolo;
-	strcpy(msjOrq.name, personajePorNivel->nivelQueJuego->nomNivel);
+	//-fixme comprobar que este bien adaptado
 
-	enviaMensaje(*personajePorNivel->socketPlataforma, &msjOrq, sizeof(orq_t), logger, "Envio de SALUDO al orquestador");
+	tPaquete paqueteHandshake;
+	paqueteHandshake.type   = P_HANDSHAKE;
+	paqueteHandshake.length = 0;
+	enviarPaquete(*personajePorNivel->socketPlataforma, &paqueteHandshake, logger, "Handshake del personaje con la plataforma");
 
-	recibeMensaje(*personajePorNivel->socketPlataforma, &msjOrq, sizeof(orq_t), logger, "Recibo puerto e ip de mi planificador en SALUDO");
 
-	if (msjOrq.detail == SALUDO) {
-		/*FIXME esto ya no existe
-		 * if (string_equals_ignore_case(msjOrq.ip, ip_plataforma)) {
-			strcpy(ip_planif, msjOrq.ip);
-			*puertoPlanif = msjOrq.port;
-		} else {
-			log_warning(logger, "Las ip's del planificador no coinciden: laMia=%s y laQueMePasaron=%s", ip_plataforma, msjOrq.ip);
-			exit(EXIT_FAILURE);
-		}*/
-	} else {
-		if (msjOrq.detail == NADA) {
-			log_error(logger, "El nivel solicitado no esta disponible");
-			pthread_exit(NULL );
-		} else {
-			log_error(logger, "Tipo de mensaje incorrecto se esperaba NADA");
-			exit(EXIT_FAILURE);
-		}
-	}
+//	enviaMensaje(*personajePorNivel->socketPlataforma, &msjOrq, sizeof(orq_t), logger, "Envio de SALUDO al orquestador");
+
+	recibeMensaje(*personajePorNivel->socketPlataforma, &paqueteHandshake, sizeof(orq_t), logger, "Recibo respuesta del handshake con la plataforma");
+
 }
 
 void cerrarConexiones(int * socketPlataforma){
@@ -449,7 +433,7 @@ void cerrarConexiones(int * socketPlataforma){
  *
 void morir(char* causaMuerte, personajeIndividual_t personajePorNivel) {
 	log_info(logger, "%s murio por: %s", personaje.nombre, causaMuerte);
-	*personajePorNivel.currObj=1000;
+	*personajePorNivel.objetivoActual=1000;
 	personaje.vidas--;
 }*/
 
