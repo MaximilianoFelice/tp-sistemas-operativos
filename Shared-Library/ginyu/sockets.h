@@ -23,18 +23,6 @@
 
 #include "protocolo.h"
 
-#define MAX_BUFFER 1024
-
-typedef struct {
-	int8_t  type;
-	int16_t length;
-} __attribute__ ((__packed__)) tHeader;
-
-typedef struct {
-	int8_t  type;
-	int16_t length;
-	char    payload[MAX_BUFFER];
-} __attribute__ ((__packed__)) tPaquete;
 
 int crearSocketEscucha(int puerto, t_log* logger);
 

@@ -12,6 +12,19 @@
 #include <stdint.h> //para los "int8_t"
 #include <string.h>
 
+#define MAX_BUFFER 1024
+
+typedef struct {
+	int8_t  type;
+	int16_t length;
+} __attribute__ ((__packed__)) tHeader;
+
+typedef struct {
+	int8_t  type;
+	int16_t length;
+	char    payload[MAX_BUFFER];
+} __attribute__ ((__packed__)) tPaquete;
+
 /*
  * Formato del tipo del paquete:
  * 		[emisor]_[mensaje]
@@ -114,22 +127,22 @@ typedef struct {
 
 typedef char* tPersonajesDeadlock; // un array con todos los simbolos de los personajes que se bloquearon
 
-int serializarHandshakePers(tHandshakePers *pHandshakePersonaje, char* payload);
+int serializarHandshakePers(tMensaje tipoMensaje, tHandshakePers handshakePersonaje, tPaquete* pPaquete);
 tHandshakePers* deserializarHandshakePers(char * payload);
 
-int serializarInfoNivel(tInfoNivel *pInfoNivel, char* payload);
+int serializarInfoNivel(tMensaje tipoMensaje, tInfoNivel infoNivel, tPaquete* pPaquete);
 tInfoNivel* deserializarInfoNivel(char * payload);
 
-int serializarPregPosicion(tPregPosicion *pPregPosicion, char* payload);
+int serializarPregPosicion(tMensaje tipoMensaje, tPregPosicion pregPosicion, tPaquete* pPaquete);
 tPregPosicion* deserializarPregPosicion(char * payload);
 
-int serializarRtaPosicion(tRtaPosicion *pRtaPosicion, char* payload);
+int serializarRtaPosicion(tMensaje tipoMensaje, tRtaPosicion pRtaPosicion, tPaquete* pPaquete);
 tRtaPosicion* deserializarRtaPosicion(char * payload);
 
-int serializarMovimiento(tDirMovimiento *pDirMovimiento, char* payload);
+int serializarMovimiento(tMensaje tipoMensaje, tDirMovimiento dirMovimiento, tPaquete* pPaquete);
 tDirMovimiento* deserializarMovimiento(char * payload);
 
-int serializarEstado(tEstado *pEstadoPersonaje, char* payload);
+int serializarEstado(tMensaje tipoMensaje, tEstado estadoPersonaje, tPaquete* pPaquete);
 tEstado* deserializarEstado(char * payload);
 
 #endif /* PROTOCOLO_H_ */
