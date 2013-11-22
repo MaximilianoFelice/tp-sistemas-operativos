@@ -69,8 +69,7 @@ typedef struct PersonajeIndividual{
 
 void *jugar(void *argumentos);
 int calculaMovimiento(personajeIndividual_t personajePorNivel);
-void handshake_orq(personajeIndividual_t *personajePorNivel);
-void handshake_planif(personajeIndividual_t *personajePorNivel);
+void handshake_plataforma(personajeIndividual_t *personajePorNivel);
 void actualizaPosicion(int movimiento, personajeIndividual_t *personajePorNivel);
 void morir(char* causaMuerte, personajeIndividual_t personajePorNivel);
 bool devolverRecursos(int *socketPlataforma, message_t *message);

@@ -188,17 +188,11 @@ void *jugar(void *args) {
 			finalice = false;
 
 			log_info(logger, "Vidas de %c: %d", personaje.simbolo, personaje.vidas);
-		//	message_t msjPlan; //TODO crear el mensaje con la estructura actual
-
 
 			// todo Hay que chequear que al morir el personaje realize las acciones necesarias.
 			personajePorNivel.socketPlataforma= connectServer(ip_plataforma, atoi(puerto_orq), logger, "orquestador");
 
-			//fixme adaptar a los nuevos mensajes
-			handshake_orq(&personajePorNivel);
-
-			//fixme adaptar a los nuevos mensajes
-			handshake_planif(&personajePorNivel);
+			handshake_plataforma(&personajePorNivel);
 
 
 			// Por cada objetivo del nivel,
@@ -386,39 +380,28 @@ bool estaMuerto(int8_t detail, bool *murioPj){//FIXME no deberia devolver nada p
 	return (*murioPj =false);
 }
 
-void handshake_planif(personajeIndividual_t *personajePorNivel) {
-	message_t msjPlan;
-	msjPlan.type = PERSONAJE;
-	msjPlan.detail = SALUDO;
-	msjPlan.name = personaje.simbolo;
+void handshake_plataforma(personajeIndividual_t *personajePorNivel){
+	tMensaje tipoMensaje;
+	tHandshakePers handshakePers;
+	tHandshakePers* handDeserializado;
+	handshakePers.simbolo = personaje.simbolo;
+	handshakePers.nombreNivel = personajePorNivel->nivelQueJuego;
 
-	enviaMensaje(*personajePorNivel->socketPlataforma, &msjPlan, sizeof(message_t), logger, "Envia SALUDO al planificador");
+	/* Se crea el paquete */
+	tPaquete pkgHandshake;
+	serializarHandshakePers(P_HANDSHAKE, handshakePers, &pkgHandshake);
 
-	recibeMensaje(*personajePorNivel->socketPlataforma, &msjPlan, sizeof(message_t), logger, "Recibo SALUDO del planificador");
+	enviarPaquete(personajePorNivel->socketPlataforma, &pkgHandshake, logger, "Se envia saludo a la plataforma");
 
-	if (msjPlan.type == SALUDO) {
-		*personajePorNivel->posX = msjPlan.detail;
-		*personajePorNivel->posY = msjPlan.detail2;
-	} else {
-		log_error(logger, "Tipo de msj incorrecto: se esperaba SALUDO");
-		exit(EXIT_FAILURE);
+	char* sPayload;
+	recibirPaquete(personajePorNivel->socketPlataforma, &tipoMensaje, &sPayload, logger, "Recibo estado en el que quedo el personaje");
+
+	//Recibo un aviso de que existe o no el nivel
+
+	if (tipoMensaje == PL_NIVEL_INEXISTENTE){
+		//TODO ver si tengo que hacerla recursiva o si mato al hilo
+		handshake_plataforma(&personajePorNivel, &sPayload);
 	}
-}
-
-void handshake_orq(personajeIndividual_t *personajePorNivel){
-
-	//-fixme comprobar que este bien adaptado
-
-	tPaquete paqueteHandshake;
-	paqueteHandshake.type   = P_HANDSHAKE;
-	paqueteHandshake.length = 0;
-	enviarPaquete(*personajePorNivel->socketPlataforma, &paqueteHandshake, logger, "Handshake del personaje con la plataforma");
-
-
-//	enviaMensaje(*personajePorNivel->socketPlataforma, &msjOrq, sizeof(orq_t), logger, "Envio de SALUDO al orquestador");
-
-	recibeMensaje(*personajePorNivel->socketPlataforma, &paqueteHandshake, sizeof(orq_t), logger, "Recibo respuesta del handshake con la plataforma");
-
 }
 
 void cerrarConexiones(int * socketPlataforma){
