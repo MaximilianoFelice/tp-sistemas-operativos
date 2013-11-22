@@ -136,13 +136,15 @@ tRtaPosicion * deserializarRtaPosicion(char * payload) {
 	int offset   = 0;
 	int tmp_size = 0;
 
-	tmp_size = sizeof(int8_t);
-	memcpy(&pRtaPosicion->posX, payload, tmp_size);
-
-	offset   = tmp_size;
-	tmp_size = sizeof(int8_t);
-	memcpy(&pRtaPosicion->posY, payload + offset, tmp_size);
-
+//	tmp_size = sizeof(int8_t);
+//	memcpy(&pRtaPosicion->posX, *payload, tmp_size);
+//
+//	offset   = tmp_size;
+//	tmp_size = sizeof(int8_t);
+//	memcpy(&pRtaPosicion->posY, *payload + offset, tmp_size);
+	pRtaPosicion = malloc(sizeof(pRtaPosicion));
+	pRtaPosicion->posX = payload[0];
+	pRtaPosicion->posY = payload[1];
 	return pRtaPosicion;
 }
 

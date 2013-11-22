@@ -28,28 +28,24 @@
 typedef struct {
 	int8_t  type;
 	int16_t length;
-} tHeader;
+} __attribute__ ((__packed__)) tHeader;
 
 typedef struct {
 	int8_t  type;
 	int16_t length;
 	char    payload[MAX_BUFFER];
-} tPaquete;
+} __attribute__ ((__packed__)) tPaquete;
 
 int crearSocketEscucha(int puerto, t_log* logger);
 
 int enviarPaquete(int socketServidor, tPaquete* buffer, t_log* logger, char* info);
 
-int recibirPaquete(int socketReceptor, tMensaje* tipoMensaje, void** buffer, t_log* pLogger, char* sMensajeLogger);
+int recibirPaquete(int socketReceptor, tMensaje* tipoMensaje, char** payload, t_log* pLogger, char* sMensajeLogger);
 
-signed int getConnection(fd_set *master, int *maxSock, int sockListener, tMensaje *tipoMensaje, void **buffer, t_log* logger, char* emisor);
+signed int getConnection(fd_set *master, int *maxSock, int sockListener, tMensaje *tipoMensaje, char** payload, t_log* logger);
 
-signed int multiplexar(fd_set *master, fd_set *temp, int *maxSock, tMensaje* tipoMensaje, void **buffer, t_log* logger);
+signed int multiplexar(fd_set *master, fd_set *temp, int *maxSock, tMensaje* tipoMensaje, char** buffer, t_log* logger);
 
-void esperarMensaje(int sock, void *msj, int size, t_log* logger);
-
-void esperarTurno(int sock, void *msj, int size, t_log* logger);
-
-signed int connectServer(char *ip_server, int puerto, t_log *logger, char *host);
+signed int connectToServer(char *ip_server, int puerto, t_log *logger);
 
 #endif /* LIBSOCKETS_H_ */

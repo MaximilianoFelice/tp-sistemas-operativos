@@ -80,20 +80,20 @@ void *orquestador(unsigned short usPuerto) {
 	listaNiveles    = list_create();
 
 	// Definicion de variables para los sockets
-	fd_set socketsOrquestador;
-	int maxSock;
-	int socketEscucha;
-	int iSocketComunicacion; // Aqui va a recibir el numero de socket que retornar getSockChanged()
+	fd_set setSocketsOrquestador;
+	FD_ZERO(&setSocketsOrquestador);
+	int iSocketEscucha, iSocketComunicacion, iSocketMaximo;
 
-	// Inicializacion de sockets y actualizacion del log
-	socketEscucha = crearSocketEscucha(usPuerto, logger);
-	maxSock = socketEscucha;
+	// Inicializacion de sockets
+	iSocketEscucha = crearSocketEscucha(usPuerto, logger);
+	FD_SET(iSocketEscucha, &setSocketsOrquestador);
+	iSocketMaximo = iSocketEscucha;
 
 	tMensaje tipoMensaje;
 	char * sPayload;
 
 	while (1) {
-		iSocketComunicacion = getConnection(&socketsOrquestador, &maxSock, socketEscucha, &tipoMensaje, &sPayload, logger, "Orquestador");
+		iSocketComunicacion = getConnection(&setSocketsOrquestador, &iSocketMaximo, iSocketEscucha, &tipoMensaje, &sPayload, logger);
 
 		if (iSocketComunicacion != -1) {
 
@@ -101,11 +101,11 @@ void *orquestador(unsigned short usPuerto) {
 			
 			switch (tipoMensaje) {
 			case N_HANDSHAKE: // Un nuevo nivel se conecta
-				conexionNivel(iSocketComunicacion, sPayload, socketsOrquestador, lPlanificadores);
+				conexionNivel(iSocketComunicacion, sPayload, setSocketsOrquestador, lPlanificadores);
 				break;
 
 			case P_HANDSHAKE:
-				conexionPersonaje(iSocketComunicacion, &socketsOrquestador, sPayload);
+				conexionPersonaje(iSocketComunicacion, &setSocketsOrquestador, sPayload);
 				break;
 			}
 
