@@ -1,10 +1,26 @@
 //RECORDAR INCLUIR STDINT, QUE CONTIENE LAS DEFINICIONES DE LOS TIPOS DE DATOS USADOS.
-#include <limits.h>
+
 #include <stdint.h>
 #include <stdio.h>
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <limits.h>		// Aqui obtenemos el CHAR_BIT, que nos permite obtener la cantidad de bits en un char.
+#include <fuse.h>
+#include <time.h>
+#include <string.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <stddef.h>
+#include <errno.h>
+#include <unistd.h>
+#include <sys/mman.h>
+#include <commons/bitarray.h>
+#include <semaphore.h>
+#include <pthread.h>
+#include <commons/log.h>
+#include <signal.h>
+#include <commons/string.h>
 
 
 #define GFILEBYTABLE 1024
@@ -70,24 +86,66 @@ typedef struct grasa_file_t {
 	ptrGBloque blk_indirect[BLKINDIRECT];
 } GFile;
 
+// Definimos el semaforo que se utilizará para poder escribir:
+pthread_rwlock_t rwlock;
+t_log* logger;
 
-int path_size_in_bytes(const char* path){
-	FILE *fd;
-	int size;
+/*
+ * Este es el path de nuestro, relativo al punto de montaje, archivo dentro del FS
+ */
+#define DEFAULT_FILE_PATH "/" DEFAULT_FILE_NAME
+#define CUSTOM_FUSE_OPT_KEY(t, p, v) { t, offsetof(struct t_runtime_options, p), v }
 
-	fd=fopen(path, "r"); // printf("Error al abrir el archivo calculando el tamanio");
+// Define los datos del log
+#define LOG_PATH fuse_log_path
+char fuse_log_path[1000];
 
-	fseek(fd, 0L, SEEK_END);
-	size = ftell(fd);
 
-	fclose(fd);
+// Define los datos de mappeo de memoria:
+struct grasa_header_t *header_start;
+struct grasa_file_t *node_table_start, *data_block_start, *bitmap_start;
 
-	return size;
-}
+// Utiliza esta estructura para almacenar el numero de descriptor en el cual se abrio el disco
+int discDescriptor;
 
-int get_size(){
-	return ((int) (ACTUAL_DISC_SIZE_B / BLOCKSIZE));
-}
+/* DEFINICION DE LAS FUNCIONES QUE SE USARAN EN ESTA IMPLEMENTACION */
+
+	// Funcines auxiliares de manejo de estructuras (incluidas en <Grasa_Handlers.c>)
+	ptrGBloque determinar_nodo(const char*);
+	int get_node(void);
+	int add_node(struct grasa_file_t *, int);
+	int delete_nodes_upto (struct grasa_file_t*, int, int);
+	int set_position (int*, int*, size_t, off_t);
+	int get_new_space (struct grasa_file_t*, int);
+	int obtain_free_blocks(void);
+	int split_path(const char*, char**, char**);
+	int path_size_in_bytes(const char*);
+	int get_size(void);
+
+	// Funciones de lectura de FUSE (incluidas en <Grasa_Read.c>)
+	int grasa_getattr(const char*, struct stat*);
+	int grasa_readdir(const char*, void *buf, fuse_fill_dir_t, off_t, struct fuse_file_info*);
+	int grasa_read(const char*, char *, size_t, off_t, struct fuse_file_info*);
+
+	// Funciones de escritura de FUSE (incluidas en <Grasa_Write.c>)
+	int grasa_mkdir (const char*, mode_t);
+	int grasa_rmdir (const char*);
+	int grasa_truncate (const char*, off_t);
+	int grasa_write (const char*, const char*, size_t, off_t, struct fuse_file_info*);
+	int grasa_mknod (const char*, mode_t, dev_t);
+	int grasa_unlink (const char*);
+	int grasa_rename (const char*, const char*);
+	int grasa_setxattr(const char*, const char*, const char*, size_t, int);
+	int grasa_utime(const char*, struct utimbuf*);
+
+	// Funciones definidas como Dummy porque la implementacion no las requiere (incluidas en <Grasa_Dummy.c>)
+	int grasa_open(const char*, struct fuse_file_info*);
+	int grasa_access(const char*, int);
+	int grasa_chmod(const char*, mode_t);
+	int grasa_chown(const char*, uid_t, gid_t);
+
+/* FIN DE DEFINICION DE FUNCIONES */
+
 
 
 
