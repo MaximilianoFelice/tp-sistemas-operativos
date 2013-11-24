@@ -44,8 +44,8 @@ typedef struct {
 typedef struct {
 	int socket; 			 // Socket de conexion con el nivel
 	char* nombre; 			 // Nombre del nivel
-	t_list* cListos; 		 // Cola de listos
-	t_list* cBloqueados; 	 // Cola de bloqueados
+	t_queue* cListos; 		 // Cola de listos
+	t_queue* cBloqueados; 	 // Cola de bloqueados
 	t_list* lMuertos;		 // Lista de personajes muertos
 	fd_set masterfds;
 	tAlgoritmo algoritmo;
@@ -77,12 +77,12 @@ void signal_personajes(bool *hay_personajes);
 void wait_personajes(bool *hay_personajes);
 
 //Busquedas
-tNivel * search_nivel_by_name_with_return(char *level_name);
-bool existeNivel(tNivel *nivel);
+int existeNivel(t_list * lNiveles, char* sLevelName);
+
 
 //Constructores y destroyers
 void agregarPersonaje(t_queue *cPersonajes, char simbolo, int socket);
-void crearNivel(t_list* lNiveles, tNivel* nivelNuevo, int socket, char *levelName, tAlgoritmo algoritmo, int quantum, int delay);
+void crearNivel(t_list* lNiveles, tNivel* nivelNuevo, int socket, char *levelName, tInfoNivel *pInfoNivel);
 void crearHiloPlanificador(pthread_t *pPlanificador, tNivel *nivelNuevo, t_list*);
 
 #endif /* PLATAFORMA_H_ */
