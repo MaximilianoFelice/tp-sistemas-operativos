@@ -65,7 +65,7 @@ bool estaMuerto(t_list * end, char name);
 bool exist_personaje(t_list *list, char name_pj, int  *indice_pj);
 bool sacarPersonajeDeListas(t_list *ready, t_list *block, int sock,  tPersonaje *pjLevantador);
 void desbloquearPersonajes(t_list* block, t_list *ready, tPersonaje *pjLevantador, bool encontrado, char*nom_nivel, int proxPj);
-void imprimirLista(char* nivel, t_list* rdy, t_list* blk, int cont);
+void imprimirLista(tNivel *pNivel, tPersonaje *pPersonaje);
 void marcarPersonajeComoReady(t_list *ready, int sock);
 
 

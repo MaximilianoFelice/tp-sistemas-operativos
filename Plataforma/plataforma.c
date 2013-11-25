@@ -41,9 +41,10 @@ void crearHiloPlanificador(pthread_t *pPlanificador, tNivel *nivelNuevo, t_list 
 
 int seleccionarJugador(tPersonaje* pPersonaje, tNivel* nivel);
 tPersonaje* planificacionSRDF(t_queue* cListos, int iTamanioCola);
-void solicitudRecursoPersonaje(int iSocketConexion, char* sPayload, tNivel *pNivel, t_log* logger);
+void solicitudRecursoPersonaje(int iSocketConexion, char *sPayload, tNivel *pNivel, tPersonaje **pPersonajeActual, t_log *logger);
 void movimientoPersonaje(int iSocketConexion, char* sPayload, tNivel *pNivel, tPersonaje* pPersonaje, t_log* logger);
 void posicionRecursoPersonaje(int iSocketConexion, char* sPayload, tNivel* pNivel, t_log* logger);
+int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNivel);
 
 /*
  * PLATAFORMA
@@ -325,11 +326,11 @@ void *planificador(void * pvNivel) {
                 break;
 
             case(P_SOLICITUD_RECURSO):
-                solicitudRecursoPersonaje(iSocketConexion, sPayload, pNivel, logger);
+                solicitudRecursoPersonaje(iSocketConexion, sPayload, pNivel, &pPersonajeActual, logger);
                 break;
 
             case(N_ACTUALIZACION_CRITERIOS):
-                //actualizacionCriteriosNivel(iSocketConexion, sPayload, pNivel);
+                actualizacionCriteriosNivel(iSocketConexion, sPayload, pNivel);
                 break;
 
             default:
@@ -338,8 +339,7 @@ void *planificador(void * pvNivel) {
 
             pthread_mutex_unlock(&semNivel);
 
-        } //Fin de if(i!=-1)
-
+        }
     }
 }
 
@@ -348,7 +348,7 @@ int seleccionarJugador(tPersonaje* pPersonaje, tNivel* nivel) {
     int iTamanioCola;
 
     // Me fijo si puede seguir jugando
-    if (pPersonaje != NULL) {
+    if (pPersonaje == NULL) {
         switch(nivel->algoritmo) {
         case RR:
             if (pPersonaje->valorAlgoritmo < nivel->quantum) {
@@ -490,13 +490,38 @@ void movimientoPersonaje(int iSocketConexion, char* sPayload, tNivel *pNivel, tP
 }
 
 
-void solicitudRecursoPersonaje(int iSocketConexion, char* sPayload, tNivel *pNivel, t_log* logger) {
+void solicitudRecursoPersonaje(int iSocketConexion, char *sPayload, tNivel *pNivel, tPersonaje **pPersonajeActual, t_log *logger) {
     tPaquete pkgSolicituRecurso;
     pkgSolicituRecurso.type    = PL_SOLICITUD_RECURSO;
     pkgSolicituRecurso.length  = strlen(sPayload);
     strcpy(pkgSolicituRecurso.payload, sPayload);
 
     enviarPaquete(pNivel->socket, &pkgSolicituRecurso, logger, "Solicitud de recurso");
+
+    if (pNivel->algoritmo == RR) {
+    	(*pPersonajeActual)->valorAlgoritmo = pNivel->quantum;
+    } else {
+    	(*pPersonajeActual)->valorAlgoritmo = 0;
+    }
+
+    queue_push(pNivel->cBloqueados, *pPersonajeActual);
+
+    *pPersonajeActual = NULL;
+}
+
+
+int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNivel) {
+	tInfoNivel* pInfoNivel;
+	pInfoNivel = deserializarInfoNivel(sPayload);
+
+	pNivel->quantum   = pInfoNivel->quantum;
+	pNivel->delay     = pInfoNivel->delay;
+	pNivel->algoritmo = pInfoNivel->algoritmo;
+
+	free(sPayload);
+	free(pInfoNivel);
+
+	return EXIT_SUCCESS;
 }
 
 
@@ -508,7 +533,7 @@ int existeNivel(t_list * lNiveles, char* sLevelName) {
 	int iCantNiveles = list_size(lNiveles);
 	tNivel* pNivelGuardado;
 
-	if(!list_is_empty(lNiveles)) {
+	if (!list_is_empty(lNiveles)) {
 
 		for (iNivelLoop = 0; (iNivelLoop < iCantNiveles) && (bEncontrado == 0); iNivelLoop++) {
 			pNivelGuardado = (tNivel *)list_get(listaNiveles, iNivelLoop);
@@ -525,11 +550,15 @@ int existeNivel(t_list * lNiveles, char* sLevelName) {
 
 int buscarPersonajePorSocket(t_list *lista, int socket, tPersonaje *personaje){
 	int contPj;
-	for(contPj =0 ; contPj<list_size(lista); contPj++) {
+
+	for (contPj =0 ; contPj<list_size(lista); contPj++) {
 		personaje = list_get(lista, contPj);
-		if(personaje->socket == socket)
+
+		if(personaje->socket == socket) {
 			return contPj;
+		}
 	}
+
 	return -1;
 }
 
@@ -552,34 +581,37 @@ bool sacarPersonajeDeListas(t_list *ready, t_list *block, int socket,  tPersonaj
 	return encontrado;
 }
 
-void imprimirLista(char* nivel, t_list* rdy, t_list* blk, int cont) {
+void imprimirLista(tNivel *pNivel, tPersonaje *pPersonaje) {
 
-	char* tmp = malloc(20);
-	char* retorno = malloc(500);
+	char* tmp;
+	char* retorno;
 	int i;
+	tPersonaje *pPersAux;
 
-	tPersonaje* levantador;
-
-	if (list_size(rdy) == 0 || cont < 0) { //Si no hay nadie listo, no se quien esta ejecutando
-		sprintf(retorno, "Lista de: %s\n\tEjecutando:\n\tListos: \t", nivel);
+	if (queue_is_empty(pNivel->cListos) && (pPersonaje == NULL)) { //Si no hay nadie listo, no se quien esta ejecutando
+		asprintf(&retorno, "Lista de: %s\n\tEjecutando:\n\tListos: \t", pNivel->nombre);
 	} else {
-		levantador = (tPersonaje *)list_get_data(rdy, cont);
-		sprintf(retorno, "Lista de: %s\n\tEjecutando: %c\n\tListos: \t", nivel, levantador->simbolo);
+		asprintf(&retorno, "Lista de: %s\n\tEjecutando: %c\n\tListos: \t", pNivel->nombre, pPersonaje->simbolo);
 	}
 
-	for (i = 0; i < list_size(rdy); i++) {
-		levantador = (tPersonaje *)list_get_data(rdy, i);
-		sprintf(tmp, "%c -> ", levantador->simbolo);
+	int iCantidadListos = queue_size(pNivel->cListos);
+	for (i = 0; i < iCantidadListos; i++) {
+		pPersAux = (tPersonaje *)list_get_data(pNivel->cListos->elements, i);
+		asprintf(&tmp, "%c -> ", pPersAux->simbolo);
 		string_append(&retorno, tmp);
+		free(tmp);
 	}
 
-	sprintf(tmp, "\n\tBloqueados: \t");
+	asprintf(&tmp, "\n\tBloqueados: \t");
 	string_append(&retorno, tmp);
+	free(tmp);
 
-	for (i = 0; i < list_size(blk); i++) {
-		levantador = list_get(blk, i);
-		sprintf(tmp, "%c -> ", levantador->simbolo);
+	int iCantidadBloqueados = queue_size(pNivel->cBloqueados);
+	for (i = 0; i < iCantidadBloqueados; i++) {
+		pPersAux = list_get(pNivel->cListos->elements, i);
+		asprintf(&tmp, "%c -> ", pPersAux->simbolo);
 		string_append(&retorno, tmp);
+		free(tmp);
 	}
 
 	log_info(logger, retorno);
@@ -591,17 +623,20 @@ void delegarConexion(fd_set *master_planif, fd_set *master_orq, int *sock, int *
 	//Saco el socket del conjunto de sockets del orquestador
 	FD_CLR(*sock, master_orq);
 	FD_SET(*sock, master_planif);
+
 	//Lo agrego al conjunto del planificador
-	if(FD_ISSET(*sock, master_planif))
+	if (FD_ISSET(*sock, master_planif)) {
 		log_debug(logger, "--> Delegue la conexion del personaje al planificador <--");
-	else{
+
+	} else {
 		log_warning(logger, "WARN: Error al delegar conexiones");
 		exit(EXIT_FAILURE);
 	}
 
 	//Actualizo el tope del set de sockets
-	if (*sock > *maxSock)
+	if (*sock > *maxSock) {
 		*maxSock = *sock;
+	}
 }
 
 
@@ -616,12 +651,15 @@ void imprimirConexiones(fd_set *master_planif, int maxSock, char* host) {
 	int cantSockets =0;
 
 	log_debug(logger, "Conexiones del %s", host);
-	for(i = 0; i<=maxSock; i++){
-		if(FD_ISSET(i, master_planif)){
+
+	for(i = 0; i<=maxSock; i++) {
+
+		if(FD_ISSET(i, master_planif)) {
 			log_debug(logger, "El socket %d esta en el conjunto", i);
-		cantSockets++;
+			cantSockets++;
 		}
 	}
+
 	log_debug(logger, "La cantidad de sockets totales del %s es %d", host, cantSockets);
 }
 
@@ -633,7 +671,8 @@ void signal_personajes(bool *hay_personajes) {
 
 
 void wait_personajes(bool *hay_personajes) {
-	if(!(*hay_personajes)){
+
+	if (!(*hay_personajes)) {
 		pthread_mutex_lock(&semNivel);
 		pthread_cond_wait(&hayPersonajes, &semNivel);
 		pthread_mutex_unlock(&semNivel);
