@@ -124,6 +124,9 @@ void *orquestador(unsigned short usPuerto) {
 			case P_HANDSHAKE:
 				conexionPersonaje(iSocketComunicacion, &setSocketsOrquestador, sPayload);
 				break;
+
+			default:
+				break;
 			}
 
 			pthread_mutex_unlock(&semNivel);
@@ -465,9 +468,9 @@ void movimientoPersonaje(int iSocketConexion, char* sPayload, tNivel *pNivel, tP
     recibirPaquete(pNivel->socket, &tipoMensaje, &sPayload, logger, "Recibo estado en el que quedo el personaje");
 
     if (tipoMensaje == N_MUERTO_POR_ENEMIGO) { // TODO verificar que mensajes puede recibir
-        tPaquete pkgMovimientoPers;
-        pkgMovimientoPers.type    = PL_MUERTO_POR_ENEMIGO;
-        pkgMovimientoPers.length  = strlen(sPayload);
+//        tPaquete pkgMovimientoPers;
+//        pkgMovimientoPers.type    = PL_MUERTO_POR_ENEMIGO;
+//        pkgMovimientoPers.length  = strlen(sPayload);
 
         recibirPaquete(pNivel->socket, &tipoMensaje, &sPayload, logger, "Envio muerte por enemigo");
 
@@ -581,43 +584,43 @@ bool sacarPersonajeDeListas(t_list *ready, t_list *block, int socket,  tPersonaj
 	return encontrado;
 }
 
-void imprimirLista(tNivel *pNivel, tPersonaje *pPersonaje) {
-
-	char* tmp;
-	char* retorno;
-	int i;
-	tPersonaje *pPersAux;
-
-	if (queue_is_empty(pNivel->cListos) && (pPersonaje == NULL)) { //Si no hay nadie listo, no se quien esta ejecutando
-		asprintf(&retorno, "Lista de: %s\n\tEjecutando:\n\tListos: \t", pNivel->nombre);
-	} else {
-		asprintf(&retorno, "Lista de: %s\n\tEjecutando: %c\n\tListos: \t", pNivel->nombre, pPersonaje->simbolo);
-	}
-
-	int iCantidadListos = queue_size(pNivel->cListos);
-	for (i = 0; i < iCantidadListos; i++) {
-		pPersAux = (tPersonaje *)list_get_data(pNivel->cListos->elements, i);
-		asprintf(&tmp, "%c -> ", pPersAux->simbolo);
-		string_append(&retorno, tmp);
-		free(tmp);
-	}
-
-	asprintf(&tmp, "\n\tBloqueados: \t");
-	string_append(&retorno, tmp);
-	free(tmp);
-
-	int iCantidadBloqueados = queue_size(pNivel->cBloqueados);
-	for (i = 0; i < iCantidadBloqueados; i++) {
-		pPersAux = list_get(pNivel->cListos->elements, i);
-		asprintf(&tmp, "%c -> ", pPersAux->simbolo);
-		string_append(&retorno, tmp);
-		free(tmp);
-	}
-
-	log_info(logger, retorno);
-	free(tmp);
-	free(retorno);
-}
+//void imprimirLista(tNivel *pNivel, tPersonaje *pPersonaje) {
+//
+//	char* tmp;
+//	char* retorno;
+//	int i;
+//	tPersonaje *pPersAux;
+//
+//	if (queue_is_empty(pNivel->cListos) && (pPersonaje == NULL)) { //Si no hay nadie listo, no se quien esta ejecutando
+//		asprintf(&retorno, "Lista de: %s\n\tEjecutando:\n\tListos: \t", pNivel->nombre);
+//	} else {
+//		asprintf(&retorno, "Lista de: %s\n\tEjecutando: %c\n\tListos: \t", pNivel->nombre, pPersonaje->simbolo);
+//	}
+//
+//	int iCantidadListos = queue_size(pNivel->cListos);
+//	for (i = 0; i < iCantidadListos; i++) {
+//		pPersAux = (tPersonaje *)list_get_data(pNivel->cListos->elements, i);
+//		asprintf(&tmp, "%c -> ", pPersAux->simbolo);
+//		string_append(&retorno, tmp);
+//		free(tmp);
+//	}
+//
+//	asprintf(&tmp, "\n\tBloqueados: \t");
+//	string_append(&retorno, tmp);
+//	free(tmp);
+//
+//	int iCantidadBloqueados = queue_size(pNivel->cBloqueados);
+//	for (i = 0; i < iCantidadBloqueados; i++) {
+//		pPersAux = list_get(pNivel->cListos->elements, i);
+//		asprintf(&tmp, "%c -> ", pPersAux->simbolo);
+//		string_append(&retorno, tmp);
+//		free(tmp);
+//	}
+//
+//	log_info(logger, retorno);
+//	free(tmp);
+//	free(retorno);
+//}
 
 void delegarConexion(fd_set *master_planif, fd_set *master_orq, int *sock, int *maxSock) {
 	//Saco el socket del conjunto de sockets del orquestador
