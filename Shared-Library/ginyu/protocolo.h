@@ -145,4 +145,7 @@ tDirMovimiento* deserializarMovimiento(char * payload);
 int serializarEstado(tMensaje tipoMensaje, tEstado estadoPersonaje, tPaquete* pPaquete);
 tEstado* deserializarEstado(char * payload);
 
+int serializarSimbolo(tMensaje tipoMensaje, tSimbolo simbolo, tPaquete* pPaquete);
+tSimbolo* deserializarSimbolo(char * payload);
+
 #endif /* PROTOCOLO_H_ */

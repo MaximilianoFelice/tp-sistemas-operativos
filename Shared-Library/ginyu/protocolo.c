@@ -196,3 +196,25 @@ tEstado* deserializarEstado(char * payload) {
 
 	return pEstadoPersonaje;
 }
+
+
+int serializarSimbolo(tMensaje tipoMensaje, tSimbolo simbolo, tPaquete* pPaquete) {
+
+	pPaquete->type = tipoMensaje;
+
+	pPaquete->length = sizeof(simbolo);
+	memcpy(pPaquete->payload, &simbolo, pPaquete->length);
+
+	return EXIT_SUCCESS;
+}
+
+tSimbolo* deserializarSimbolo(char * payload) {
+
+	tSimbolo *pSimbolo = (tSimbolo*)malloc(sizeof(tSimbolo));
+	int tmp_size = 0;
+
+	tmp_size = sizeof(tSimbolo);
+	memcpy(&pSimbolo, payload, tmp_size);
+
+	return pSimbolo;
+}

@@ -237,7 +237,7 @@ void crearNivel(t_list* lNiveles, tNivel* nivelNuevo, int socket, char *levelNam
 	nivelNuevo->nombre = malloc(strlen(levelName) + 1);
 	strcpy(nivelNuevo->nombre, levelName);
 	nivelNuevo->cListos 	= queue_create();
-	nivelNuevo->cBloqueados = queue_create();
+	nivelNuevo->lBloqueados = list_create();
 	nivelNuevo->lMuertos 	= list_create();
 	nivelNuevo->socket 		= socket;
 	nivelNuevo->quantum 	= pInfoNivel->quantum;
@@ -369,7 +369,7 @@ int seleccionarJugador(tPersonaje* pPersonaje, tNivel* nivel) {
                 return (EXIT_SUCCESS);
             } else if (pPersonaje->valorAlgoritmo == 0) {
                 // Llego al recurso, se bloquea
-                queue_push(nivel->cBloqueados, pPersonaje);
+                return (EXIT_FAILURE);
             }
             break;
         }
@@ -499,7 +499,8 @@ void solicitudRecursoPersonaje(int iSocketConexion, char *sPayload, tNivel *pNiv
     pkgSolicituRecurso.length  = strlen(sPayload);
     strcpy(pkgSolicituRecurso.payload, sPayload);
 
-    enviarPaquete(pNivel->socket, &pkgSolicituRecurso, logger, "Solicitud de recurso");
+    tSimbolo *pSimbolo;
+    pSimbolo = deserializarSimbolo(sPayload);
 
     if (pNivel->algoritmo == RR) {
     	(*pPersonajeActual)->valorAlgoritmo = pNivel->quantum;
@@ -507,9 +508,18 @@ void solicitudRecursoPersonaje(int iSocketConexion, char *sPayload, tNivel *pNiv
     	(*pPersonajeActual)->valorAlgoritmo = 0;
     }
 
-    queue_push(pNivel->cBloqueados, *pPersonajeActual);
+    tPersonajeBloqueado *pPersonajeBloqueado;
+    pPersonajeBloqueado = (tPersonajeBloqueado*) malloc(sizeof(tPersonajeBloqueado));
+    pPersonajeBloqueado->pPersonaje = *pPersonajeActual;
+    pPersonajeBloqueado->recursoEsperado = *pSimbolo;
+
+    list_add(pNivel->lBloqueados, pPersonajeBloqueado);
 
     *pPersonajeActual = NULL;
+    free(pSimbolo);
+    free(sPayload);
+
+    enviarPaquete(pNivel->socket, &pkgSolicituRecurso, logger, "Solicitud de recurso");
 }
 
 
@@ -621,6 +631,59 @@ bool sacarPersonajeDeListas(t_list *ready, t_list *block, int socket,  tPersonaj
 //	free(tmp);
 //	free(retorno);
 //}
+
+tPersonajeBloqueado* sacarDeListaBloqueados(t_list* lBloqueados, tSimbolo simbolo) {
+	tPersonajeBloqueado *pPersonajeBloqueado;
+	int iCantidadBloqueados;
+	int iIndicePersonaje;
+	int bEncontrado = 0;
+
+	iCantidadBloqueados = list_size(lBloqueados);
+
+	for (iIndicePersonaje = 0; (iIndicePersonaje < iCantidadBloqueados) && (bEncontrado == 0); iIndicePersonaje++) {
+		pPersonajeBloqueado = (tPersonajeBloqueado *)list_get(lBloqueados, iIndicePersonaje);
+		bEncontrado    		= (pPersonajeBloqueado->pPersonaje->simbolo == simbolo);
+	}
+
+	if (bEncontrado == 1) {
+		pPersonajeBloqueado = list_remove(lBloqueados, iIndicePersonaje);
+		return pPersonajeBloqueado;
+
+	} else {
+		return NULL;
+	}
+}
+
+
+tPersonaje* desbloquearPersonaje(t_list* lBloqueados, tSimbolo recurso) {
+	tPersonajeBloqueado *pPersonajeBloqueado;
+	tPersonaje* pPersonaje;
+	int iCantidadBloqueados;
+	int iIndicePersonaje;
+	int bEncontrado = 0;
+
+	iCantidadBloqueados = list_size(lBloqueados);
+
+	for (iIndicePersonaje = 0; (iIndicePersonaje < iCantidadBloqueados) && (bEncontrado == 0); iIndicePersonaje++) {
+		pPersonajeBloqueado = (tPersonajeBloqueado *)list_get(lBloqueados, iIndicePersonaje);
+		bEncontrado    		= (pPersonajeBloqueado->recursoEsperado == recurso);
+	}
+
+	if (bEncontrado == 1) {
+		pPersonajeBloqueado = list_remove(lBloqueados, iIndicePersonaje);
+		pPersonaje = pPersonajeBloqueado->pPersonaje;
+		tSimbolo *recursoObtenido;
+		recursoObtenido  = (tSimbolo *) malloc(sizeof(tSimbolo));
+		*recursoObtenido = pPersonajeBloqueado->recursoEsperado;
+		list_add(pPersonaje->recursos, recursoObtenido);
+		free(pPersonajeBloqueado);
+
+		return pPersonaje;
+
+	} else {
+		return NULL;
+	}
+}
 
 void delegarConexion(fd_set *master_planif, fd_set *master_orq, int *sock, int *maxSock) {
 	//Saco el socket del conjunto de sockets del orquestador

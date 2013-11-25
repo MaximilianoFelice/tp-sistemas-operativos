@@ -33,36 +33,36 @@
 #define PUERTO_PLAN 5050
 
 typedef struct {
-	char simbolo;
-	int socket;
-	int valorAlgoritmo;
+	int  socket;
+	tSimbolo simbolo;
 	t_list *recursos;
-	// Si está planificando con SRDF es la distancia al recurso y si planifica con RR es el quantum actual.
-	//	Si el valor es negativo, es que el personaje no salio de la cola de listos
+	int valorAlgoritmo; // Si está planificando con SRDF es la distancia al recurso y si planifica con RR es el quantum actual.
+						//	Si el valor es negativo, es que el personaje no salio de la cola de listos
 } tPersonaje;
 
 typedef struct {
-	int socket; 			 // Socket de conexion con el nivel
+	int   socket; 			 // Socket de conexion con el nivel
 	char* nombre; 			 // Nombre del nivel
 	t_queue* cListos; 		 // Cola de listos
-	t_queue* cBloqueados; 	 // Cola de bloqueados
-	t_list* lMuertos;		 // Lista de personajes muertos
+	t_list*  lBloqueados; 	 // Lista de bloqueados (ordenada por orden de llegada)
+	t_list*  lMuertos;		 // Lista de personajes muertos
 	fd_set masterfds;
 	tAlgoritmo algoritmo;
 	int quantum;
 	int delay;
 	bool hay_personajes;
 	int maxSock;
-
 } tNivel;
 
+typedef struct {
+	tPersonaje *pPersonaje;
+	tSimbolo   recursoEsperado;
+} tPersonajeBloqueado;
 
 //Hilos
 void *orquestador(unsigned short usPuerto);
 void *planificador(void *);
 
-bool estaMuerto(t_list * end, char name);
-bool exist_personaje(t_list *list, char name_pj, int  *indice_pj);
 bool sacarPersonajeDeListas(t_list *ready, t_list *block, int sock,  tPersonaje *pjLevantador);
 void desbloquearPersonajes(t_list* block, t_list *ready, tPersonaje *pjLevantador, bool encontrado, char*nom_nivel, int proxPj);
 void imprimirLista(tNivel *pNivel, tPersonaje *pPersonaje);
