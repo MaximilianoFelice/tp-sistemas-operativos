@@ -81,7 +81,7 @@ int existeNivel(t_list * lNiveles, char* sLevelName);
 
 
 //Constructores y destroyers
-void agregarPersonaje(t_queue *cPersonajes, char simbolo, int socket);
+void agregarPersonaje(t_queue *cPersonajes, tSimbolo simbolo, int socket);
 void crearNivel(t_list* lNiveles, tNivel* nivelNuevo, int socket, char *levelName, tInfoNivel *pInfoNivel);
 void crearHiloPlanificador(pthread_t *pPlanificador, tNivel *nivelNuevo, t_list*);
 
