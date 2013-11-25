@@ -1,13 +1,13 @@
 # C o no ser
 
-![Ser o no ser, esa es la cuestion...](https://fbcdn-sphotos-h-a.akamaihd.net/hphotos-ak-prn2/v/1080659_10200556588376684_1368975743_n.jpg?oh=09332653344997554724976e5ce65ad9&oe=5282AEFB&__gda__=1384307913_51b9e7a4f953141bbb307a3da64224d1)
+Ser o no ser, esa es la cuestion...
 =====================
 Implementacion del TP de sistemas operativos
 ----------------------------------------------------------
 
 ### Cosirijillas:
 
-Las macros que se usan en los mensajes estan en: - [protocolo.h](https://github.com/sisoputnfrba/tp-2013-2c-c-o-no-ser/blob/master/Shared-Library/ginyu/protocolo.h)
+Los tipos de mensajes, los paquetes a enviar y la implementeacion de la serializacion y deserialización de estos se encuentran en: - [protocolo.h](https://github.com/sisoputnfrba/tp-2013-2c-c-o-no-ser/blob/master/Shared-Library/ginyu/protocolo.h)
 
 ----------------------------------------------------------
 
@@ -34,3 +34,30 @@ Luego ejecutar, en este orden, los procesos:
 #### ./Debug/nivel (archivo de configuracion del nivel) 
 
 #### ./Debug/personaje (archivo de configuracion del personaje) -v
+
+----------------------------------------------------------
+
+### Usando makefiles:
+
+Primero compilamos la gui (ubicada dentro de la carpeta de nivel), y las shared libraries commons y ginyu, para eso, una vez posicionados en las respectivas carpetas hacen un:
+
+`make compile`
+
+para compilar los archivos de C, y después:
+
+`make install`
+
+Que copia las librerias al /usr/lib y los headers al /usr/include
+
+Despues para compilar cada componente individual, van a la carpeta correspondiente de cada uno (Nivel, Plataforma, Personaje) y hacen un:
+
+`make`
+
+Para ejecutarlos:
+
+`./plataforma plataforma.config -v`
+
+`./nivel (archivo de configuracion del nivel)`
+
+`./personaje (archivo de configuracion del personaje) -v`
+
