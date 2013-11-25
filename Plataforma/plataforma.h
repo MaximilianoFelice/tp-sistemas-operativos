@@ -60,7 +60,7 @@ typedef struct {
 } tPersonajeBloqueado;
 
 //Hilos
-void *orquestador(unsigned short usPuerto);
+void *orquestador(void *) ;
 void *planificador(void *);
 
 bool sacarPersonajeDeListas(t_list *ready, t_list *block, int sock,  tPersonaje *pjLevantador);

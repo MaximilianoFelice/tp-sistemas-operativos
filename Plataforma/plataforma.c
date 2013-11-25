@@ -10,13 +10,10 @@
 
 pthread_mutex_t semNivel;
 pthread_cond_t hayPersonajes;
-pthread_t hilo_orquestador;
 t_list 	 *listaNiveles;
 t_config *configPlataforma;
 t_log *logger;
 unsigned short usPuerto;
-char *pathKoopa;
-char *pathScript;
 bool hay_personajes;
 
 
@@ -26,6 +23,10 @@ bool hay_personajes;
 
 int seleccionarJugador(tPersonaje* pPersonaje, tNivel* nivel);
 
+/*
+ * Funciones privadas plataforma
+ */
+int executeKoopa(char *koopaPath, char *scriptPath);
 
 /*
  * Funciones privadas orquestador
@@ -45,6 +46,7 @@ void solicitudRecursoPersonaje(int iSocketConexion, char *sPayload, tNivel *pNiv
 void movimientoPersonaje(int iSocketConexion, char* sPayload, tNivel *pNivel, tPersonaje* pPersonaje, t_log* logger);
 void posicionRecursoPersonaje(int iSocketConexion, char* sPayload, tNivel* pNivel, t_log* logger);
 int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNivel);
+void muertePorEnemigoPersonaje(char* sPayload, tNivel *pNivel, tPersonaje* pPersonaje, t_log* logger);
 
 /*
  * PLATAFORMA
@@ -57,6 +59,10 @@ int main(int argc, char*argv[]) {
 		exit(EXIT_FAILURE);
 	}
 
+	char *pathKoopa;
+	char *pathScript;
+	int thResult;
+	pthread_t thOrquestador;
 	hay_personajes = false;
 
 	// Creamos el archivo de configuracion
@@ -77,20 +83,49 @@ int main(int argc, char*argv[]) {
 	pthread_mutex_init(&semNivel, NULL );
 	pthread_cond_init(&hayPersonajes, NULL);
 
-	orquestador(usPuerto);
-//	pthread_create(&hilo_orquestador, NULL, orquestador, NULL );
-//
-//	pthread_join(hilo_orquestador, NULL );
+	thResult = pthread_create(&thOrquestador, NULL, orquestador, (void *) &usPuerto);
 
-	return EXIT_SUCCESS;
+	if (thResult != 0) {
+		log_error(logger, "No se pudo crear el hilo orquestador.");
+		exit(EXIT_FAILURE);
+	}
+
+	pthread_join(thOrquestador, NULL);
+	log_destroy(logger);
+
+	executeKoopa(pathKoopa, pathScript);
+
+	exit(EXIT_SUCCESS);
+}
+
+
+int executeKoopa(char *koopaPath, char *scriptPath) {
+
+	// parametros para llamar al execve
+	char * arg2[] = {"koopa", "koopa.conf", NULL}; //parámetros (archivo de confg)
+	char * arg3[] = {"TERM=xterm",NULL};
+
+	// llamo a koopa
+	int ejecKoopa = execve(koopaPath, arg2, arg3);
+
+	if (ejecKoopa < 0){ // algo salió mal =(
+		log_error(logger, "No se pudo ejecutar Koopa - error: %d", ejecKoopa);
+		return EXIT_FAILURE;
+
+	} else {
+		return EXIT_SUCCESS;
+	}
 }
 
 /*
  * ORQUESTADOR
  */
 
-void *orquestador(unsigned short usPuerto) {
+void *orquestador(void *vPuerto) {
 	t_list *lPlanificadores;
+
+	unsigned short usPuerto;
+	usPuerto = *(unsigned short*)vPuerto;
 
 	// Creo la lista de niveles y planificadores
 	lPlanificadores = list_create();
@@ -135,7 +170,7 @@ void *orquestador(unsigned short usPuerto) {
 
 	}
 
-	return NULL;
+	pthread_exit(NULL);
 }
 
 int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* socketsOrquestador, t_list *lPlanificadores) {
@@ -336,6 +371,10 @@ void *planificador(void * pvNivel) {
                 actualizacionCriteriosNivel(iSocketConexion, sPayload, pNivel);
                 break;
 
+            case(N_MUERTO_POR_ENEMIGO):
+				muertePorEnemigoPersonaje(sPayload, pNivel, pPersonajeActual, logger);
+            	break;
+
             default:
                 break;
             }
@@ -344,6 +383,8 @@ void *planificador(void * pvNivel) {
 
         }
     }
+
+    pthread_exit(NULL);
 }
 
 int seleccionarJugador(tPersonaje* pPersonaje, tNivel* nivel) {
@@ -456,7 +497,6 @@ void posicionRecursoPersonaje(int iSocketConexion, char* sPayload, tNivel* pNive
 }
 
 void movimientoPersonaje(int iSocketConexion, char* sPayload, tNivel *pNivel, tPersonaje* pPersonaje, t_log* logger) {
-    tMensaje tipoMensaje;
     tPaquete pkgMovimientoPers;
     pkgMovimientoPers.type    = PL_MOV_PERSONAJE;
     pkgMovimientoPers.length  = strlen(sPayload);
@@ -465,31 +505,22 @@ void movimientoPersonaje(int iSocketConexion, char* sPayload, tNivel *pNivel, tP
 
     enviarPaquete(pNivel->socket, &pkgMovimientoPers, logger, "Envio movimiento del personaje");
 
-    recibirPaquete(pNivel->socket, &tipoMensaje, &sPayload, logger, "Recibo estado en el que quedo el personaje");
+	if (pNivel->algoritmo == RR) {
+		pPersonaje->valorAlgoritmo += 1;
 
-    if (tipoMensaje == N_MUERTO_POR_ENEMIGO) { // TODO verificar que mensajes puede recibir
-//        tPaquete pkgMovimientoPers;
-//        pkgMovimientoPers.type    = PL_MUERTO_POR_ENEMIGO;
-//        pkgMovimientoPers.length  = strlen(sPayload);
+	} else {
+		pPersonaje->valorAlgoritmo -= 1;
+	}
+}
 
-        recibirPaquete(pNivel->socket, &tipoMensaje, &sPayload, logger, "Envio muerte por enemigo");
+void muertePorEnemigoPersonaje(char* sPayload, tNivel *pNivel, tPersonaje* pPersonaje, t_log* logger) {
+	tPaquete pkgMuertePers;
+	pkgMuertePers.type    = PL_MUERTO_POR_ENEMIGO;
+	pkgMuertePers.length  = strlen(sPayload);
 
-        //Limpio la lista de recursos que tenia hasta que se murio
-        list_clean(pPersonaje->recursos);
+	/* TODO analizar bien que pasa cuando muere el eprsonaje */
 
-        //Lo agrego a la cola de finalizados y lo saco cuando manda msj en el case SALUDO
-        list_add(pNivel->lMuertos, pNivel);
-
-    } else {
-
-        if (pNivel->algoritmo == RR) {
-            pPersonaje->valorAlgoritmo += 1;
-
-        } else {
-            pPersonaje->valorAlgoritmo -= 1;
-        }
-    }
-
+	enviarPaquete(pPersonaje->socket, &pkgMuertePers, logger, "Envio mensaje de muerte por personaje");
 }
 
 
