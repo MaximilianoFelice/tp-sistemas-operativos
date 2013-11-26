@@ -196,7 +196,7 @@ void *jugar(void *args) {
 
 
 			// Por cada objetivo del nivel,
-			for (personajePorNivel.objetivoActual=0; personajePorNivel.objetivoActual < list_size(personajePorNivel.nivelQueJuego->Objetivos); personajePorNivel.objetivoActual++) {
+			for (personajePorNivel.objetivoActual=0; (personajePorNivel.objetivoActual < list_size(personajePorNivel.nivelQueJuego->Objetivos)) && (!personajeEstaMuerto(murioPersonaje)); personajePorNivel.objetivoActual++) {
 
 				murioPersonaje = false;
 
@@ -205,117 +205,30 @@ void *jugar(void *args) {
 
 				pedirPosicionRecurso(&personajePorNivel, recurso);
 
-				while (1) {
+				while (!conseguiRecurso(personajePorNivel)) {
 
 					//FIXME modificar la funcion de muerte por senal y que lo mate y llame a una funcion de muerte que pare to do y pregunte si quiere volver a jugar
 					if (validarSenial(&murioPersonaje) || personaje.vidas<=0)
 						break;
 
 					//Espera que el planificador le de el turno
-					recibeMensaje(personajePorNivel.socketPlataforma, &msjPlan, sizeof(message_t), logger, "Espero turno");
+					recibirMensajeTurno(personajePorNivel.socketPlataforma);
 
 					//fixme ver si son bloqueantes y si los necesito
 					if (validarSenial(&murioPersonaje) || personaje.vidas<=0)
 						break;
 
-					//TODO transformarlo en una funcion validar Mensaje del Turno()
-					// =======================
-					//Valido que el mensaje de turno sea correcto
-					if (msjPlan.detail != TURNO) {
-						log_error(logger, "Llegaron (detail: %d, detail2: %d, name: %d, type: %d) cuando debía llegar TURNO",
-								msjPlan.detail, msjPlan.detail2, msjPlan.name,msjPlan.type);
-						exit(EXIT_FAILURE);
-					}
-
 					log_info(logger, "Habemus turno");
 
-					// =======================
+					//El personaje se mueve
+					moverAlPersonaje(personajePorNivel);
 
-					//TODO refactorizar a una funcion  de mover al personaje
-					// =======================
-					int mov;
-
-						//TODO refactorizar a una funcion de envio me mensaje de movimiento
-						// =======================
-						//TODO generar funcion de envio de mensaje al planificador
-						// Armamos mensaje de movimiento a realizar con el recurso que necesitamos.
-						msjPlan.type = PERSONAJE;
-						msjPlan.detail = MOVIMIENTO;
-						msjPlan.detail2 = mov = calculaMovimiento(personajePorNivel);
-						msjPlan.name = *recurso;
-
-						//Aviso a planificador que me movi
-						enviaMensaje(personajePorNivel.socketPlataforma, &msjPlan, sizeof(msjPlan), logger, "Requerimiento de Movimiento");
-
-						recibeMensaje(personajePorNivel.socketPlataforma, &msjPlan, sizeof(msjPlan), logger, "Confirmación de movimiento");
-
-						// =======================
-
-					//TODO VERIFICAR si chequea aca si esta muerto por un enemigo y que pasa cuando sale del while y entra en el for
-					if(estaMuerto(msjPlan.detail, &murioPersonaje))
-						break;
-
-					//Actualizo mi posición y de acuerdo a eso armo mensaje de TURNO
-					actualizaPosicion(mov, &personajePorNivel);
-
-					if (msjPlan.type != MOVIMIENTO) {
-						log_error(logger, "Llegaron (detail: %d, detail2:%d, name:%c, type:%d) cuando debía llegar MOVIMIENTO",
-								  msjPlan.detail, msjPlan.detail2, msjPlan.name, msjPlan.type);
-						exit(EXIT_FAILURE);
-					}
-
-					//Si llego al recurso no pide otro turno, solo sale del while a buscar el siguiente recurso, si puede.
-					if (personajePorNivel.posY == personajePorNivel.posRecursoY && personajePorNivel.posX == personajePorNivel.posRecursoX)
-						break;
-					//TODO: si esta bloqueado por un recurso, el planificador no le confirma el turno. REVISAR TODO
-					else { //Si no llego al recurso sigue moviéndose
-
-						//No llegué al recurso
-						msjPlan.type = PERSONAJE;
-						msjPlan.detail = TURNO;
-
-						enviaMensaje(personajePorNivel.socketPlataforma, &msjPlan, sizeof(msjPlan), logger, "Fin de turno");
-					}
-
-				} //Fin de while(1) de busqueda de un recurso
-
-				if (murioPersonaje || muertePorSenial || personaje.vidas<=0) //sale del for
-					break;
+				}
 
 			} //Fin de for de objetivos
 
-			//FIXME no deberia cerrar todas las conexiones hasta que se decide que no quiere reiniciar el juego
-			//=======================
-			if (!murioPersonaje) {
-				finalice = true;
-				devolverRecursos(&personajePorNivel.socketPlataforma, &msjPlan);
-				cerrarConexiones(&personajePorNivel.socketPlataforma);
-			}
+			manejarDesconexiones(personajePorNivel, murioPersonaje, &finalice);
 
-			if(personaje.vidas <= 0){
-				devolverRecursos(&personajePorNivel.socketPlataforma, &msjPlan);
-				cerrarConexiones(&personajePorNivel.socketPlataforma);
-			}
-
-			//FIXME DEBERIA restarle una vida sola en lugar de matarlo completamente
-			if(muertePorSenial){
-				devolverRecursos(&personajePorNivel.socketPlataforma, &msjPlan);
-				cerrarConexiones(&personajePorNivel.socketPlataforma);
-			}
-			//=======================
-
-			if(murioPersonaje){
-				if (personaje.vidas<=0) { //Si me quede sin vidas armo un mensaje especial para que el planificador libere memoria
-					//TODO preguntar si tiene q reiniciar o no - contemplar estas posibilidades en la funcion de muerte
-					//TODO si dice q no = > finalice=true
-					armarMsj(&msjPlan, personaje.simbolo, PERSONAJE, SALIR, MUERTO_ENEMIGOS);
-					enviaMensaje(personajePorNivel.socketPlataforma, &msjPlan, sizeof(msjPlan), logger, "Salida al planificador");
-					recibeMensaje(personajePorNivel.socketPlataforma, &msjPlan, sizeof(msjPlan), logger, "Recibo confirmacion del planificador");
-				}
-				personaje.vidas--;
-				log_debug(logger, "Me han matado :/");
-				cerrarConexiones(&personajePorNivel.socketPlataforma);
-			}
 
 			if(muertePorSenial || finalice)
 				break;
@@ -347,35 +260,146 @@ void *jugar(void *args) {
 
 }
 
-void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char recurso){
-	message_t *msjPlan;
-	//pide la posicion del recurso
-	msjPlan.type = PERSONAJE;
-	msjPlan.detail = POSICION_RECURSO;
-	msjPlan.detail2 = *recurso;
-	msjPlan.name = personaje.simbolo;
+void manejarDesconexiones(personajeIndividual_t personajePorNivel, bool murioPersonaje, bool* finalice){
+//fixme ver como mejorar los flags
+	if (!murioPersonaje) {
+		*finalice = true;
+		devolverRecursosPorFinNivel(personajePorNivel.socketPlataforma);
+		cerrarConexiones(&personajePorNivel.socketPlataforma);
+	}
 
-	enviaMensaje(personajePorNivel.socketPlataforma, &msjPlan, sizeof(message_t), logger,"Solicitud de Posicion del recurso");
+	if(personaje.vidas <= 0){
+		devolverRecursosPorMuerte(personajePorNivel.socketPlataforma);
+		cerrarConexiones(&personajePorNivel.socketPlataforma);
+	}
 
-	recibeMensaje(personajePorNivel.socketPlataforma, &msjPlan, sizeof(message_t), logger,"Recibo posicion de recurso");
+	//FIXME DEBERIA restarle una vida sola en lugar de matarlo completamente
+	if(muertePorSenial){
+		devolverRecursosPorMuerte(personajePorNivel.socketPlataforma);
+		cerrarConexiones(&personajePorNivel.socketPlataforma);
+	}
 
+	if(murioPersonaje){
+		if (personaje.vidas<=0) { //Si me quede sin vidas armo un mensaje especial para que el planificador libere memoria
+			//TODO preguntar si tiene q reiniciar o no - contemplar estas posibilidades en la funcion de muerte
+			//TODO si dice q no = > finalice=true
+			armarMsj(&msjPlan, personaje.simbolo, PERSONAJE, SALIR, MUERTO_ENEMIGOS);
+			enviaMensaje(personajePorNivel.socketPlataforma, &msjPlan, sizeof(msjPlan), logger, "Salida al planificador");
+			recibeMensaje(personajePorNivel.socketPlataforma, &msjPlan, sizeof(msjPlan), logger, "Recibo confirmacion del planificador");
+		}
+		personaje.vidas--;
+		log_debug(logger, "Me han matado :/");
+		cerrarConexiones(&personajePorNivel.socketPlataforma);
+	}
 
-	//valida que lo que recibe sea una posicion
+}
+bool personajeEstaMuerto(bool murioPersonaje){
+	//si esta muerto por alguna señal o porque se quedo sin vidas
+	return (murioPersonaje || muertePorSenial || personaje.vidas<=0);
+}
 
-	if (msjPlan.type == POSICION_RECURSO) {
-		personajePorNivel.posRecursoX = msjPlan.detail;
-		personajePorNivel.posRecursoY = msjPlan.detail2;
-	} else {
-		log_error(logger,"Llegaron (%d, %d, %c, %d) cuando debía llegar POSICION_RECURSO", msjPlan.type, msjPlan.detail, msjPlan.detail2,msjPlan.name);
+bool conseguiRecurso(personajeIndividual_t personajePorNivel){
+	return (personajePorNivel.posY == personajePorNivel.posRecursoY) && (personajePorNivel.posX == personajePorNivel.posRecursoX);
+}
+
+void moverAlPersonaje(personajeIndividual_t* personajePorNivel){
+	tDirMovimiento  mov;
+
+	calcularYEnviarMovimiento(personajePorNivel);
+
+	//Actualizo mi posición y de acuerdo a eso armo mensaje de TURNO
+	actualizaPosicion(&mov, &personajePorNivel);
+
+	/*
+	 * Para que se hace esto?? hace falta avisarle a la plataforma que no alcanzo el recurso?
+	 * */
+
+	//El personaje no llego al recurso
+	tPaquete pkgFinTurno;
+	pkgFinTurno.type   = P_FIN_TURNO;
+	pkgFinTurno.length = 0;
+	enviarPaquete(personajePorNivel.socketPlataforma, &pkgFinTurno, logger, "Fin de turno del personaje");
+
+}
+
+void calcularYEnviarMovimiento(personajeIndividual_t* personajePorNivel){
+	tMensaje tipoMensaje;
+	tMovimientoPers movimientoAEnviar;
+	movimientoAEnviar.simbolo=personaje.simbolo;
+	movimientoAEnviar.direccion=calculaMovimiento(personajePorNivel);
+
+	tPaquete pkgMovimiento;
+	serializarMovimientoPers(P_MOVIMIENTO, movimientoAEnviar, &pkgMovimiento);
+
+	enviarPaquete(personajePorNivel->socketPlataforma, &pkgMovimiento, logger, "Envio pedido de movimiento del personaje");
+
+	char* sPayload;
+	recibirPaquete(personajePorNivel->socketPlataforma, &tipoMensaje, &sPayload, logger, "Recibo confirmacion del movimiento");
+
+	if (tipoMensaje != PL_CONFIRMACION_MOV){
+
+		//todo verificar excepcions
+		//TODO VERIFICAR si chequea aca si esta muerto por un enemigo y que pasa cuando sale del while y entra en el for
+		/*if(estaMuerto(msjPlan.detail, &murioPersonaje))
+			break;*/
+
+		log_error(logger, "Llego un mensaje (tipoMensaje: %d) cuando debia llegar PL_CONFIRMACION_MOV", tipoMensaje);
 		exit(EXIT_FAILURE);
 	}
 
 }
 
-bool estaMuerto(int8_t detail, bool *murioPj){//FIXME no deberia devolver nada porque ya pisa el valor y se usa una sola vez
-	if(detail == MUERTO_DEADLOCK)
+void recibirMensajeTurno(personajeIndividual_t* personajePorNivel){
+	tMensaje tipoMensaje;
+	char* sPayload;
+	recibirPaquete(personajePorNivel->socketPlataforma, &tipoMensaje, &sPayload, logger, "Se le otorgo un turno al personaje");
+
+	if (tipoMensaje != PL_OTORGA_TURNO){
+		log_error(logger, "Llego un mensaje (tipoMensaje: %d) cuando debia llegar PL_OTORGA_TURNO", tipoMensaje);
+		exit(EXIT_FAILURE);
+	}
+
+}
+
+
+void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char recurso){
+
+	tMensaje tipoMensaje;
+	tPregPosicion solicitudRecurso;
+	solicitudRecurso.simbolo=personaje.simbolo;
+	solicitudRecurso.recurso= recurso;
+
+	tPaquete pkgSolicitudRecurso;
+	pkgSolicitudRecurso.type    = PL_SOLICITUD_RECURSO;
+	pkgSolicitudRecurso.length  = strlen(solicitudRecurso);
+	strcpy(pkgSolicitudRecurso.payload, solicitudRecurso);
+
+	serializarPregPosicion(tipoMensaje, solicitudRecurso, &pkgSolicitudRecurso);
+
+	enviarPaquete(personajePorNivel->socketPlataforma, &pkgSolicitudRecurso, logger, "Solicito la posicion de un recurso");
+
+	char* sPayload;
+	recibirPaquete(personajePorNivel->socketPlataforma, &tipoMensaje, &sPayload, logger, "Recibo posicion del recurso");
+
+	tRtaPosicion* rtaSolicitudRecurso;
+	rtaSolicitudRecurso = deserializarRtaPosicion(sPayload);
+
+	if (tipoMensaje != PL_CONFIRMACION_MOV){
+
+		log_error(logger, "Llego un mensaje (tipoMensaje: %d) cuando debia llegar PL_CONFIRMACION_MOV", tipoMensaje);
+		exit(EXIT_FAILURE);
+	}
+
+
+	personajePorNivel.posRecursoX = rtaSolicitudRecurso->posX;
+	personajePorNivel.posRecursoY = rtaSolicitudRecurso->posY;
+
+}
+
+bool estaMuerto(tMensaje tipoMensaje, bool *murioPj){//FIXME no deberia devolver nada porque ya pisa el valor y se usa una sola vez
+	if(tipoMensaje == PL_MUERTO_POR_DEADLOCK)
 		return (*murioPj = true);
-	if(detail == MUERTO_ENEMIGOS)
+	if(tipoMensaje == PL_MUERTO_POR_ENEMIGO)
 		return (*murioPj = true);
 	return (*murioPj =false);
 }
@@ -421,25 +445,42 @@ void morir(char* causaMuerte, personajeIndividual_t personajePorNivel) {
 }*/
 
 
-bool devolverRecursos(int *socketPlataforma, message_t *message) {
+void devolverRecursosPorFinNivel(int socketPlataforma) {
+	tPaquete pkgDevolverRecursos;
+	pkgDevolverRecursos.type   = P_DESCONECTARSE_FINALIZADO;
+	pkgDevolverRecursos.length = 0;
+	enviarPaquete(socketPlataforma, &pkgDevolverRecursos, logger, "Se liberan los recursos del personaje por terminar el nivel");
 
-	message->type = PERSONAJE;
-	message->detail = SALIR;
-	message->detail2 = NADA;
-	message->name = personaje.simbolo;
+	tMensaje tipoMensaje;
+	char* sPayload;
+	recibirPaquete(socketPlataforma, &tipoMensaje, &sPayload, logger, "Recibo confirmacion de salida y liberacion de recursos");
 
-	enviaMensaje(*socketPlataforma, message, sizeof(message_t), logger, "Salida al planificador");
-
-	recibeMensaje(*socketPlataforma, message, sizeof(message_t), logger, "Confirmo salida");
-
-	if (message->type == SALIR) {
-		log_trace(logger, "Recursos liberados");
-		return true;
-	} else {
-		log_error(logger, "Tipo de msj incorrecto se esperaba SALIR y me llego (type=%d, detail=%d)", message->type, message->detail);
+	if (tipoMensaje != PL_CONFIRMACION_ELIMINACION) {
+		log_error(logger, "Tipo de mensaje incorrecto, se esperaba PL_CONFIRMACION_ELIMINACION y llego %d", tipoMensaje);
 		exit(EXIT_FAILURE);
 	}
-	return false;
+
+	log_trace(logger, "Los recursos fueron liberados por conclusion del nivel");
+
+}
+
+void devolverRecursosPorMuerte(int socketPlataforma){
+	tPaquete pkgDevolverRecursos;
+	pkgDevolverRecursos.type   = P_DESCONECTARSE_MUERTE;
+	pkgDevolverRecursos.length = 0;
+	enviarPaquete(socketPlataforma, &pkgDevolverRecursos, logger, "Se liberan los recursos del personaje por muerte del personaje");
+
+	tMensaje tipoMensaje;
+	char* sPayload;
+	recibirPaquete(socketPlataforma, &tipoMensaje, &sPayload, logger, "Recibo confirmacion de salida y liberacion de recursos por muerte del personaje");
+
+	if (tipoMensaje != PL_CONFIRMACION_ELIMINACION) {
+		log_error(logger, "Tipo de mensaje incorrecto, se esperaba PL_CONFIRMACION_ELIMINACION y llego %d", tipoMensaje);
+		exit(EXIT_FAILURE);
+	}
+
+	log_trace(logger, "Los recursos fueron liberados por la muerte del personaje ");
+
 }
 
 //Seniales
@@ -457,12 +498,12 @@ void morirSenial() {
 
 void aumentarVidas() {
 	personaje.vidas ++;
-	log_info(logger, "Vidas de %c: %d", personaje.simbolo, personaje.vidas);
+	log_info(logger, "Vidas del personaje %c: %d", personaje.simbolo, personaje.vidas);
 }
 
 void restarVidas() {
 	personaje.vidas--;
-	log_info(logger, "Vidas de %c: %d", personaje.simbolo, personaje.vidas);
+	log_info(logger, "Vidas del personaje %c: %d", personaje.simbolo, personaje.vidas);
 }
 //Seniales
 
@@ -473,39 +514,47 @@ int calculaMovimiento(personajeIndividual_t personajePorNivel){
 
 	while (1) {
 		r = rand() % 2;
-		if (r) { //Sobre el eje x
+		if (r) {
+
+			//Sobre el eje x
+
 			if (r && personajePorNivel.posX < personajePorNivel.posRecursoX)
-				return DERECHA;
+				return derecha;
 			else if (personajePorNivel.posX > personajePorNivel.posRecursoX)
-				return IZQUIERDA;
-		} else { // Sobre el eje y
+				return izquierda;
+		} else {
+
+			// Sobre el eje y
+
 			if (personajePorNivel.posY < personajePorNivel.posRecursoY)
-				return ABAJO;
+				return abajo;
 			else if (personajePorNivel.posY > personajePorNivel.posRecursoY)
-				return ARRIBA;
+				return arriba;
 		}
 	}
 
 	return -700;
 }
 
-// Actualiza las variables posicion del personaje a partir del movimiento que recibe por parametro.
-void actualizaPosicion(int movimiento, personajeIndividual_t *personajePorNivel) {
+
+void actualizaPosicion(tDirMovimiento* movimiento, personajeIndividual_t *personajePorNivel) {
+	// Actualiza las variables posicion del personaje a partir del movimiento que recibe por parametro.
+	// El eje Y es alreves, por eso para ir para arriba hay que restar en el eje y.
 	switch (movimiento) {
-// El eje Y es alreves, por eso para ir para arriba hay que restar en el eje y.
-	case ARRIBA:
-		(*personajePorNivel->posY)--;
-		break;
-	case ABAJO:
-		(*personajePorNivel->posY)++;
-		break;
-	case DERECHA:
-		(*personajePorNivel->posX)++;
-		break;
-	case IZQUIERDA:
-		(*personajePorNivel->posY)--;
-		break;
+		case arriba:
+			(*personajePorNivel->posY)--;
+			break;
+		case abajo:
+			(*personajePorNivel->posY)++;
+			break;
+		case derecha:
+			(*personajePorNivel->posX)++;
+			break;
+		case izquierda:
+			(*personajePorNivel->posY)--;
+			break;
 	}
+
 }
 /*
  *

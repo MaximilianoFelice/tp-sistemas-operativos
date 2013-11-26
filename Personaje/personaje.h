@@ -56,7 +56,7 @@ typedef struct PersonajeGlobal{
 
 typedef struct PersonajeIndividual{
 	int socketPlataforma;
-	int currObj; //objetivo actual
+	int objetivoActual; //objetivo actual
 	int posX;
 	int posY;
 	int posRecursoX;
@@ -66,23 +66,52 @@ typedef struct PersonajeIndividual{
 } personajeIndividual_t;
 
 
-
-void *jugar(void *argumentos);
-int calculaMovimiento(personajeIndividual_t personajePorNivel);
-void handshake_plataforma(personajeIndividual_t *personajePorNivel);
-void actualizaPosicion(int movimiento, personajeIndividual_t *personajePorNivel);
-void morir(char* causaMuerte, personajeIndividual_t personajePorNivel);
-bool devolverRecursos(int *socketPlataforma, message_t *message);
-void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char recurso);
 void destruirArchivoConfiguracion(t_config *configPersonaje);
+
 void cargarArchivoConfiguracion(char* archivoConfiguracion);
+
 void obtenerIpYPuerto(char *dirADividir, char * ip,  char * puerto);
-bool validarSenial(bool *murioPersonaje);
-bool estaMuerto(int8_t, bool *);
+
+static void nivel_destroyer(nivel_t*nivel);
+
+void *jugar(void *args);
+
+void manejarDesconexiones(personajeIndividual_t personajePorNivel, bool murioPersonaje, bool* finalice);
+
+bool personajeEstaMuerto(personajeIndividual_t* personajePorNivel, bool murioPersonaje);
+
+bool conseguiRecurso(personajeIndividual_t* personajePorNivel);
+
+void moverAlPersonaje(personajeIndividual_t* personajePorNivel);
+
+void calcularYEnviarMovimiento(personajeIndividual_t* personajePorNivel);
+
+void recibirMensajeTurno(personajeIndividual_t* personajePorNivel);
+
+void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char recurso);
+
+bool estaMuerto(tMensaje tipoMensaje, bool *murioPj);
+
+void handshake_plataforma(personajeIndividual_t *personajePorNivel);
+
 void cerrarConexiones(int * socketPlataforma);
-void aumentarVidas();
+
+void devolverRecursosPorFinNivel(int socketPlataforma);
+
+void devolverRecursosPorMuerte(int socketPlataforma);
+
+bool validarSenial(bool *murioPersonaje);
+
 void morirSenial();
+
+void aumentarVidas();
+
 void restarVidas();
-static void nivel_destroyer(nivel_t* nivel);
+
+int calculaMovimiento(personajeIndividual_t personajePorNivel);
+
+void actualizaPosicion(tDirMovimiento* movimiento, personajeIndividual_t *personajePorNivel);
+
+
 
 #endif /* PERSONAJE_H_ */
