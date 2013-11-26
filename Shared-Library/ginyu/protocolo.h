@@ -58,6 +58,7 @@ typedef enum {
 	N_POS_RECURSO,
 	N_DATOS,
 	N_ACTUALIZACION_CRITERIOS,
+	N_ENTREGA_RECURSO,
 	/* Mensajes del personaje */
 	P_HANDSHAKE,
 	P_MOVIMIENTO,	 			// movimiento que hace el personaje
