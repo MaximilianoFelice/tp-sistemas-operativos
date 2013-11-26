@@ -180,7 +180,7 @@ int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* socketsOrques
 	int iIndiceNivel;
 	iIndiceNivel = existeNivel(listaNiveles, sPayload);
 
-	if (iIndiceNivel < 0) {
+	if (iIndiceNivel >= 0) {
 		tPaquete pkgNivelRepetido;
 		pkgNivelRepetido.type   = PL_NIVEL_YA_EXISTENTE;
 		pkgNivelRepetido.length = 0;
