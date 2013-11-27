@@ -177,7 +177,6 @@ void *jugar(void *args) {
 
 	while (1) {//FIXME CAMBIAR este while, para adaptarlo a la ejecucion de koopa
 
-
 		if (!inicializeVidas) { //Si no inicialice vidas, las inicializo
 			personaje.vidas=personaje.vidasMaximas;
 			inicializeVidas = true; //Esta variable solo se pone en false cuando el chaboncito se queda sin vidas y quiere reiniciar
@@ -241,7 +240,7 @@ void *jugar(void *args) {
 
 		} //Fin del while(vidas>0)
 
-		//TODO borrar
+		//TODO borrar cuando sepamos usar bien las senales
 		if (finalice || muertePorSenial || personaje.vidas<=0)
 			break;
 
@@ -267,7 +266,6 @@ void *jugar(void *args) {
 }
 
 void manejarDesconexiones(personajeIndividual_t personajePorNivel, bool murioPersonaje, bool* finalice){
-//fixme ver como mejorar los flags
 	if (!murioPersonaje) {
 		*finalice = true;
 		devolverRecursosPorFinNivel(personajePorNivel.socketPlataforma);
@@ -279,7 +277,7 @@ void manejarDesconexiones(personajeIndividual_t personajePorNivel, bool murioPer
 		cerrarConexiones(&personajePorNivel.socketPlataforma);
 	}
 
-	//FIXME DEBERIA restarle una vida sola en lugar de matarlo completamente
+	//FIXME DEBERIA restarle una vida sola en lugar de matarlo completamente ?? REVISAR
 	if(muertePorSenial){
 		devolverRecursosPorMuerte(personajePorNivel.socketPlataforma);
 		cerrarConexiones(&personajePorNivel.socketPlataforma);
@@ -413,7 +411,6 @@ bool estaMuerto(tMensaje tipoMensaje, bool *murioPj){
 void handshake_plataforma(personajeIndividual_t* personajePorNivel){
 	tMensaje tipoMensaje;
 	tHandshakePers handshakePers;
-	//tHandshakePers* handDeserializado;
 	handshakePers.simbolo = personaje.simbolo;
 	handshakePers.nombreNivel = malloc(sizeof(personajePorNivel->nivelQueJuego->nomNivel));
 	strcpy(handshakePers.nombreNivel, "unNombre");
@@ -427,9 +424,8 @@ void handshake_plataforma(personajeIndividual_t* personajePorNivel){
 	recibirPaquete(personajePorNivel->socketPlataforma, &tipoMensaje, &sPayload, logger, "Recibo estado en el que quedo el personaje");
 
 	//Recibo un aviso de que existe o no el nivel
-
 	if (tipoMensaje == PL_NIVEL_INEXISTENTE){
-		//TODO ver si tengo que hacerla recursiva o si mato al hilo
+		//TODO ver si tengo que hacerla recursiva o si mato al hilo en caso de que no exista el nivel
 		handshake_plataforma(personajePorNivel);
 	}
 }
