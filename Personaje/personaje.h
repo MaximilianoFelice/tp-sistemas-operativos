@@ -23,15 +23,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
 #include <pthread.h>
-#include <stdlib.h>
 #include <netinet/in.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include <stdio.h>
 #include <unistd.h>
-#include <string.h>
 #include <signal.h>
 
 typedef struct Nivel {
@@ -78,21 +76,21 @@ void *jugar(void *args);
 
 void manejarDesconexiones(personajeIndividual_t personajePorNivel, bool murioPersonaje, bool* finalice);
 
-bool personajeEstaMuerto(personajeIndividual_t* personajePorNivel, bool murioPersonaje);
+bool personajeEstaMuerto(bool murioPersonaje);
 
-bool conseguiRecurso(personajeIndividual_t* personajePorNivel);
+bool conseguiRecurso(personajeIndividual_t personajePorNivel);
 
 void moverAlPersonaje(personajeIndividual_t* personajePorNivel);
 
-void calcularYEnviarMovimiento(personajeIndividual_t* personajePorNivel);
+void calcularYEnviarMovimiento(personajeIndividual_t personajePorNivel);
 
-void recibirMensajeTurno(personajeIndividual_t* personajePorNivel);
+void recibirMensajeTurno(int socketPlataforma);
 
-void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char recurso);
+void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurso);
 
 bool estaMuerto(tMensaje tipoMensaje, bool *murioPj);
 
-void handshake_plataforma(personajeIndividual_t *personajePorNivel);
+void handshake_plataforma(personajeIndividual_t* personajePorNivel);
 
 void cerrarConexiones(int * socketPlataforma);
 

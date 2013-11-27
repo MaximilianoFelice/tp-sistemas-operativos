@@ -161,11 +161,11 @@ void *jugar(void *args) {
 	personajePorNivel.nivelQueJuego = (nivel_t *) args;
 	//Variables para conectarme al orquestador y planificador
 	//int sockOrq, sockPlan;
-	int socketPlataforma;
+	//int socketPlataforma;
 	//fixme el socket orquestador deberia ser global y llamarse socketPlataforma,  el socket del planificador no deberia existir
 
-	char * ip_planif = malloc(sizeof(char) * 23);  //TODO hacer free
-	int puertoPlanif;
+	//char * ip_planif = malloc(sizeof(char) * 23);  //TODO hacer free
+	//int puertoPlanif;
 	bool finalice = false;
 	bool murioPersonaje = false;
 
@@ -190,7 +190,7 @@ void *jugar(void *args) {
 			log_info(logger, "Vidas de %c: %d", personaje.simbolo, personaje.vidas);
 
 			// todo Hay que chequear que al morir el personaje realize las acciones necesarias.
-			personajePorNivel.socketPlataforma= connectServer(ip_plataforma, atoi(puerto_orq), logger, "orquestador");
+			personajePorNivel.socketPlataforma= connectToServer(ip_plataforma, atoi(puerto_orq), logger);
 
 			handshake_plataforma(&personajePorNivel);
 
@@ -221,7 +221,7 @@ void *jugar(void *args) {
 					log_info(logger, "Habemus turno");
 
 					//El personaje se mueve
-					moverAlPersonaje(personajePorNivel);
+					moverAlPersonaje(&personajePorNivel);
 
 				}
 
@@ -280,12 +280,12 @@ void manejarDesconexiones(personajeIndividual_t personajePorNivel, bool murioPer
 	}
 
 	if(murioPersonaje){
-		if (personaje.vidas<=0) { //Si me quede sin vidas armo un mensaje especial para que el planificador libere memoria
+		if (personaje.vidas<=0) {
+			//Si me quede sin vidas armo un mensaje especial para que el planificador libere memoria
 			//TODO preguntar si tiene q reiniciar o no - contemplar estas posibilidades en la funcion de muerte
 			//TODO si dice q no = > finalice=true
-			armarMsj(&msjPlan, personaje.simbolo, PERSONAJE, SALIR, MUERTO_ENEMIGOS);
-			enviaMensaje(personajePorNivel.socketPlataforma, &msjPlan, sizeof(msjPlan), logger, "Salida al planificador");
-			recibeMensaje(personajePorNivel.socketPlataforma, &msjPlan, sizeof(msjPlan), logger, "Recibo confirmacion del planificador");
+
+			devolverRecursosPorMuerte(personajePorNivel.socketPlataforma);
 		}
 		personaje.vidas--;
 		log_debug(logger, "Me han matado :/");
@@ -305,10 +305,10 @@ bool conseguiRecurso(personajeIndividual_t personajePorNivel){
 void moverAlPersonaje(personajeIndividual_t* personajePorNivel){
 	tDirMovimiento  mov;
 
-	calcularYEnviarMovimiento(personajePorNivel);
+	calcularYEnviarMovimiento(*personajePorNivel);
 
 	//Actualizo mi posición y de acuerdo a eso armo mensaje de TURNO
-	actualizaPosicion(&mov, &personajePorNivel);
+	actualizaPosicion(&mov, personajePorNivel);
 
 	/*
 	 * Para que se hace esto?? hace falta avisarle a la plataforma que no alcanzo el recurso?
@@ -318,11 +318,11 @@ void moverAlPersonaje(personajeIndividual_t* personajePorNivel){
 	tPaquete pkgFinTurno;
 	pkgFinTurno.type   = P_FIN_TURNO;
 	pkgFinTurno.length = 0;
-	enviarPaquete(personajePorNivel.socketPlataforma, &pkgFinTurno, logger, "Fin de turno del personaje");
+	enviarPaquete(personajePorNivel->socketPlataforma, &pkgFinTurno, logger, "Fin de turno del personaje");
 
 }
 
-void calcularYEnviarMovimiento(personajeIndividual_t* personajePorNivel){
+void calcularYEnviarMovimiento(personajeIndividual_t personajePorNivel){
 	tMensaje tipoMensaje;
 	tMovimientoPers movimientoAEnviar;
 	movimientoAEnviar.simbolo=personaje.simbolo;
@@ -331,10 +331,10 @@ void calcularYEnviarMovimiento(personajeIndividual_t* personajePorNivel){
 	tPaquete pkgMovimiento;
 	serializarMovimientoPers(P_MOVIMIENTO, movimientoAEnviar, &pkgMovimiento);
 
-	enviarPaquete(personajePorNivel->socketPlataforma, &pkgMovimiento, logger, "Envio pedido de movimiento del personaje");
+	enviarPaquete(personajePorNivel.socketPlataforma, &pkgMovimiento, logger, "Envio pedido de movimiento del personaje");
 
 	char* sPayload;
-	recibirPaquete(personajePorNivel->socketPlataforma, &tipoMensaje, &sPayload, logger, "Recibo confirmacion del movimiento");
+	recibirPaquete(personajePorNivel.socketPlataforma, &tipoMensaje, &sPayload, logger, "Recibo confirmacion del movimiento");
 
 	if (tipoMensaje != PL_CONFIRMACION_MOV){
 
@@ -349,10 +349,10 @@ void calcularYEnviarMovimiento(personajeIndividual_t* personajePorNivel){
 
 }
 
-void recibirMensajeTurno(personajeIndividual_t* personajePorNivel){
+void recibirMensajeTurno(int socketPlataforma){
 	tMensaje tipoMensaje;
 	char* sPayload;
-	recibirPaquete(personajePorNivel->socketPlataforma, &tipoMensaje, &sPayload, logger, "Se le otorgo un turno al personaje");
+	recibirPaquete(socketPlataforma, &tipoMensaje, &sPayload, logger, "Se le otorgo un turno al personaje");
 
 	if (tipoMensaje != PL_OTORGA_TURNO){
 		log_error(logger, "Llego un mensaje (tipoMensaje: %d) cuando debia llegar PL_OTORGA_TURNO", tipoMensaje);
@@ -362,19 +362,15 @@ void recibirMensajeTurno(personajeIndividual_t* personajePorNivel){
 }
 
 
-void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char recurso){
-
+void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurso){
+//BIEN
 	tMensaje tipoMensaje;
 	tPregPosicion solicitudRecurso;
 	solicitudRecurso.simbolo=personaje.simbolo;
-	solicitudRecurso.recurso= recurso;
+	solicitudRecurso.recurso= *recurso;
 
 	tPaquete pkgSolicitudRecurso;
-	pkgSolicitudRecurso.type    = PL_SOLICITUD_RECURSO;
-	pkgSolicitudRecurso.length  = strlen(solicitudRecurso);
-	strcpy(pkgSolicitudRecurso.payload, solicitudRecurso);
-
-	serializarPregPosicion(tipoMensaje, solicitudRecurso, &pkgSolicitudRecurso);
+	serializarPregPosicion(PL_SOLICITUD_RECURSO, solicitudRecurso, &pkgSolicitudRecurso);
 
 	enviarPaquete(personajePorNivel->socketPlataforma, &pkgSolicitudRecurso, logger, "Solicito la posicion de un recurso");
 
@@ -391,8 +387,8 @@ void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char recurso
 	}
 
 
-	personajePorNivel.posRecursoX = rtaSolicitudRecurso->posX;
-	personajePorNivel.posRecursoY = rtaSolicitudRecurso->posY;
+	personajePorNivel->posRecursoX = rtaSolicitudRecurso->posX;
+	personajePorNivel->posRecursoY = rtaSolicitudRecurso->posY;
 
 }
 
@@ -404,13 +400,24 @@ bool estaMuerto(tMensaje tipoMensaje, bool *murioPj){//FIXME no deberia devolver
 	return (*murioPj =false);
 }
 
-void handshake_plataforma(personajeIndividual_t *personajePorNivel){
+void handshake_plataforma(personajeIndividual_t* personajePorNivel){
+
+	/*tMensaje tipoMensaje;
+	tPregPosicion* solicitudRecurso;
+	solicitudRecurso.simbolo=personaje.simbolo;
+	solicitudRecurso.recurso= *recurso;
+
+	tPaquete pkgSolicitudRecurso;
+	serializarPregPosicion(PL_SOLICITUD_RECURSO, solicitudRecurso, &pkgSolicitudRecurso);
+
+	enviarPaquete(personajePorNivel->socketPlataforma, &pkgSolicitudRecurso, logger, "Solicito la posicion de un recurso");
+*/
 	tMensaje tipoMensaje;
 	tHandshakePers handshakePers;
-	tHandshakePers* handDeserializado;
+	//tHandshakePers* handDeserializado;
 	handshakePers.simbolo = personaje.simbolo;
-	handshakePers.nombreNivel = personajePorNivel->nivelQueJuego;
-
+	handshakePers.nombreNivel = malloc(sizeof(personajePorNivel->nivelQueJuego->nomNivel));
+	strcpy(handshakePers.nombreNivel, "unNombre");
 	/* Se crea el paquete */
 	tPaquete pkgHandshake;
 	serializarHandshakePers(P_HANDSHAKE, handshakePers, &pkgHandshake);
@@ -424,7 +431,7 @@ void handshake_plataforma(personajeIndividual_t *personajePorNivel){
 
 	if (tipoMensaje == PL_NIVEL_INEXISTENTE){
 		//TODO ver si tengo que hacerla recursiva o si mato al hilo
-		handshake_plataforma(&personajePorNivel, &sPayload);
+		handshake_plataforma(personajePorNivel);
 	}
 }
 
@@ -509,9 +516,9 @@ void restarVidas() {
 
 int calculaMovimiento(personajeIndividual_t personajePorNivel){
 
-	if (personajePorNivel.posX == personajePorNivel.posRecursoX && personajePorNivel.posY == personajePorNivel.posRecursoY)
+	if (conseguiRecurso(personajeIndividual_t personajePorNivel)){
 		return -1;
-
+	}
 	while (1) {
 		r = rand() % 2;
 		if (r) {
@@ -540,18 +547,18 @@ int calculaMovimiento(personajeIndividual_t personajePorNivel){
 void actualizaPosicion(tDirMovimiento* movimiento, personajeIndividual_t *personajePorNivel) {
 	// Actualiza las variables posicion del personaje a partir del movimiento que recibe por parametro.
 	// El eje Y es alreves, por eso para ir para arriba hay que restar en el eje y.
-	switch (movimiento) {
+	switch (*movimiento) {
 		case arriba:
-			(*personajePorNivel->posY)--;
+			(personajePorNivel->posY)--;
 			break;
 		case abajo:
-			(*personajePorNivel->posY)++;
+			(personajePorNivel->posY)++;
 			break;
 		case derecha:
-			(*personajePorNivel->posX)++;
+			(personajePorNivel->posX)++;
 			break;
 		case izquierda:
-			(*personajePorNivel->posY)--;
+			(personajePorNivel->posY)--;
 			break;
 	}
 

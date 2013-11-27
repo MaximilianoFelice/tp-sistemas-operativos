@@ -39,7 +39,7 @@ typedef enum {
 	/* Mensajes de la plataforma */
 	PL_HANDSHAKE,
 	PL_POS_RECURSO,
-	PL_OTORGA_TURNO,
+	PL_OTORGA_TURNO,			// Plataforma le manda al personaje
 	PL_CONFIRMACION_MOV,  		// Plataforma le manda al personaje
 	PL_MOV_PERSONAJE, 	  		// Plataforma le manda a nivel
 	PL_DESCONECTARSE_MUERTE,	// AVISO
@@ -67,6 +67,7 @@ typedef enum {
 	P_DESCONECTARSE_MUERTE, 	// AVISO
 	P_DESCONECTARSE_FINALIZADO,	// AVISO
 	P_SOLICITUD_RECURSO,
+	P_FIN_TURNO,				//AVISO a plataforma
 	/* Mensajes comunes */
 	NO_SE_OBTIENE_RESPUESTA
 } tMensaje;
