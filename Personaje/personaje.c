@@ -37,14 +37,21 @@ int main(int argc, char*argv[]) {
 	pthread_mutex_init(&semMovement, NULL);
 	pthread_mutex_init(&semModificadorDeVidas, NULL);
 
-	signal(SIGTERM, restar_vida);
-	signal(SIGUSR1, sig_aumentar_vidas);
-	signal(SIGINT, morirSenial);
-
-	// TODO manejar las señales...
 	// Inicializa el log.
 	logger = logInit(argv, "PERSONAJE");
 
+	if (signal(SIGINT, morirSenial) == SIG_ERR) {
+		log_error(logger, "Error en el manejo de la senal de muerte del personaje.\n", stderr);
+		exit(EXIT_FAILURE);
+	}
+	if (signal(SIGTERM, restar_vida) == SIG_ERR) {
+		log_error(logger, "Error en el manejo de la senal de restar vidas del personaje.\n", stderr);
+		exit(EXIT_FAILURE);
+	}
+	if (signal(SIGUSR1, sig_aumentar_vidas) == SIG_ERR) {
+		log_error(logger, "Error en el manejo de la senal de de aumentar vidas del personaje.\n", stderr);
+		exit(EXIT_FAILURE);
+	}
 
 	// Creamos el archivo de Configuración
 	cargarArchivoConfiguracion(argv[1]);
