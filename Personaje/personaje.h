@@ -115,6 +115,8 @@ int calculaMovimiento(personajeIndividual_t personajePorNivel);
 
 void actualizaPosicion(tDirMovimiento* movimiento, personajeIndividual_t *personajePorNivel);
 
+void restar_vida();
+
 
 
 #endif /* PERSONAJE_H_ */

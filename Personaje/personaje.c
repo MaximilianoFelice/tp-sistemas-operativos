@@ -8,7 +8,9 @@
 
 #include "personaje.h"
 
-pthread_mutex_t semPersonaje;
+pthread_mutex_t semMovement;
+pthread_mutex_t semModificadorDeVidas;
+bool continuar = false;
 
 personajeGlobal_t personaje;
 t_config *configPersonaje;
@@ -19,13 +21,24 @@ char * puerto_orq;
 int r = 0;
 bool muertePorSenial=false; //Cuando se activa, se cierra t0d0, no importan las vidas  (todo revisar)
 bool inicializeVidas = false;
+threadNivel_t *hilosNiv;
+int cantidadNiveles;
+
+
+void sig_aumentar_vidas(){
+	pthread_mutex_lock(&semModificadorDeVidas);
+	personaje.vidas++;
+	pthread_mutex_unlock(&semModificadorDeVidas);
+}
+
 
 int main(int argc, char*argv[]) {
 
-	pthread_mutex_init(&semPersonaje, NULL ); // TODO Usar para algo.
+	pthread_mutex_init(&semMovement, NULL);
+	pthread_mutex_init(&semModificadorDeVidas, NULL);
 
-	signal(SIGTERM, restarVidas);
-	signal(SIGUSR1, aumentarVidas);
+	signal(SIGTERM, restar_vida);
+	signal(SIGUSR1, sig_aumentar_vidas);
 	signal(SIGINT, morirSenial);
 
 	// TODO manejar las señales...
@@ -35,8 +48,7 @@ int main(int argc, char*argv[]) {
 
 	// Creamos el archivo de Configuración
 	cargarArchivoConfiguracion(argv[1]);
-	int cantidadNiveles =list_size(personaje.listaNiveles);
-	threadNivel_t *hilosNiv;
+	cantidadNiveles =list_size(personaje.listaNiveles);
 	hilosNiv = calloc(cantidadNiveles, sizeof(threadNivel_t));
 
 	int i=0;
@@ -57,8 +69,12 @@ int main(int argc, char*argv[]) {
 	}
 
 	char *join_return;
-	for (i = 0; i < cantidadNiveles; i++) {
-		pthread_join(hilosNiv[i].thread, (void**)&join_return);
+	continuar = true;
+	while(continuar){
+		continuar = false;
+		for (i = 0; i < cantidadNiveles; i++) {
+			pthread_join(hilosNiv[i].thread, (void**)&join_return);
+		}
 	}
 
 	//Cuando terminaron todos los niveles. Manda msj al orquestador de que ya termino todos sus niveles
@@ -77,7 +93,7 @@ int main(int argc, char*argv[]) {
 	}
 	list_destroy_and_destroy_elements(personaje.listaNiveles, (void *) nivel_destroyer);
 
-	pthread_mutex_destroy(&semPersonaje);
+	pthread_mutex_destroy(&semMovement);
 
 	exit(EXIT_SUCCESS);
 
@@ -164,7 +180,7 @@ void *jugar(void *args) {
 
 	//Recupero la informacion del nivel en el que juega el personaje
 
-
+	bool terminoPlanNiveles = false;
 
 	personajeIndividual_t personajePorNivel;
 
@@ -175,78 +191,64 @@ void *jugar(void *args) {
 	bool finalice = false;
 	bool murioPersonaje = false;
 
-	while (1) {//FIXME CAMBIAR este while, para adaptarlo a la ejecucion de koopa
+	// todo Hay que chequear que al morir el personaje realize las acciones necesarias.
+	personajePorNivel.socketPlataforma= connectToServer(ip_plataforma, atoi(puerto_orq), logger);
 
-		if (!inicializeVidas) { //Si no inicialice vidas, las inicializo
-			personaje.vidas=personaje.vidasMaximas;
-			inicializeVidas = true; //Esta variable solo se pone en false cuando el chaboncito se queda sin vidas y quiere reiniciar
-			//reiniciar=false;
-		}
+	handshake_plataforma(&personajePorNivel);
 
-		//Setea los flags del inicio
-		finalice = false;
+	//Setea los flags del inicio
+	finalice = false;
+	murioPersonaje = false;
+
+	while (personaje.vidas  > 0) {
+
 		murioPersonaje = false;
+		finalice = false;
 
-		while (personaje.vidas  > 0) {
+		log_info(logger, "Vidas de %c: %d", personaje.simbolo, personaje.vidas);
+
+		// Por cada objetivo del nivel,
+		for (personajePorNivel.objetivoActual=0; (personajePorNivel.objetivoActual < list_size(personajePorNivel.nivelQueJuego->Objetivos)) && (!personajeEstaMuerto(murioPersonaje)); personajePorNivel.objetivoActual++) {
 
 			murioPersonaje = false;
-			finalice = false;
 
-			log_info(logger, "Vidas de %c: %d", personaje.simbolo, personaje.vidas);
+			//agarra un recurso de la lista de objetivos del nivel
+			char* recurso = (char*) list_get_data(personajePorNivel.nivelQueJuego->Objetivos,	personajePorNivel.objetivoActual);
 
-			// todo Hay que chequear que al morir el personaje realize las acciones necesarias.
-			personajePorNivel.socketPlataforma= connectToServer(ip_plataforma, atoi(puerto_orq), logger);
+			pedirPosicionRecurso(&personajePorNivel, recurso);
 
-			handshake_plataforma(&personajePorNivel);
+			while (!conseguiRecurso(personajePorNivel)) {
 
+				/* El thread se va a mover, y no quiere que otro thread se mueva y pueda perder vidas */
+				pthread_mutex_lock(&semMovement);
 
-			// Por cada objetivo del nivel,
-			for (personajePorNivel.objetivoActual=0; (personajePorNivel.objetivoActual < list_size(personajePorNivel.nivelQueJuego->Objetivos)) && (!personajeEstaMuerto(murioPersonaje)); personajePorNivel.objetivoActual++) {
+				//Espera que el planificador le de el turno
+				recibirMensajeTurno(personajePorNivel.socketPlataforma);
 
-				murioPersonaje = false;
+				log_info(logger, "Habemus turno");
 
-				//agarra un recurso de la lista de objetivos del nivel
-				char* recurso = (char*) list_get_data(personajePorNivel.nivelQueJuego->Objetivos,	personajePorNivel.objetivoActual);
+				//El personaje se mueve
+				moverAlPersonaje(&personajePorNivel);
 
-				pedirPosicionRecurso(&personajePorNivel, recurso);
+				pthread_mutex_unlock(&semMovement);
 
-				while (!conseguiRecurso(personajePorNivel)) {
+			}  // Termina el plan de objetivos o muere.
 
-					//FIXME modificar la funcion de muerte por senal y que lo mate y llame a una funcion de muerte que pare to do y pregunte si quiere volver a jugar
-					if (validarSenial(&murioPersonaje) || personaje.vidas<=0)
-						break;
+			/* Si las vidas son mayores a 0, significa que termino su plan de objetivos */
+			if (personaje.vidas > 0) terminoPlanNiveles = true;
 
-					//Espera que el planificador le de el turno
-					recibirMensajeTurno(personajePorNivel.socketPlataforma);
-
-					//fixme ver si son bloqueantes y si los necesito
-					if (validarSenial(&murioPersonaje) || personaje.vidas<=0)
-						break;
-
-					log_info(logger, "Habemus turno");
-
-					//El personaje se mueve
-					moverAlPersonaje(&personajePorNivel);
-
-				}
-
-			} //Fin de for de objetivos
-
-			manejarDesconexiones(personajePorNivel, murioPersonaje, &finalice);
+		} //Fin de for de objetivos
 
 
-			if(muertePorSenial || finalice)
-				break;
-
-		} //Fin del while(vidas>0)
-
-		//TODO borrar cuando sepamos usar bien las senales
-		if (finalice || muertePorSenial || personaje.vidas<=0)
+		if(muertePorSenial || finalice)
 			break;
 
-	} //Fin de while(1) de control de reinicio del personaje TODO Borrar
+	} //Fin del while(vidas>0)
+
 
 	//Aqui siempre va a terminar porque: termino su nivel bien; se cerro el proceso por señal; se acabaron sus vidas y no quiere reiniciar
+
+	manejarDesconexiones(personajePorNivel, murioPersonaje, &finalice);
 
 	if (personaje.vidas<=0) {
 		char *exit_return;
@@ -453,17 +455,6 @@ void cerrarConexiones(int * socketPlataforma){
 	close(*socketPlataforma);
 	log_debug(logger, "Cierro conexion con la plataforma");
 }
-/*
- *
- * lo comento porque todavia no se uso
- *
- *
- *
-void morir(char* causaMuerte, personajeIndividual_t personajePorNivel) {
-	log_info(logger, "%s murio por: %s", personaje.nombre, causaMuerte);
-	*personajePorNivel.objetivoActual=1000;
-	personaje.vidas--;
-}*/
 
 
 void devolverRecursosPorFinNivel(int socketPlataforma) {
@@ -577,14 +568,33 @@ void actualizaPosicion(tDirMovimiento* movimiento, personajeIndividual_t *person
 	}
 
 }
-/*
- *
-  COSAS PARA AGREGAR
 
-1- Controlar la modificacion de vidas con semaforos
-2- Si el personaje pierde todas las vidas debe:
- 	*lockear al resto de los threads y preguntar si quiere reiniciar o no.
-	*Los hilos bloqueados deberian mandar un mensaje de SALIR + hilos sin vidas y lockearse esperando ser desbloqueados por el hilo que realizo la consulta.
-Si no se quiere reiniciar, debe mandar SALIR + MURIO_ENEMIGOS
- * */
+void restar_vida(){
+	char n;
+	pthread_mutex_lock(&semModificadorDeVidas);
+	personaje.vidas--;
+
+	if (personaje.vidas <= 0) {
+		int i;
+
+		/* matar a todos los threads */
+		for (i = 0; i < cantidadNiveles; i++){
+			pthread_cancel(hilosNiv->thread);
+			/* FIXME POR CADA THREAD HAY QUE MANEJAR LA DESCONEXION */
+		}
+
+		printf("\n ¿Desea volver a intentar? (Y/N) ");
+		n = getchar();
+		while( (n != 'N') | (n != 'Y') ){
+			n = getchar();
+			printf("No entiendo ese comando");
+			printf("\n ¿Desea volver a intentar? (Y/N) ");
+		}
+		if (n == 'Y') continuar = true;
+		if (n == 'N') continuar = false;
+	}
+	pthread_mutex_unlock(&semModificadorDeVidas);
+
+}
+
 
