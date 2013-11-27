@@ -17,7 +17,7 @@ t_list *list_items; //R-W
 char* nom_nivel; //R
 int cantRecursos; //R
 int maxRows=0, maxCols=0; //Del area del nivel //R
-message_t msj;
+tPaquete paquete;
 
 int cant_enemigos; //R
 int sleep_enemigos; //R
@@ -25,21 +25,22 @@ int hayQueAsesinar = true;
 char* dir_plataforma;
 int recovery;
 char* algoritmo;
+char* algoritmoAux;
 int quantum;
 int retardo;
 int timeCheck;
 char* ip_plataforma;
 char* port_orq;
 
-int sockPlanif;
+int sockete;
 
 pthread_mutex_t semMSJ;
 pthread_mutex_t semItems;
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
 	signal(SIGINT, cerrarForzado);
 	char buferNotify[TAM_BUFER];
-	int i,vigilante,rv,descriptorNotify,sockOrq;
+	int i,vigilante,rv,descriptorNotify;
 	struct pollfd uDescriptores[2];
 	pers_t pjNew;
 	pthread_mutex_init(&semMSJ, NULL );
@@ -58,47 +59,67 @@ int main(int argc, char *argv[]) {
 
 	//LEVANTAR EL ARCHIVO CONFIGURACION EN VARIABLES GLOBALES
 	levantarArchivoConf(argv[1]);
+	printf("algoritmo quedo con:%s\n",algoritmo);
 
 	//SOCKETS
-	sockOrq = connectServer(ip_plataforma, atoi(port_orq), logger, "orquestador");
+	sockete=connectToServer(ip_plataforma,atoi(port_orq),logger);
+	puts("hice connectToServer");
+	//sleep(1);
 
 	// MENSAJE INICIAL A ORQUESTADOR (SALUDO)
-	orq_t orqMsj;
-	orqMsj.type = NIVEL;
-	orqMsj.detail = SALUDO;
-	strcpy(orqMsj.name, nom_nivel);
-	enviaMensaje(sockOrq, &orqMsj, sizeof(orq_t), logger, "Saludo Orquestador");
-	// MENSAJE DE NOTIFICACION DE ALGORITMO
-	orqMsj.type = INFO;
-	orqMsj.detail = quantum;
-	orqMsj.port = retardo;
-	strcpy(orqMsj.name, algoritmo);
-	enviaMensaje(sockOrq, &orqMsj, sizeof(orq_t), logger, "Info de Planificacion");
+	//la serializacion
+	paquete.type=N_HANDSHAKE;
+	memcpy(paquete.payload,nom_nivel,strlen(nom_nivel)+1);
+	printf("en payload envio:%s\n",paquete.payload);
+	paquete.length=strlen(nom_nivel)+1;
+	printf("el tamaño del payload+length sera:%i\n",paquete.length);
+	enviarPaquete(sockete,&paquete,logger,"handshake nivel");
+	puts("se envio el paquete con N_HANDSHAKE");
+	sleep(1);
 
-	//RECIBIENDO CONTESTACION (puerto e ip de planificador)
-	recibeMensaje(sockOrq, &orqMsj, sizeof(orq_t), logger, "Recibi puerto de mi planificador");
-
-	int puertoPlan;
-	if (orqMsj.type == INFO_PLANIFICADOR) {
-		puertoPlan = orqMsj.port;
-		if (!string_equals_ignore_case(orqMsj.ip, ip_plataforma)) {
-			log_warning(logger, "WARN: Las ip del archivo config y la que recibo del orquestador no coinciden");
-			exit(EXIT_FAILURE);
-		}
-	} else {
-		log_error(logger, "Tipo de mensaje incorrecto: se esperaba INFO_PLANIFICADOR del orquestador");
+	//RECIBIENDO CONTESTACION
+	tMensaje tipoDeMensaje;
+	char* payload;
+	recibirPaquete(sockete,&tipoDeMensaje,&payload,logger,"recibe handshake de plataforma");
+	if(tipoDeMensaje!=PL_HANDSHAKE) {
+		log_error(logger,"tipo de mensaje incorrecto -se esperaba PL_HANDSHAKE-");
 		exit(EXIT_FAILURE);
 	}
+	//puts("se recibio el paquete de respuesta de N_HANDSHAKE");
+	//sleep(1);
 
-	//CONEXION CON PLANIFICADOR A TRAVES DE UN NUEVO SOCKET (???)
-	sockPlanif = connectServer(ip_plataforma, puertoPlan, logger, "planificador");
-	//Fuerzo un envio de mensaje al planificador para que me agregue a su lista de sockets y pueda mandar mensajes
-	msj.type = NIVEL;
-	msj.detail = WHATS_UP;
-	enviaMensaje(sockPlanif, &msj, sizeof(message_t), logger, "Whats up man");
+	//ENVIANDO A PLATAFORMA NOTIFICACION DE ALGORITMO ASIGNADO
+	tInfoNivel infoDeNivel;
+	tipoDeMensaje=N_DATOS;
+	memcpy(&infoDeNivel.algoritmo, algoritmo, sizeof(tAlgoritmo));
+	//infoDeNivel.algoritmo=algoritmo;
+	infoDeNivel.quantum=quantum;
+	infoDeNivel.delay=retardo;
+	serializarInfoNivel(N_DATOS,infoDeNivel,&paquete);//tipoDeMensaje,infoDeNivel,&paquete);
+	/*printf("contenido de retardo:%i\n",(int8_t)retardo);
+	printf("contenido de infoDeNivel.quantum:%i\n",infoDeNivel.quantum);
+	printf("contenido de infoDeNivel.delay:%i\n",(int)infoDeNivel.delay);
+	printf("contenido de infoDeNivel.algoritmo:%i\n",infoDeNivel.algoritmo);
 
-	// LOGUEO DE CONEXION CON PLANIFICADOR
-	log_info(logger, "Conexión con el planificador con puerto %d", puertoPlan);
+	printf("el paquete quedo:\n");
+	printf("paquete.type:%i\n",paquete.type);
+	printf("paquete.length:%i\n",paquete.length);
+	//char* dato1=malloc(sizeof(infoDeNivel.quantum));
+	int dato1;
+	char* dato2=malloc(sizeof(infoDeNivel.delay));
+	char* dato3=malloc(sizeof(infoDeNivel.algoritmo));
+	//memcpy(dato1,paquete.payload,sizeof(infoDeNivel.delay));
+	dato1=(int)*paquete.payload;
+	memcpy(dato2,paquete.payload+sizeof(infoDeNivel.delay),sizeof(infoDeNivel.quantum));
+	memcpy(dato3,paquete.payload+sizeof(infoDeNivel.delay)+sizeof(infoDeNivel.quantum),sizeof(infoDeNivel.algoritmo));
+	printf("paquete.payload:\n");
+	printf("paquete.payload-retardo:%i\n",dato1);
+	printf("paquete.payload-quantum:%i\n",(int8_t)*dato2);
+	printf("paquete.payload-algoritmo:%s\n",dato3);*/
+
+	enviarPaquete(sockete,&paquete,logger,"notificando a plataforma algoritmo");
+	puts("se envio a plataforma la info para su Algoritmo");
+	//sleep(4);
 
 	//INOTIFY
 	descriptorNotify=inotify_init();
@@ -106,17 +127,18 @@ int main(int argc, char *argv[]) {
 	if(vigilante==-1) puts("error en inotify add_watch");
 
 	//POLL
-	uDescriptores[0].fd=sockPlanif;
+	uDescriptores[0].fd=sockete;
 	uDescriptores[0].events=POLLIN;
 	uDescriptores[1].fd=descriptorNotify;
 	uDescriptores[1].events=POLLIN;
+
 
 	////CREANDO Y LANZANDO HILOS ENEMIGOS
 	threadEnemy_t *hilosEnemigos;
 	hilosEnemigos = calloc(cant_enemigos, sizeof(threadEnemy_t));
 	for (i = 0; i < cant_enemigos; i++) {
 		hilosEnemigos[i].enemy.num_enemy = i + 1; //El numero o id de enemigo
-		hilosEnemigos[i].enemy.sockP = sockPlanif;
+		hilosEnemigos[i].enemy.sockP = sockete;
 		if (pthread_create(&hilosEnemigos[i].thread_enemy, NULL, enemigo,(void*) &hilosEnemigos[i].enemy)) {
 			log_error(logger, "pthread_create: %s", strerror(errno));
 			exit(EXIT_FAILURE);
@@ -125,153 +147,134 @@ int main(int argc, char *argv[]) {
 
 	//WHILE PRINCIPAL
 	while (1) {
-		//esperarMensaje(sockPlanif, &msj, sizeof(msj), logger);
-		int contPj;
-		pers_t * personajeAux;
-
+		//puts("entrando al while principal");
 		if((rv=poll(uDescriptores,2,-1))==-1) perror("poll");
 		else{
 			if (uDescriptores[1].revents&POLLIN){
+				//puts("entrando al pollin de modificacion del archivo config");
 				read(descriptorNotify,buferNotify,TAM_BUFER);
 				struct inotify_event* evento=(struct inotify_event*) &buferNotify[0];
 				if(evento->mask & IN_MODIFY){//avisar a planificador que cambio el archivo config
 					levantarArchivoConf(argv[1]);
 					pthread_mutex_lock(&semMSJ);
-					msj.type=NIVEL;
-					msj.detail=INFO;
-					//msj.detail2=algoritmo;
-					//faltaria mandar quantum o retardo, ANTES HIZO:
-					//orqMsj.type = INFO;
-					//orqMsj.detail = quantum;
-					//orqMsj.port = retardo;
-					//strcpy(orqMsj.name, algoritmo);
-					enviaMensaje(sockOrq, &orqMsj, sizeof(orq_t), logger, "Info de Planificacion");
+					tipoDeMensaje=N_ACTUALIZACION_CRITERIOS;
+					memcpy(&infoDeNivel.algoritmo, algoritmo, sizeof(tAlgoritmo));
+					//infoDeNivel.algoritmo=algoritmo;
+					infoDeNivel.quantum=quantum;
+					infoDeNivel.delay=retardo;
+					serializarInfoNivel(tipoDeMensaje,infoDeNivel,&paquete);
+					enviarPaquete(sockete,&paquete,logger,"notificando a plataforma algoritmo");
 					pthread_mutex_unlock(&semMSJ);
 				}
 			}
 			if(uDescriptores[0].revents & POLLIN){
-				recibeMensaje(sockPlanif,&msj,sizeof(msj),logger,"recibiendo mensajes de plataforma");
-				switch (msj.type) {
-				case SALUDO: //El planificador SALUDA al nivel pasandole el nuevo personaje que quiere jugar
-					//Creo el personaje en el mapa
-					pthread_mutex_lock(&semItems);
-					CrearPersonaje(list_items, msj.name, INI_X, INI_Y);
-					pthread_mutex_unlock(&semItems);
-					// TODO validar que no haya otro personaje con el mismo simbolo jugando en el nivel
-					pjNew.simbolo  = msj.name;
-					pjNew.bloqueado  = false;
-					//pjNew.esperandoRec=false;
-					pjNew.recursos = list_create();
-					// Logueo el personaje recien agregado
-					log_info(logger, "Se agregó al personaje %c", pjNew.simbolo);
-					// Devuelvo msj SALUDO al planificador.
+				//puts("entrando al pollin de recepcion de mensajes");
+				recibirPaquete(sockete,&tipoDeMensaje,&payload,logger,"recibiendo mensaje de plataforma");
+				int8_t tipoMsj;
+				tPregPosicion* posConsultada;
+				tRtaPosicion posRespondida;
+				tMovimientoPers movPersonaje;
+				pers_t* personaG;
+				tSimbolo personajeMuerto;
+				//char* recursoPedido;
+				tipoMsj=(int8_t)tipoDeMensaje;
+
+				switch(tipoMsj){
+				case PL_POS_RECURSO:
+					//puts("entrando al case de PL_POS_RECURSO");
+					posConsultada=deserializarPregPosicion(payload);
+					getPosRecurso(list_items,posConsultada->recurso, &posRecX, &posRecY);
+					posRespondida.posX=posRecX;
+					posRespondida.posY=posRecY;
 					pthread_mutex_lock(&semMSJ);
-					msj.type    = NIVEL;
-					msj.detail  = INI_X;
-					msj.detail2 = INI_Y;
-					enviaMensaje(sockPlanif, &msj, sizeof(message_t), logger,"Posicion inicial");// Envio la posicion inicial del personaje al planificador
-					pthread_mutex_unlock(&semMSJ);
-					// Agrego el personaje a la lista de personajes del nivel
-					//semaforo con liberarRecursos para que no meta mientras otro saca
-					list_add_new(list_personajes, (void *) &pjNew, sizeof(pers_t));
-				break;
-				case POSICION_RECURSO:// El personaje le pidio la posicion del siguiente recurso a buscar al planificador, y este me lo pide a mi
-					// Busco la posicion del recurso pedido en el mapa
-					getPosRecurso(list_items, msj.detail2, &posRecX, &posRecY);
-					pthread_mutex_lock(&semMSJ);
-					msj.type = POSICION_RECURSO;
-					msj.detail = posRecX;
-					msj.detail2 = posRecY;
-					enviaMensaje(sockPlanif, &msj, sizeof(message_t), logger,"Posicion del recurso");// Envio mensaje con la posicion
+					paquete.type=N_POS_RECURSO;
+					memcpy(&paquete.payload,&posRespondida,sizeof(tRtaPosicion));
+					paquete.length=sizeof(tRtaPosicion);
+					enviarPaquete(sockete,&paquete,logger,"enviando pos de recurso a plataforma");
 					pthread_mutex_unlock(&semMSJ);
 				break;
-				case MOVIMIENTO:
-					pthread_mutex_lock(&semItems);
-					// Busco la posicion actual del personaje
-					getPosPersonaje(list_items, msj.name, &posX, &posY);
-					//Buscar la posicion del recurso que esta presiguiendo el personaje
-					getPosRecurso(list_items, msj.detail, &posRecX, &posRecY);
-					// calculo el movimiento
-					pthread_mutex_unlock(&semItems);
-					switch (msj.detail2) {
-						case ARRIBA:
-							if (posY > 1) posY--;
+				case PL_MOV_PERSONAJE:
+					//puts("entrando al pollin de PL_MOV_PERSONAJE");
+					//viendo si el personaje es nuevo o ya esta en list_personajes
+					memcpy(&movPersonaje,&payload,sizeof(tMovimientoPers));
+					bool buscarPersonaje(pers_t personaje){return (personaje.simbolo==movPersonaje.simbolo);}
+					personaG=list_find(list_personajes,(void*)buscarPersonaje);
+					if(personaG==0){//fijarse si cuando no encuentra algo en una lista que devuelve?
+						//el personaje es nuevo
+						pthread_mutex_lock(&semItems);
+						CrearPersonaje(list_items, movPersonaje.simbolo, INI_X, INI_Y);
+						pthread_mutex_unlock(&semItems);
+						// TODO validar que no haya otro personaje con el mismo simbolo jugando en el nivel????????????????????
+						pjNew.simbolo  = movPersonaje.simbolo;
+						pjNew.bloqueado  = false;
+						pjNew.recursos = list_create();
+						// Logueo el personaje recien agregado
+						log_info(logger, "Se agregó al personaje %c", pjNew.simbolo);
+					}else{ //el personaje ya estaba
+						pthread_mutex_lock(&semItems);
+						// Busco la posicion actual del personaje
+						getPosPersonaje(list_items, personaG->simbolo, &posX, &posY);
+						// calculo el movimiento
+						pthread_mutex_unlock(&semItems);
+						switch (movPersonaje.direccion) {
+							case arriba:
+								if (posY > 1) posY--;
 							break;
-						case ABAJO:
-							if (posY < maxRows) posY++;
+							case abajo:
+								if (posY < maxRows) posY++;
 							break;
-						case IZQUIERDA:
-							if (posX > 1) posX--;
+							case izquierda:
+								if (posX > 1) posX--;
 							break;
-						case DERECHA:
-							if (posX < maxCols) posX++;
+							case derecha:
+								if (posX < maxCols) posX++;
 							break;
+						}
+					MoverPersonaje(list_items, personaG->simbolo, posX, posY);
 					}
-
-					MoverPersonaje(list_items, msj.name, posX, posY);
-
-					if ((posX == posRecX) && (posY == posRecY)) { //Si llegó al recurso
+				break;
+				case PL_SOLICITUD_RECURSO:
+					puts("entrando al case de PL_SOLICITUD_RECURSO");
+					posConsultada=deserializarPregPosicion(payload);
+					getPosRecurso(list_items,posConsultada->recurso, &posRecX, &posRecY);
+					// Calculo la cantidad de instancias
+					int cantInstancias = restarInstanciasRecurso(list_items,posConsultada->recurso);
+					if (cantInstancias >= 0) {
+						log_info(logger, "Al personaje %c se le dio el recurso %c",posConsultada->simbolo,posConsultada->recurso);
 						//Agrego el recurso a la lista de recursos del personaje
-						for (contPj = 0; contPj < list_size(list_personajes); contPj++) {
-							// Recorro la lista y voy levantado personajes
-							personajeAux = (pers_t *) list_get(list_personajes, contPj);
-							if (personajeAux->simbolo == msj.name) {
-								// Agrego el recurso pedido a su lista de recursos
-								list_add_new(personajeAux->recursos, &(msj.detail),	sizeof(char));
-								break;
-							}
-						}
-						// Calculo la cantidad de instancias
-						int cantInstancias = restarInstanciasRecurso(list_items,msj.detail);
-						if (cantInstancias >= 0) {
-							// Loqueo que al personaje se le dio un recurso
-							log_info(logger, "Al personaje %c se le dio el recurso %c",personajeAux->simbolo, msj.detail);
-							pthread_mutex_lock(&semMSJ);
-							msj.type = MOVIMIENTO;
-							msj.detail2 = msj.detail;
-							msj.detail = OTORGADO;
-							msj.name = personajeAux->simbolo;
-							// Envio mensaje donde confirmo la otorgacion del recurso pedido
-							enviaMensaje(sockPlanif, &msj, sizeof(message_t), logger,"Se otorgo el recurso pedido");
-							pthread_mutex_unlock(&semMSJ);
-						} else {
-							// Logueo el bloqueo del personaje
-							log_info(logger,"El personaje %c se bloqueo por el recurso %c",personajeAux->simbolo, msj.detail);
-							//se bloquea esperando que le den el recurso
-							personajeAux->bloqueado=true;
-							pthread_mutex_lock(&semMSJ);
-							msj.type = MOVIMIENTO;
-							msj.detail2 = msj.detail;
-							msj.detail = BLOCK;
-							msj.name = personajeAux->simbolo;
-							enviaMensaje(sockPlanif, &msj, sizeof(message_t), logger,"Se denego el pedido del recurso");// Envio mensaje denego el recurso
-							pthread_mutex_unlock(&semMSJ);
-						}
-					}else { //Si no llego al recurso sigue moviendose tranquilamente
+						bool buscarPersonaje(pers_t personaje){return (personaje.simbolo==movPersonaje.simbolo);}
+						personaG=list_find(list_personajes,(void*)buscarPersonaje);
+						list_add_new(personaG->recursos,&(posConsultada->recurso),sizeof(tSimbolo));
 						pthread_mutex_lock(&semMSJ);
-						msj.type = MOVIMIENTO;
-						msj.detail2 = msj.detail;
-						msj.detail = NADA;
-						msj.name = personajeAux->simbolo;
-						// Envio mensaje donde denego el pedido del recurso
-						enviaMensaje(sockPlanif, &msj, sizeof(message_t), logger,"Se movio el personaje;");
+						paquete.type=N_ENTREGA_RECURSO;
+						paquete.length=0;
+						// Envio mensaje donde confirmo la otorgacion del recurso pedido
+						enviarPaquete(sockete,&paquete,logger,"enviando confirmacion de otorgamiento de recurso a plataforma");
 						pthread_mutex_unlock(&semMSJ);
+					} else {
+						// Logueo el bloqueo del personaje
+						log_info(logger,"El personaje %c se bloqueo por el recurso %c",posConsultada->simbolo,posConsultada->recurso);
+						//se bloquea esperando que le den el recurso
+						personaG->bloqueado=true;
 					}
 				break;
-				case SALIR:// Un personaje termino o murio y debo liberar instancias de recursos que tenia asignado
+				case PL_DESCONECTARSE_MUERTE://SALIR:// Un personaje termino o murio y debo liberar instancias de recursos que tenia asignado
+					//habria un payload con aunque sea el id del personaje, por ahora uso tSimbolo
+					puts("entrando al case de PL_DESCONECTARSE_MUERTE");
+					memcpy(&personajeMuerto,payload,sizeof(tSimbolo));
 					pthread_mutex_lock(&semItems);
-					liberarRecsPersonaje(msj.name);
+					liberarRecsPersonaje(personajeMuerto);
 					pthread_mutex_unlock(&semItems);
-					pthread_mutex_lock(&semMSJ);
-					msj.type=SALIR;
-					enviaMensaje(sockPlanif, &msj, sizeof(msj), logger,"Confirma salir al planificador");
-					pthread_mutex_unlock(&semMSJ);
 				break;
 				} //Fin del switch
+				puts("saliendo del switch");
 			}
+			puts("saliendo del pollin de recepcion de mensajes");
 		//nivel_gui_dibujar(list_items, nom_nivel);------------>DIBUJAN LOS HILOS ENEMIGOS
 		}
+		sleep(2);
 	}
+	puts("saliendo del while");
 	inotify_rm_watch(descriptorNotify,vigilante);
 	close(descriptorNotify);
 	return 0;
@@ -292,6 +295,7 @@ void levantarArchivoConf(char* argumento){
 		// Convierto en int las posiciones de la caja
 		posXCaja = atoi(arrCaja[3]);
 		posYCaja = atoi(arrCaja[4]);
+
 		// Validamos que la caja a crear esté dentro de los valores posibles del mapa
 		if (posYCaja > maxRows || posXCaja > maxCols || posYCaja < 1 || posXCaja < 1) {
 			sprintf(messageLimitErr, "La caja %c excede los limites de la pantalla. (%d,%d) - (%d,%d)", arrCaja[1][0], posXCaja, posYCaja, maxRows, maxCols);
@@ -314,7 +318,11 @@ void levantarArchivoConf(char* argumento){
 	recovery       = config_get_int_value(configNivel, "Recovery");
 	cant_enemigos  = config_get_int_value(configNivel, "Enemigos");
 	sleep_enemigos = config_get_int_value(configNivel, "Sleep_Enemigos");
-	algoritmo      = config_get_string_value(configNivel, "algoritmo");
+	algoritmo   = config_get_string_value(configNivel, "algoritmo");
+	/*char* rr="RR";
+	char* sdrf="SDRF";
+	if(strcmp(algoritmoAux,rr)==0){memcpy(&algoritmo,rr,sizeof(rr));}else{ memcpy(&algoritmo,sdrf,sizeof(sdrf));}
+	printf("strcmp dio:%i\n",strcmp(algoritmoAux,rr));*/
 	quantum 	   = config_get_int_value(configNivel, "quantum");
 	retardo 	   = config_get_int_value(configNivel, "retardo");
 	timeCheck      = config_get_int_value(configNivel, "TiempoChequeoDeadlock");
@@ -322,6 +330,10 @@ void levantarArchivoConf(char* argumento){
 	port_orq 	   = strtok(NULL, ":");
 	cantRecursos   = list_size(list_items);
 }
+void levantarInfoNivel(){
+
+}
+
 void *enemigo(void * args) {
 	enemigo_t *enemigo;
 	enemigo = (enemigo_t *) args;
@@ -461,12 +473,12 @@ void *enemigo(void * args) {
 						else {//se esta en la misma posicion que la victima =>matarla
 							//un semaforo para que no mande mensaje al mismo tiempo que otros enemigos o el while principal
 							//otro semaforo para que no desasigne y se esten evaluando otros
-							log_debug(logger, "El personaje %c esta muerto", msj.name);
+							log_debug(logger, "El personaje %c esta muerto",paquete.type);
 							pthread_mutex_lock(&semMSJ);
-							msj.type = MOVIMIENTO;
-							msj.detail = MUERTO_ENEMIGOS;
-							msj.name= item->id;
-							enviaMensaje(enemigo->sockP, &msj, sizeof(msj), logger,	"Se mato a alguien :P");
+							paquete.type=N_MUERTO_POR_ENEMIGO;
+							memcpy(&paquete.payload,&(item->id),sizeof(char));
+							paquete.length=sizeof(char);
+							enviarPaquete(sockete,&paquete,logger,"enviando notificacion de muerte de personaje a plataforma");
 							pthread_mutex_unlock(&semMSJ);
 							pthread_mutex_lock(&semItems);
 							liberarRecsPersonaje(item->id);
@@ -566,10 +578,16 @@ void *deteccionInterbloqueo (void *parametro){
 			if(recovery==1){
 				//notificar a plataforma, entonces vecSatisfechos contendra -1-->el personaje quedo bloqueado
 				pthread_mutex_lock(&semMSJ);
+				paquete.type=N_PERSONAJES_DEADLOCK;
+				//memcpy(&paquete.payload,item->id,sizeof(char));
+				paquete.length=sizeof(char);
+				enviarPaquete(sockete,&paquete,logger,"enviando notificacion de bloqueo de personajes a plataforma");
+				/*
 				msj.type=NIVEL;
 				msj.detail=INFO;
 				msj.detail2=list_size(personajesBloqueados)-cantPersonajesSatisfechos;
-				enviaMensaje(sockPlanif, &msj, sizeof(msj), logger,	"Enviando aviso de bloqueo");
+				enviaMensaje(sockPlanif, &msj, sizeof(msj), logger,	"Enviando aviso de bloqueo");*/
+				/*
 				for(i=0;i<list_size(personajesBloqueados)-cantPersonajesSatisfechos;i++){
 					//ESPERAR CONTESTACION???
 					personaje=list_get(personajesBloqueados,i);
@@ -577,7 +595,7 @@ void *deteccionInterbloqueo (void *parametro){
 						msj.name=personaje->simbolo;
 						enviaMensaje(sockPlanif, &msj, sizeof(msj), logger,	"Enviando el id del personaje bloqueado");
 					}
-				}
+				}*/
 				pthread_mutex_unlock(&semMSJ);
 			}
 		}
@@ -603,8 +621,7 @@ void liberarRecsPersonaje(char id){
 	list_iterate(personaje->recursos,(void*)desasignar);
 	personaje_destroyer(personaje);
 }
-void moverme(int *victimaX, int *victimaY, int *posX, int *posY,
-		mov_t *movimiento) {
+/*void moverme(int *victimaX, int *victimaY, int *posX, int *posY,mov_t *movimiento) {
 
 	if (*victimaX > *posX) {
 		(*posX)++;
@@ -632,7 +649,7 @@ void moverme(int *victimaX, int *victimaY, int *posX, int *posY,
 			movimiento->in_y = false;
 	}
 
-}
+}*/
 void actualizaPosicion(int *contMovimiento, int *posX, int *posY) {
 
 	switch (*contMovimiento) {
