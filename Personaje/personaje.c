@@ -24,11 +24,20 @@ int main(int argc, char*argv[]) {
 
 	pthread_mutex_init(&semPersonaje, NULL ); // TODO Usar para algo.
 
-	signal(SIGTERM, restarVidas);
-	signal(SIGUSR1, aumentarVidas);
-	signal(SIGINT, morirSenial);
+	if (signal(SIGINT, morirSenial) == SIG_ERR) {
+		log_error(logger, "Error en el manejo de la senal de muerte del personaje.\n", stderr);
+		return exit(EXIT_FAILURE);
+	}
+	if (signal(SIGTERM, restarVidas) == SIG_ERR) {
+		log_error(logger, "Error en el manejo de la senal de restar vidas del personaje.\n", stderr);
+		return exit(EXIT_FAILURE);
+	}
+	if (signal(SIGUSR1, aumentarVidas) == SIG_ERR) {
+		log_error(logger, "Error en el manejo de la senal de de aumentar vidas del personaje.\n", stderr);
+		return exit(EXIT_FAILURE);
+	}
 
-	// TODO manejar las señales...
+
 	// Inicializa el log.
 	logger = logInit(argv, "PERSONAJE");
 
