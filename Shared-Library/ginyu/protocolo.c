@@ -175,6 +175,28 @@ tDirMovimiento* deserializarMovimiento(char * payload) {
 	return pDirMovimiento;
 }
 
+int serializarMovimientoPers(tMensaje tipoMensaje, tMovimientoPers movimientoPers, tPaquete* pPaquete){
+
+	pPaquete->type = tipoMensaje;
+
+	pPaquete->length = sizeof(movimientoPers);
+	memcpy(pPaquete->payload, &movimientoPers, pPaquete->length);
+
+	return EXIT_SUCCESS;
+
+}
+
+tMovimientoPers* deserializarMovimientoPers(char * payload){
+
+	tMovimientoPers *movimientoPers = malloc(sizeof(tMovimientoPers));
+	int tmp_size = 0;
+
+	tmp_size = sizeof(int8_t);
+	memcpy(&movimientoPers, payload, tmp_size);
+
+	return movimientoPers;
+}
+
 
 int serializarEstado(tMensaje tipoMensaje, tEstado estadoPersonaje, tPaquete* pPaquete) {
 

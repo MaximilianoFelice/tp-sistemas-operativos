@@ -141,8 +141,14 @@ tPregPosicion* deserializarPregPosicion(char * payload);
 int serializarRtaPosicion(tMensaje tipoMensaje, tRtaPosicion pRtaPosicion, tPaquete* pPaquete);
 tRtaPosicion* deserializarRtaPosicion(char * payload);
 
+int serializarRtaPosicion(tMensaje tipoMensaje, tRtaPosicion pRtaPosicion, tPaquete* pPaquete);
+tRtaPosicion* deserializarRtaPosicion(char * payload);
+
 int serializarMovimiento(tMensaje tipoMensaje, tDirMovimiento dirMovimiento, tPaquete* pPaquete);
 tDirMovimiento* deserializarMovimiento(char * payload);
+
+int serializarMovimientoPers(tMensaje tipoMensaje, tMovimientoPers movimientoPers, tPaquete* pPaquete);
+tMovimientoPers* deserializarMovimientoPers(char * payload);
 
 int serializarEstado(tMensaje tipoMensaje, tEstado estadoPersonaje, tPaquete* pPaquete);
 tEstado* deserializarEstado(char * payload);

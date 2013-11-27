@@ -299,7 +299,7 @@ bool personajeEstaMuerto(bool murioPersonaje){
 }
 
 bool conseguiRecurso(personajeIndividual_t personajePorNivel){
-	return (personajePorNivel.posY == personajePorNivel.posRecursoY) && (personajePorNivel.posX == personajePorNivel.posRecursoX);
+	return ((personajePorNivel.posY == personajePorNivel.posRecursoY) && (personajePorNivel.posX == personajePorNivel.posRecursoX));
 }
 
 void moverAlPersonaje(personajeIndividual_t* personajePorNivel){
@@ -329,7 +329,8 @@ void calcularYEnviarMovimiento(personajeIndividual_t personajePorNivel){
 	movimientoAEnviar.direccion=calculaMovimiento(personajePorNivel);
 
 	tPaquete pkgMovimiento;
-	serializarMovimientoPers(P_MOVIMIENTO, movimientoAEnviar, &pkgMovimiento);
+	//serializarMovimientoPers(tMensaje tipoMensaje, tMovimientoPers movimientoPers, tPaquete* pPaquete)
+	//serializarMovimientoPers(P_MOVIMIENTO, movimientoAEnviar, &pkgMovimiento);
 
 	enviarPaquete(personajePorNivel.socketPlataforma, &pkgMovimiento, logger, "Envio pedido de movimiento del personaje");
 
@@ -516,7 +517,7 @@ void restarVidas() {
 
 int calculaMovimiento(personajeIndividual_t personajePorNivel){
 
-	if (conseguiRecurso(personajeIndividual_t personajePorNivel)){
+	if (conseguiRecurso(personajePorNivel)){
 		return -1;
 	}
 	while (1) {
