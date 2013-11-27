@@ -19,7 +19,7 @@ char * ip_plataforma;
 char * puerto_orq;
 
 int r = 0;
-bool muertePorSenial=false; //Cuando se activa, se cierra t0d0, no importan las vidas  (todo revisar)
+bool muertePorSenial=false;
 bool inicializeVidas = false;
 threadNivel_t *hilosNiv;
 t_dictionary *listaPersonajePorNiveles; //diccionario
@@ -202,7 +202,6 @@ void *jugar(void *args) {
 	bool finalice = false;
 	bool murioPersonaje = false;
 
-	// todo Hay que chequear que al morir el personaje realize las acciones necesarias.
 	personajePorNivel.socketPlataforma= connectToServer(ip_plataforma, atoi(puerto_orq), logger);
 
 	dictionary_put(listaPersonajePorNiveles, personajePorNivel.nivelQueJuego->nomNivel, &personajePorNivel);
@@ -260,16 +259,28 @@ void *jugar(void *args) {
 	} //Fin del while(vidas>0)
 
 
-	//Aqui siempre va a terminar porque: termino su nivel bien; se cerro el proceso por señal; se acabaron sus vidas y no quiere reiniciar
 
 	manejarDesconexiones(&personajePorNivel, murioPersonaje, &finalice);
+
+
+	// -----------------
+	if(murioPersonaje){
+		restar_vida();
+		if (personaje.vidas<=0) {
+			devolverRecursosPorMuerte(personajePorNivel.socketPlataforma);
+		}
+		log_info(logger, "Me han matado :/");
+		cerrarConexiones(&personajePorNivel.socketPlataforma);
+	}
+
+	// --------
 
 	if (personaje.vidas<=0) {
 		char *exit_return;
 		exit_return = strdup("se ha quedado sin vidas y murio :'(");
 		pthread_exit((void *)exit_return);
 	}
-	if (murioPersonaje && muertePorSenial) {// TODO Verificar si se debe evaluar murioPersonaje, porque muertePorSenial ya es condicion suficiente
+	if (muertePorSenial) {
 		char *exit_return;
 		exit_return = strdup("ha terminado por senial SIGINT");
 		pthread_exit((void *)exit_return);
@@ -304,18 +315,6 @@ void manejarDesconexiones(personajeIndividual_t* personajePorNivel, bool murioPe
 		desconectarPersonaje(personajePorNivel);
 	}
 
-	if(murioPersonaje){
-		if (personaje.vidas<=0) {
-			//Si me quede sin vidas armo un mensaje especial para que el planificador libere memoria
-			//TODO preguntar si tiene q reiniciar o no - contemplar estas posibilidades en la funcion de muerte
-			//TODO si dice q no = > finalice=true
-
-			devolverRecursosPorMuerte(personajePorNivel->socketPlataforma);
-		}
-		personaje.vidas--;
-		log_debug(logger, "Me han matado :/");
-		desconectarPersonaje(personajePorNivel);
-	}
 
 }
 bool personajeEstaMuerto(bool murioPersonaje){
@@ -420,8 +419,6 @@ void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurs
 }
 
 bool estaMuerto(tMensaje tipoMensaje, bool *murioPj){
-	//FIXME no deberia devolver nada porque ya pisa el valor
-	//no se usa
 	if(tipoMensaje == PL_MUERTO_POR_DEADLOCK)
 		return (*murioPj = true);
 	if(tipoMensaje == PL_MUERTO_POR_ENEMIGO)
@@ -530,17 +527,6 @@ bool validarSenial(bool *murioPersonaje){
 void morirSenial() {
 	muertePorSenial=true;
 }
-
-void aumentarVidas() {
-	personaje.vidas ++;
-	log_info(logger, "Vidas del personaje %c: %d", personaje.simbolo, personaje.vidas);
-}
-
-void restarVidas() {
-	personaje.vidas--;
-	log_info(logger, "Vidas del personaje %c: %d", personaje.simbolo, personaje.vidas);
-}
-//Seniales
 
 int calculaMovimiento(personajeIndividual_t personajePorNivel){
 
