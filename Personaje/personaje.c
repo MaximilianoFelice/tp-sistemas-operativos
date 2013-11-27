@@ -17,7 +17,7 @@ char * ip_plataforma;
 char * puerto_orq;
 
 int r = 0;
-bool muertePorSenial=false; //Cuando se activa, se cierra t0d0, no importan las vidas
+bool muertePorSenial=false; //Cuando se activa, se cierra t0d0, no importan las vidas  (todo revisar)
 bool inicializeVidas = false;
 
 int main(int argc, char*argv[]) {
@@ -61,8 +61,10 @@ int main(int argc, char*argv[]) {
 		pthread_join(hilosNiv[i].thread, (void**)&join_return);
 	}
 
-	//TODO msj al orquestador FIN_PLAN_NIVELES.
 	//Cuando terminaron todos los niveles. Manda msj al orquestador de que ya termino todos sus niveles
+	int socketOrquestador = connectToServer(ip_plataforma, atoi(puerto_orq), logger);
+	notificarFinPlanNiveles(socketOrquestador);
+	cerrarConexiones(&socketOrquestador);
 
 	if(join_return != NULL)
 		log_debug(logger, "El personaje %c %s", personaje.simbolo, join_return);
@@ -80,6 +82,16 @@ int main(int argc, char*argv[]) {
 	exit(EXIT_SUCCESS);
 
 }
+
+
+void notificarFinPlanNiveles(int socketOrquestador){
+	tPaquete pkgDevolverRecursos;
+	pkgDevolverRecursos.type   = P_FIN_PLAN_NIVELES;
+	pkgDevolverRecursos.length = 0;
+	enviarPaquete(socketOrquestador, &pkgDevolverRecursos, logger, "Se notifica a la plataforma la finalizacion del plan de niveles del personaje");
+
+}
+
 void destruirArchivoConfiguracion(t_config *configPersonaje){
 	config_destroy(configPersonaje);
 }
@@ -159,13 +171,7 @@ void *jugar(void *args) {
 	personajePorNivel.posX=0;
 	personajePorNivel.posY=0;
 	personajePorNivel.nivelQueJuego = (nivel_t *) args;
-	//Variables para conectarme al orquestador y planificador
-	//int sockOrq, sockPlan;
-	//int socketPlataforma;
-	//fixme el socket orquestador deberia ser global y llamarse socketPlataforma,  el socket del planificador no deberia existir
 
-	//char * ip_planif = malloc(sizeof(char) * 23);  //TODO hacer free
-	//int puertoPlanif;
 	bool finalice = false;
 	bool murioPersonaje = false;
 
@@ -311,8 +317,9 @@ void moverAlPersonaje(personajeIndividual_t* personajePorNivel){
 	actualizaPosicion(&mov, personajePorNivel);
 
 	/*
-	 * Para que se hace esto?? hace falta avisarle a la plataforma que no alcanzo el recurso?
-	 * */
+	 Para que se hace esto?? hace falta avisarle a la plataforma que no alcanzo el recurso?
+	 Si lo alcanzo le aviso?
+	 */
 
 	//El personaje no llego al recurso
 	tPaquete pkgFinTurno;
@@ -364,7 +371,7 @@ void recibirMensajeTurno(int socketPlataforma){
 
 
 void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurso){
-//BIEN
+
 	tMensaje tipoMensaje;
 	tPregPosicion solicitudRecurso;
 	solicitudRecurso.simbolo=personaje.simbolo;
@@ -393,7 +400,9 @@ void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurs
 
 }
 
-bool estaMuerto(tMensaje tipoMensaje, bool *murioPj){//FIXME no deberia devolver nada porque ya pisa el valor y se usa una sola vez
+bool estaMuerto(tMensaje tipoMensaje, bool *murioPj){
+	//FIXME no deberia devolver nada porque ya pisa el valor
+	//no se usa
 	if(tipoMensaje == PL_MUERTO_POR_DEADLOCK)
 		return (*murioPj = true);
 	if(tipoMensaje == PL_MUERTO_POR_ENEMIGO)
@@ -402,17 +411,6 @@ bool estaMuerto(tMensaje tipoMensaje, bool *murioPj){//FIXME no deberia devolver
 }
 
 void handshake_plataforma(personajeIndividual_t* personajePorNivel){
-
-	/*tMensaje tipoMensaje;
-	tPregPosicion* solicitudRecurso;
-	solicitudRecurso.simbolo=personaje.simbolo;
-	solicitudRecurso.recurso= *recurso;
-
-	tPaquete pkgSolicitudRecurso;
-	serializarPregPosicion(PL_SOLICITUD_RECURSO, solicitudRecurso, &pkgSolicitudRecurso);
-
-	enviarPaquete(personajePorNivel->socketPlataforma, &pkgSolicitudRecurso, logger, "Solicito la posicion de un recurso");
-*/
 	tMensaje tipoMensaje;
 	tHandshakePers handshakePers;
 	//tHandshakePers* handDeserializado;
@@ -568,9 +566,8 @@ void actualizaPosicion(tDirMovimiento* movimiento, personajeIndividual_t *person
  *
   COSAS PARA AGREGAR
 
-1- Verificar cuando el personaje termina sus objetivos y cuando termine, el envio del mensaje al planificador (tiene que mandar un type = PERSONAJE detail=SALIR + detail2=NADA)
-2- Controlar la modificacion de vidas con semaforos
-3- Si el personaje pierde todas las vidas debe:
+1- Controlar la modificacion de vidas con semaforos
+2- Si el personaje pierde todas las vidas debe:
  	*lockear al resto de los threads y preguntar si quiere reiniciar o no.
 	*Los hilos bloqueados deberian mandar un mensaje de SALIR + hilos sin vidas y lockearse esperando ser desbloqueados por el hilo que realizo la consulta.
 Si no se quiere reiniciar, debe mandar SALIR + MURIO_ENEMIGOS

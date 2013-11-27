@@ -47,8 +47,10 @@ typedef struct PersonajeGlobal{
 	char simbolo;
 	int vidas;
 	int vidasMaximas;
+	unsigned short puertoOrquestador;
 	t_list *listaNiveles;
 	char * nombre;
+	char * ipOrquestador;
 
 } personajeGlobal_t;
 
@@ -63,6 +65,7 @@ typedef struct PersonajeIndividual{
 
 } personajeIndividual_t;
 
+void notificarFinPlanNiveles(int socketOrquestador);
 
 void destruirArchivoConfiguracion(t_config *configPersonaje);
 
