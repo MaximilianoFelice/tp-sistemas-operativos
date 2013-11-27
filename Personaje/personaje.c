@@ -425,8 +425,27 @@ void handshake_plataforma(personajeIndividual_t* personajePorNivel){
 
 	//Recibo un aviso de que existe o no el nivel
 	if (tipoMensaje == PL_NIVEL_INEXISTENTE){
-		//TODO ver si tengo que hacerla recursiva o si mato al hilo en caso de que no exista el nivel
-		handshake_plataforma(personajePorNivel);
+		reintentarHandshake(personajePorNivel->socketPlataforma, &pkgHandshake);
+	}
+}
+
+void reintentarHandshake(int socketPlataforma, tPaquete* pkgHandshake){
+
+	cerrarConexiones(&socketPlataforma);
+
+	sleep(800); //espero un poquito antes de conectarme de nuevo
+
+	socketPlataforma= connectToServer(ip_plataforma, atoi(puerto_orq), logger);
+
+	enviarPaquete(socketPlataforma, pkgHandshake, logger, "Se envia saludo a la plataforma");
+
+	tMensaje tipoMensaje;
+	char* sPayload;
+	recibirPaquete(socketPlataforma, &tipoMensaje, &sPayload, logger, "Recibo estado en el que quedo el personaje");
+
+	//Recibo un aviso de que existe o no el nivel
+	if (tipoMensaje == PL_NIVEL_INEXISTENTE){
+		reintentarHandshake(socketPlataforma, pkgHandshake);
 	}
 }
 

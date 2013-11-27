@@ -95,6 +95,8 @@ bool estaMuerto(tMensaje tipoMensaje, bool *murioPj);
 
 void handshake_plataforma(personajeIndividual_t* personajePorNivel);
 
+void reintentarHandshake(int socketPlataforma, tPaquete* pkgHandshake);
+
 void cerrarConexiones(int * socketPlataforma);
 
 void devolverRecursosPorFinNivel(int socketPlataforma);
