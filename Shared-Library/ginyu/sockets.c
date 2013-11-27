@@ -1,118 +1,201 @@
-#include <stdlib.h>
-#include <curses.h>
-#include <string.h>
-#include <unistd.h>
-#include <netinet/in.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <sys/time.h>
-#include <signal.h>
-#include "../commons/log.h"
-#include "protocolo.h"
+/*
+ * Sistemas Operativos - Super Mario Proc RELOADED.
+ * Grupo       : C o no ser.
+ * Nombre      : sockets.c
+ * Descripcion : Este archivo los implementacion de la libreria de sockets.
+ */
+
 #include "sockets.h"
 
+#define BACKLOG 100
 
-
-
-void iniSocks(fd_set *master, fd_set *temp, struct sockaddr_in *myAddress, struct sockaddr_in remoteAddress, int *maxSock, int *sockListener, int puerto, t_log* logger) {
-
-	int yes = 1;
-
-	FD_ZERO(master);
-	FD_ZERO(temp);
-
+int crearSocket(t_log* logger)
+{
+	int unSocket;
+	int si = 1;
 	//--Crea el socket
-	if ((*sockListener = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-		log_error(logger, "socket: %s", strerror(errno));
-		exit(1);
+	if ((unSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+		log_error(logger, "Creacion socket: %s", strerror(errno));
+		return EXIT_FAILURE;
+
+	} else {
+		//--Setea las opciones para que pueda escuchar varios al mismo tiempo
+		if (setsockopt(unSocket, SOL_SOCKET, SO_REUSEADDR, &si, sizeof(int)) == -1) {
+			log_error(logger, "Setsockopt: %s", strerror(errno));
+			return EXIT_FAILURE;
+		}
+
+		return unSocket;
 	}
-
-	//--Setea las opciones para que pueda escuchar varios al mismo tiempo
-	if (setsockopt(*sockListener, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {
-		log_error(logger, "setsockopt: %s", strerror(errno));
-		exit(1);
-	}
-
-	//--Arma la información que necesita para mandar cosas
-	myAddress->sin_family = AF_INET;
-	myAddress->sin_addr.s_addr = INADDR_ANY;
-	myAddress->sin_port = htons(puerto);
-
-	//--Bindear socket al proceso server
-	if (bind(*sockListener, (struct sockaddr *) myAddress, sizeof(*myAddress)) == -1) {
-		log_error(logger, "bind: %s", strerror(errno));
-		exit(1);
-	}
-
-	//--Escuchar
-	if (listen(*sockListener, 100) == -1) {
-		log_error(logger, "listen: %s", strerror(errno));
-		exit(1);
-	}
-
-	//--Prepara la lista
-	FD_SET(*sockListener, master);
-	*maxSock = *sockListener;
 }
 
+void bindearSocket(int unSocket, struct sockaddr_in socketInfo, t_log* logger)
+{
+	//--Bindear socket al proceso server
+	if (bind(unSocket, (struct sockaddr*)&socketInfo, sizeof(socketInfo)) == -1) {
+		log_error(logger, "Error al bindear socket escucha: %s", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+}
+
+void escucharEn(int unSocket)
+{
+	if (listen(unSocket, BACKLOG) == -1) {
+		perror("Error al poner a escuchar socket");
+		exit(EXIT_FAILURE);
+	}
+}
+
+
+int crearSocketEscucha(int puerto, t_log* logger)
+{
+	struct sockaddr_in myAddress;
+	int socketEscucha;
+
+	socketEscucha = crearSocket(logger);
+
+	//--Arma la información que necesita para mandar cosas
+	myAddress.sin_family = AF_INET;
+	myAddress.sin_addr.s_addr = INADDR_ANY;
+	myAddress.sin_port = htons(puerto);
+	memset(&(myAddress.sin_zero), '\0', 8);  	 // Poner a cero el resto de la estructura
+
+	bindearSocket(socketEscucha, myAddress,logger);
+
+	//--Escuchar
+	escucharEn(socketEscucha);
+
+	return socketEscucha;
+}
+
+
+int enviarPaquete(int socketServidor, tPaquete* pPaqueteAEnviar, t_log* logger, char* info)
+{
+	int byteEnviados;
+	log_debug(logger, ">>> %s", info);
+
+	byteEnviados = send(socketServidor, (char *)pPaqueteAEnviar, sizeof(tHeader) + pPaqueteAEnviar->length, 0);
+
+	if (byteEnviados == -1) {
+		log_error(logger, "%s: %s", info, strerror(errno));
+		return -1;
+
+	} else {
+		return byteEnviados;
+	}
+}
+
+int recibirPaquete(int socketReceptor, tMensaje* tipoMensaje, char** psPayload, t_log* pLogger, char* sMensajeLogger)
+{
+	tHeader header;
+	int bytesRecibidosHeader = 0;
+	int bytesRecibidos = 0;
+
+	puts("Recibiendo paquete"); //TODO borrar esta linea
+	log_debug(pLogger, "<<< %s", sMensajeLogger);
+	bytesRecibidosHeader = recv(socketReceptor, &header, sizeof(tHeader), MSG_WAITALL);
+
+	if (bytesRecibidosHeader == 0) {
+		return 0;	// CERRO CONEXION
+
+	} else if (bytesRecibidosHeader < 0) {
+		log_error(pLogger, "%s: %s", sMensajeLogger,  strerror(errno));
+		return -1;	// ERROR
+	}
+	printf("Se recibe header de %d bytes. Tipo %d y largo %d \n", bytesRecibidosHeader, header.type, header.length); //TODO borrar esta linea
+	puts("Se recibe header correctamente"); //TODO borrar esta linea
+
+	*tipoMensaje = (tMensaje) header.type;
+
+	if (header.length > 0) {
+		puts("Recibiendo payload"); //TODO borrar esta linea
+
+		*psPayload = malloc(header.length);
+
+		bytesRecibidos = recv(socketReceptor, *psPayload, header.length, MSG_WAITALL);
+
+		if (bytesRecibidos < 0) {
+			log_error(pLogger, "%s: %s", sMensajeLogger,  strerror(errno));
+			free(psPayload);	// ERROR, se libera el espacio reservado
+			return -1;
+		}
+		printf("Se reciben %d bytes de payload\n", bytesRecibidos);//TODO borrar esta linea
+	}
+	puts("Paquete recibido"); //TODO borrar esta linea
+	return bytesRecibidos + bytesRecibidosHeader;
+}
+
+
 /*
- * @NAME: getSockChanged
+ * @NAME: getConnection
  * @DESC: Multiplexa con Select
  *
  * 	Valores de salida:
- * 	=0 = se agrego un nuevo soquet
- * 	<0 = Se cerro el soquet que devuelce
- * 	>0 = Cambio el soquet que devuelce
+ * 	=0 = se agrego un nuevo socket
+ * 	<0 = Se cerro el socket que devuelve
+ * 	>0 = Cambio el socket que devuelve
  */
-signed int getSockChanged(fd_set *master, fd_set *temp, int *maxSock, int sockListener, struct sockaddr_in *remoteAddress, void *buf, int bufSize, t_log* logger, char* emisor) {
+signed int getConnection(fd_set *setSockets, int *maxSock, int sockListener, tMensaje *tipoMensaje, char** payload, t_log* logger)
+{
+	int iSocket;
+	int iNewSocket;
+	int iBytesRecibidos;
+	fd_set setTemporal;
+	FD_ZERO(&setTemporal);
+	setTemporal = *setSockets;
 
-	int addressLength;
-	int i;
-	int newSock;
-	int nBytes;
-
-	*temp = *master;
-
+	struct sockaddr_in remoteAddress;
+	socklen_t addressLength;
+	puts("Pre SELECT"); //TODO borrar esta linea
 	//--Multiplexa conexiones
-	if (select(*maxSock + 1, temp, NULL, NULL, NULL ) == -1) {
+	if (select(*maxSock + 1, &setTemporal, NULL, NULL, NULL) == -1) {
 		log_error(logger, "select: %s", strerror(errno));
-		exit(1);
+		exit(EXIT_FAILURE);
 	}
-
+	puts("Post SELECT"); //TODO borrar esta linea
 	//--Cicla las conexiones para ver cual cambió
-	for (i = 0; i <= *maxSock; i++) {
+	for (iSocket = 0; iSocket <= *maxSock; iSocket++) {
+
 		//--Si el i° socket cambió
-		if (FD_ISSET(i, temp)) {
+		if (FD_ISSET(iSocket, &setTemporal)) {
 			//--Si el que cambió, es el listener
-			if (i == sockListener) {
-				addressLength = sizeof(*remoteAddress);
+
+			if (iSocket == sockListener) {
+				puts("NUEVA CONEXION");
 				//--Gestiona nueva conexión
-				newSock = accept(sockListener, (struct sockaddr *) remoteAddress, (socklen_t *) &addressLength);
-				log_trace(logger, "%s: Nueva conexion en %d", emisor, newSock);
-				if (newSock == -1)
+				iNewSocket = accept(sockListener, (struct sockaddr*) &remoteAddress, (socklen_t *) &addressLength);
+
+				if (iNewSocket == -1) {
 					log_error(logger, "accept: %s", strerror(errno));
-				else {
+
+				} else {
+					log_trace(logger, "Nueva conexion socket: %d", iNewSocket);
 					//--Agrega el nuevo listener
-					FD_SET(newSock, master);
-					if (newSock > *maxSock)
-						*maxSock = newSock;
+					FD_SET(iNewSocket, setSockets);
+
+					if (iNewSocket > *maxSock) {
+						*maxSock = iNewSocket;
+					}
 				}
+
 			} else {
 				//--Gestiona un cliente ya conectado
-				if ((nBytes = recv(i, buf, bufSize, 0)) <= 0) {
-
+				if ((iBytesRecibidos = recibirPaquete(iSocket, tipoMensaje, payload, logger, "Se recibe informacion")) <= 0) {
 					//--Si cerró la conexión o hubo error
-					if (nBytes == 0)
-						log_trace(logger, "%s: Fin de conexion de %d.", emisor, i);
-					else
+					if (iBytesRecibidos == 0) {
+						log_trace(logger, "Fin de conexion de socket %d.", iSocket);
+
+					} else {
 						log_error(logger, "recv: %s", strerror(errno));
+					}
 
 					//--Cierra la conexión y lo saca de la lista
-					close(i);
-					FD_CLR(i, master);
+					close(iSocket);
+					FD_CLR(iSocket, setSockets);
+
 				} else {
-					return i;
+					printf("Se retorna socket %d \n", iSocket);//TODO borrar esta linea
+					return iSocket;
 				}
 			}
 		}
@@ -122,164 +205,68 @@ signed int getSockChanged(fd_set *master, fd_set *temp, int *maxSock, int sockLi
 
 
 
-signed int multiplexar(fd_set *master, fd_set *temp,int *maxSock, void *buffer, int bufferSize, t_log* logger) {
-
-	int i;
+signed int multiplexar(fd_set *master, fd_set *temp, int *maxSock, tMensaje* tipoMensaje, char** buffer, t_log* logger)
+{
+	int iSocket;
 	int nBytes;
 	memcpy(temp, master, sizeof(fd_set));
 
 	//--Multiplexa conexiones
 	if (select(*maxSock + 1, temp, NULL, NULL, NULL) == -1) {
 		log_error(logger, "select: %s", strerror(errno));
-		exit(1);
+		exit(EXIT_FAILURE);
 	}
 
 	//--Cicla las conexiones para ver cual cambió
-	for (i = 0; i <= *maxSock; i++) {
-		if (FD_ISSET(i, temp)) {
+	for (iSocket = 0; iSocket <= *maxSock; iSocket++) {
+
+		if (FD_ISSET(iSocket, temp)) {
 			//--Gestiona un cliente ya conectado
-			if ((nBytes = recv(i, buffer, bufferSize, 0)) <= 0) {
+
+			if ((nBytes = recibirPaquete(iSocket, tipoMensaje, buffer, logger, "Se recibe Mensaje")) <= 0) {
 				//--Si cerró la conexión o hubo error
-				if (nBytes == 0)
-					log_trace(logger,"Planificador: Fin de conexion de %d.", i);
-				else
-					log_error(logger, "Planificador: recv: %s",
-							strerror(errno));
-				//--Cierra la conexión y lo saca de la lista
-				close(i);
-				FD_CLR(i, master);
-			} else { //Tengo info!!
-				return i;
-			}
-
-		}
-	}
-	return -1;
-}
-
-
-signed int getSockChangedNB(fd_set *master, fd_set *temp, int *maxSock, int sockListener, struct sockaddr_in *remoteAddress, void *buf, int bufSize, t_log* logger, int secs) {
-
-	int addressLength;
-	int i;
-	int newSock;
-	int nBytes;
-	struct timeval timeout;
-	int res;
-
-	timeout.tv_sec = secs;
-	timeout.tv_usec = 0;
-
-	*temp = *master;
-
-	//--Multiplexa conexiones
-	if ((res = select(*maxSock + 1, temp, NULL, NULL, &timeout)) == -1) {
-		log_error(logger, "select: %s", strerror(errno));
-		exit(1);
-	}
-
-	if (res == 0) {//--Si sale por timeout
-		return 0;
-	} else {
-		//--Cicla las conexiones para ver cual cambió
-		for (i = 0; i <= *maxSock; i++) {
-			//--Si el i° socket cambió
-			if (FD_ISSET(i, temp)) {
-				//--Si el que cambió, es el listener
-				if (i == sockListener) {
-					addressLength = sizeof(*remoteAddress);
-					//--Gestiona nueva conexión
-					newSock = accept(sockListener, (struct sockaddr *) remoteAddress, (socklen_t *) &addressLength);
-					log_trace(logger, "Nueva coneccion en %d", newSock);
-					if (newSock == -1)
-						log_error(logger, "accept: %s", strerror(errno));
-					else {
-						//--Agrega el nuevo listener
-						FD_SET(newSock, master);
-						if (newSock > *maxSock)
-							*maxSock = newSock;
-					}
+				if (nBytes == 0) {
+					log_trace(logger,"Planificador: Fin de conexion de %d.", iSocket);
 				} else {
-					//--Gestiona un cliente ya conectado
-					if ((nBytes = recv(i, buf, bufSize, 0)) <= 0) {
-
-						//--Si cerró la conexión o hubo error
-						if (nBytes == 0)
-							log_trace(logger, "Fin de conexion de %d.", i);
-						else
-							log_error(logger, "recv: %s", strerror(errno));
-
-						//--Cierra la conexión y lo saca de la lista
-						close(i);
-						FD_CLR(i, master);
-					} else {
-						return i;
-					}
+					log_error(logger, "Planificador: recv: %s", strerror(errno));
 				}
+				//--Cierra la conexión y lo saca de la lista
+				close(iSocket);
+				FD_CLR(iSocket, master);
+
+			} else { //Tengo info
+				return iSocket;
 			}
+
 		}
 	}
 	return -1;
 }
 
-void enviaMensaje(int numSock, void* message, int size, t_log* logger, char* info) {
-	log_debug(logger, ">>> %s", info);
-	if (send(numSock, message, size, 0) == -1) {
-		log_error(logger, "%s: %s", info, strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-}
-
-void mandarMensaje(int numSock, void* message, int size, t_log *logger){
-	if (send(numSock, message, size, 0) == -1) {
-		log_error(logger, "send: %s", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-}
-
-void recibeMensaje(int numSock, void* message, int size, t_log* logger, char* info) {
-	log_debug(logger, "<<< %s", info);
-	if ((recv(numSock, message, size, 0)) == -1) {
-		log_error(logger, "%s: %s", info,  strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-}
-
-void esperarMensaje(int sock, void *msj, int size, t_log* logger){
-	if ((recv(sock, msj, size, 0)) == -1) {
-			log_error(logger, "recv: %s", strerror(errno));
-			exit(EXIT_FAILURE);
-	}
-}
-
-void esperarTurno(int sock, void *msj, int size, t_log* logger){
-	esperarMensaje(sock, msj, size, logger);
-}
-
-signed int connectServer(char *ip_server, int puerto, t_log *logger, char *host) {
-
-	int sockfd; 	// Escuchar sobre sock_fd, nuevas conexiones sobre new_fd
+signed int connectToServer(char *ip_server, int puerto, t_log *logger)
+{
+	int iSocket; 					// Escuchar sobre sock_fd, nuevas conexiones sobre new_fd
 	struct sockaddr_in their_addr; 	// Información sobre mi dirección
 
-	////SETEO CONFIGURACIONES DE IP + PUERTO
-	their_addr.sin_family = AF_INET;  // Ordenación de bytes de la máquina
-	their_addr.sin_port = htons(puerto); // short, Ordenación de bytes de la	red
+	// Seteo IP y Puerto
+	their_addr.sin_family = AF_INET;  					// Ordenación de bytes de la máquina
+	their_addr.sin_port = htons(puerto); 				// short, Ordenación de bytes de la red
 	their_addr.sin_addr.s_addr = inet_addr(ip_server);
-	memset(&(their_addr.sin_zero), '\0', 8); // Poner a cero el resto de la estructura
+	memset(&(their_addr.sin_zero), '\0', 8); 			// Poner a cero el resto de la estructura
 
-	////PIDO EL SOCKET
-	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+	// Pido socket
+	if ((iSocket = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
 		log_error(logger, "socket: %s", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 
-	////INTENTO CONECTAR
-	if (connect(sockfd, (struct sockaddr *) &their_addr, sizeof their_addr) == -1) {
+	// Intento conectar
+	if (connect(iSocket, (struct sockaddr *) &their_addr, sizeof their_addr) == -1) {
 		log_error(logger, "connect: %s", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 
-	log_trace(logger, "Conectado con %s en socket %d", host, sockfd);
+	log_trace(logger, "Se realiza conexion con socket %d", iSocket);
 
-	return sockfd;
+	return iSocket;
 }

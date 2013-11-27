@@ -1,63 +1,160 @@
+/*
+ * Sistemas Operativos - Super Mario Proc RELOADED.
+ * Grupo       : C o no ser.
+ * Nombre      : protocolo.h.
+ * Descripcion : Este archivo contiene el protocolo de comunicacion entre procesos.
+ */
 
 #ifndef PROTOCOLO_H_
 #define PROTOCOLO_H_
 
-
-#include <stdint.h> //para los "int8_t"//////
-#include <unistd.h> //para que no tire warning el close(i);
+#include <stdlib.h>
+#include <stdint.h> //para los "int8_t"
 #include <string.h>
 
-//HandShakes
-#define SALUDO 1
-#define INFO 2
-#define INFO_PLANIFICADOR 22
-#define WHATS_UP 24
+#define MAX_BUFFER 1024
 
-//Acciones
-#define MOVIMIENTO 3
-#define POSICION_RECURSO 4
-#define TURNO 7
-#define SALIR 8
-#define NADA 20
-#define REPETIDO 99
+typedef struct {
+	int8_t  type;
+	int16_t length;
+} __attribute__ ((__packed__)) tHeader;
 
-//Estado
-#define BLOCK 10
-#define OTORGADO 11
-#define MUERTO_DEADLOCK 78
-#define MUERTO_ENEMIGOS 77
+typedef struct {
+	int8_t  type;
+	int16_t length;
+	char    payload[MAX_BUFFER];
+} __attribute__ ((__packed__)) tPaquete;
 
-//Movimientos
-#define ARRIBA 12
-#define DERECHA 13
-#define ABAJO 14
-#define IZQUIERDA 15
+/*
+ * Formato del tipo del paquete:
+ * 		[emisor]_[mensaje]
+ * Emisor:
+ * 		N: Nivel
+ * 		P: Personaje
+ * 		PL: Plataforma
+ *
+ * 	aviso: significa que no manda nada
+ */
+typedef enum {
+	/* Mensajes de la plataforma */
+	PL_HANDSHAKE,
+	PL_POS_RECURSO,
+	PL_OTORGA_TURNO,			// Plataforma le manda al personaje
+	PL_CONFIRMACION_MOV,  		// Plataforma le manda al personaje
+	PL_MOV_PERSONAJE, 	  		// Plataforma le manda a nivel
+	PL_DESCONECTARSE_MUERTE,	// AVISO
+	PL_MUERTO_POR_ENEMIGO,
+	PL_MUERTO_POR_DEADLOCK, 	// AVISO
+	PL_CONFIRMACION_ELIMINACION,// AVISO
+	PL_NIVEL_YA_EXISTENTE,		// AVISO
+	PL_NIVEL_INEXISTENTE,		// AVISO
+	PL_SOLICITUD_RECURSO,
+	/* Mensajes del nivel */
+	N_HANDSHAKE,
+	N_CONFIRMACION_ELIMINACION,	// AVISO
+	N_MUERTO_POR_ENEMIGO, 		// tSimbolo
+	N_PERSONAJES_DEADLOCK, 		// tSimbolo (el personaje que ya se murio)
+	N_ESTADO_PERSONAJE,   		// Los estados posibles despues del movimiento
+	N_POS_RECURSO,
+	N_DATOS,
+	N_ACTUALIZACION_CRITERIOS,
+	N_ENTREGA_RECURSO,
+	/* Mensajes del personaje */
+	P_HANDSHAKE,
+	P_MOVIMIENTO,	 			// movimiento que hace el personaje
+	P_POS_RECURSO,
+	P_SIN_VIDAS,				// manda simbolo
+	P_DESCONECTARSE_MUERTE, 	// AVISO
+	P_DESCONECTARSE_FINALIZADO,	// AVISO
+	P_SOLICITUD_RECURSO,
+	P_FIN_TURNO,				//AVISO a plataforma
+	P_FIN_PLAN_NIVELES,			//AVISO cuando se terminan todos los niveles
+	/* Mensajes comunes */
+	NO_SE_OBTIENE_RESPUESTA
+} tMensaje;
 
-//Emisor
-#define NIVEL 16
-#define PERSONAJE 17
-#define PLATAFORMA 80
+typedef int8_t tSimbolo;
 
-typedef struct{
-	int8_t type;
-	int8_t detail;
-	int8_t detail2;
-	char name;
-} message_t;
+typedef enum {
+	arriba,
+	abajo,
+	derecha,
+	izquierda
+} tDirMovimiento;
 
-typedef struct{// Desde el punto de vista del orquestador
-	int8_t type; 	// Nivel					-	Personaje
-	int8_t detail;	// Saludo/Salir
-	int	port; // Recibe puerto del nivel	-	Manda puerto del nivel
-	char ip[16]; 	// Recibe Ip				-	Manda Ip
-	char name[16]; // Nombre de nivel			-	Nombre de nivel pedido
-} orq_t;
+typedef enum {
+	RR,
+	SRDF
+} tAlgoritmo;
 
-//Para el planificador
-message_t armarMsj_return(char name, int8_t type, int8_t detail, int8_t detail2);
-void armarMsj(message_t *msj, char name, int8_t type, int8_t detail, int8_t detail2);
-//Para el orquestador
-orq_t armarOrqMsj_return(char *name, int8_t type, int8_t detail, char *ip, int port);
-void armarOrqMsj(orq_t *msj, char *name, int8_t type, int8_t detail, char *ip, int port);
+typedef enum {
+	bloqueado,
+	otorgado,
+	ok
+} tEstado;
+
+
+/*
+ * Aca se definen los payloads que se van a mandar en los paquetes
+ */
+
+typedef struct {
+	tSimbolo simbolo;
+	char* nombreNivel;
+} tHandshakePers;
+
+typedef struct {
+	char* nombreNivel;
+} tHandshakeNivel;
+
+typedef struct {
+	int8_t delay;
+	int8_t quantum;
+	tAlgoritmo algoritmo;
+} tInfoNivel;
+
+typedef struct {
+	tSimbolo recurso;
+	tSimbolo simbolo;
+} tPregPosicion;
+
+typedef struct {
+	int8_t posX;
+	int8_t posY;
+} tRtaPosicion;
+
+typedef struct {
+	tSimbolo simbolo;
+	tDirMovimiento direccion;
+} tMovimientoPers;
+
+typedef char* tPersonajesDeadlock; // un array con todos los simbolos de los personajes que se bloquearon
+
+int serializarHandshakePers(tMensaje tipoMensaje, tHandshakePers handshakePersonaje, tPaquete* pPaquete);
+tHandshakePers* deserializarHandshakePers(char * payload);
+
+int serializarInfoNivel(tMensaje tipoMensaje, tInfoNivel infoNivel, tPaquete* pPaquete);
+tInfoNivel* deserializarInfoNivel(char * payload);
+
+int serializarPregPosicion(tMensaje tipoMensaje, tPregPosicion pregPosicion, tPaquete* pPaquete);
+tPregPosicion* deserializarPregPosicion(char * payload);
+
+int serializarRtaPosicion(tMensaje tipoMensaje, tRtaPosicion pRtaPosicion, tPaquete* pPaquete);
+tRtaPosicion* deserializarRtaPosicion(char * payload);
+
+int serializarRtaPosicion(tMensaje tipoMensaje, tRtaPosicion pRtaPosicion, tPaquete* pPaquete);
+tRtaPosicion* deserializarRtaPosicion(char * payload);
+
+int serializarMovimiento(tMensaje tipoMensaje, tDirMovimiento dirMovimiento, tPaquete* pPaquete);
+tDirMovimiento* deserializarMovimiento(char * payload);
+
+int serializarMovimientoPers(tMensaje tipoMensaje, tMovimientoPers movimientoPers, tPaquete* pPaquete);
+tMovimientoPers* deserializarMovimientoPers(char * payload);
+
+int serializarEstado(tMensaje tipoMensaje, tEstado estadoPersonaje, tPaquete* pPaquete);
+tEstado* deserializarEstado(char * payload);
+
+int serializarSimbolo(tMensaje tipoMensaje, tSimbolo simbolo, tPaquete* pPaquete);
+tSimbolo* deserializarSimbolo(char * payload);
 
 #endif /* PROTOCOLO_H_ */

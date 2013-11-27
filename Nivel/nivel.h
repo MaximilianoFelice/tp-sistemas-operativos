@@ -56,6 +56,8 @@ typedef struct {
 	enemigo_t enemy;
 } threadEnemy_t;
 
+
+/*
 typedef enum movimientos_x{
 	izquierda=102,
 	derecha=103,
@@ -71,7 +73,7 @@ typedef struct {
 	enum_mov_y type_mov_y;
 	bool in_x;
 	bool in_y;
-} mov_t;
+} mov_t;*/
 typedef struct{
 	int cantidadInstancias;
 	char simbolo;
@@ -85,7 +87,7 @@ void *enemigo(void * args);
 void *deteccionInterbloqueo (void *parametro);
 //_Bool personajeMuerto(t_list *list_personajes, char name);
 //void KillPersonaje(t_list *list_personajes, char name);
-void moverme(int *victimaX, int *victimaY, int *posX, int *posY, mov_t *movimiento);
+//void moverme(int *victimaX, int *victimaY, int *posX, int *posY, mov_t *movimiento);
 //void validarPosSobreRecurso(t_list *list_items, mov_t movimiento, int *posX,int *posY);
 //void matar(enemigo_t *enemigo, pers_t *pjVictima, int indice, char*ip_plataforma, int puertoPlan);
 void actualizaPosicion(int *contMovimiento, int *posX, int *posY);
@@ -98,4 +100,5 @@ void liberarRecsPersonaje(char);
 static void personaje_destroyer(pers_t *personaje);
 //static void recurso_destroyer(char *recurso);
 
-#endif /* NIVEL_H_ */
+//#undef NIVEL_H_
+#endif //NIVEL_H_

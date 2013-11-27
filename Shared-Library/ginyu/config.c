@@ -18,7 +18,7 @@ t_config *config_try_create (char *path, char* options){
 
 	if (!file_exists (path))	//Si no existe, sale y muestra el error
 	{
-		printf("[[ERROR]] `%s` no encontrado o no disponible para la lectura.\n", path);
+		printf("[ERROR] `%s` no encontrado o no disponible para la lectura.\n", path);
 		exit(0);
 	}
 	t_config *conf = config_create (path);
@@ -30,7 +30,7 @@ t_config *config_try_create (char *path, char* options){
     {
     	if (!config_get_string_value (conf, token)) //Si no existe, imprime el error
     	{
-			printf("[[ERROR]] No se encontro `%s` en `%s`\n", token, path);
+			printf("[ERROR] No se encontro `%s` en `%s`\n", token, path);
 			exit(0); //Linux limpia la memoria cuando se cierra, asi que no me gasto en hacer free
 		}
         token=strtok (NULL,","); //Pasa al siguiente token

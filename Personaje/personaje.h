@@ -23,15 +23,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
 #include <pthread.h>
-#include <stdlib.h>
 #include <netinet/in.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include <stdio.h>
 #include <unistd.h>
-#include <string.h>
 #include <signal.h>
 
 typedef struct Nivel {
@@ -45,19 +43,78 @@ typedef struct ThreadNivel{
 	nivel_t nivel;
 } threadNivel_t;
 
-void *jugar(void *argumentos);
-int  calculaMovimiento(int posX, int posY, int posRX, int posRY);
-void handshake_orq(int *sockOrq, int *puertoPlanif, char*ip_planif, char *nom_nivel);
-void handshake_planif(int *sockPlan, int *posX, int *posY);
-void actualizaPosicion(int movimiento, int *posX, int *posY);
-void morir(char* causaMuerte, int *currObj);
-bool devolverRecursos(int *sockPlan, message_t *message);
+typedef struct PersonajeGlobal{
+	char simbolo;
+	int vidas;
+	int vidasMaximas;
+	unsigned short puertoOrquestador;
+	t_list *listaNiveles;
+	char * nombre;
+	char * ipOrquestador;
+
+} personajeGlobal_t;
+
+typedef struct PersonajeIndividual{
+	int socketPlataforma;
+	int objetivoActual; //objetivo actual
+	int posX;
+	int posY;
+	int posRecursoX;
+	int posRecursoY;
+	nivel_t *nivelQueJuego;
+
+} personajeIndividual_t;
+
+void notificarFinPlanNiveles(int socketOrquestador);
+
+void destruirArchivoConfiguracion(t_config *configPersonaje);
+
+void cargarArchivoConfiguracion(char* archivoConfiguracion);
+
+void obtenerIpYPuerto(char *dirADividir, char * ip,  char * puerto);
+
+static void nivel_destroyer(nivel_t*nivel);
+
+void *jugar(void *args);
+
+void manejarDesconexiones(personajeIndividual_t personajePorNivel, bool murioPersonaje, bool* finalice);
+
+bool personajeEstaMuerto(bool murioPersonaje);
+
+bool conseguiRecurso(personajeIndividual_t personajePorNivel);
+
+void moverAlPersonaje(personajeIndividual_t* personajePorNivel);
+
+void calcularYEnviarMovimiento(personajeIndividual_t personajePorNivel);
+
+void recibirMensajeTurno(int socketPlataforma);
+
+void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurso);
+
+bool estaMuerto(tMensaje tipoMensaje, bool *murioPj);
+
+void handshake_plataforma(personajeIndividual_t* personajePorNivel);
+
+void reintentarHandshake(int socketPlataforma, tPaquete* pkgHandshake);
+
+void cerrarConexiones(int * socketPlataforma);
+
+void devolverRecursosPorFinNivel(int socketPlataforma);
+
+void devolverRecursosPorMuerte(int socketPlataforma);
+
 bool validarSenial(bool *murioPersonaje);
-bool estaMuerto(int8_t, bool *);
-void cerrarConexiones(int *, int *);
-void aumentarVidas();
+
 void morirSenial();
+
+void aumentarVidas();
+
 void restarVidas();
-static void nivel_destroyer(nivel_t* nivel);
+
+int calculaMovimiento(personajeIndividual_t personajePorNivel);
+
+void actualizaPosicion(tDirMovimiento* movimiento, personajeIndividual_t *personajePorNivel);
+
+
 
 #endif /* PERSONAJE_H_ */

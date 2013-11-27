@@ -10,16 +10,14 @@
 
 pthread_mutex_t semPersonaje;
 
-char simbolo;
-int vidas;
+personajeGlobal_t personaje;
 t_config *configPersonaje;
-t_list *listaNiveles;
 t_log *logger;
 char * ip_plataforma;
 char * puerto_orq;
-char * nombre_pj;
+
 int r = 0;
-bool muertePorSenial=false; //Cuando se activa, se cierra t0d0, no importan las vidas
+bool muertePorSenial=false; //Cuando se activa, se cierra t0d0, no importan las vidas  (todo revisar)
 bool inicializeVidas = false;
 
 int main(int argc, char*argv[]) {
@@ -34,74 +32,20 @@ int main(int argc, char*argv[]) {
 	// Inicializa el log.
 	logger = logInit(argv, "PERSONAJE");
 
-	// TODO CREAR FUNCION QUE CARGUE LAS VARIABLES DE CONFIG
-	// ======================
+
 	// Creamos el archivo de Configuración
-	// FIXME Implementar validacion de la existencia de las variables globales
-	configPersonaje = config_try_create(argv[1], "nombre,simbolo,planDeNiveles,vidas,orquestador");
-
-	// Obtenemos el nombre - global de solo lectura
-	nombre_pj = config_get_string_value(configPersonaje, "nombre");
-
-	// Obtenemos el simbolo - global de solo lectura
-	simbolo = config_get_string_value(configPersonaje, "simbolo")[0];
-
-	// Obetenemos los datos del orquestador
-	char * dir_orq = config_get_string_value(configPersonaje, "orquestador");
-	//todo implementa funcion que divida el ip del puerto
-	ip_plataforma  = strtok(dir_orq, ":"); // Separar ip - Global
-	puerto_orq 	   = strtok(NULL, ":"); // Separar puerto - Local
-
-	char** niveles = config_try_get_array_value(configPersonaje, "planDeNiveles");
-	t_list* listaObjetivos;
-	listaNiveles = list_create();
-	int j, i = 0;
-	nivel_t aux;
-	// ======================
-
-	char *stringABuscar = malloc(sizeof(char) * 25);
-
-	int cantThreads = 0;
-
-	//Cuento la cantidad de threads que voy a tirar: uno por cada nivel
-	while (niveles[cantThreads] != NULL ) {
-		cantThreads++;
-	}
-
+	cargarArchivoConfiguracion(argv[1]);
+	int cantidadNiveles =list_size(personaje.listaNiveles);
 	threadNivel_t *hilosNiv;
-	hilosNiv = calloc(cantThreads, sizeof(threadNivel_t));
+	hilosNiv = calloc(cantidadNiveles, sizeof(threadNivel_t));
 
-	//Armamos lista de niveles con sus listas de objetivos del config
-	while (niveles[i] != NULL ) {  //Cicla los niveles
-
-		sprintf(stringABuscar, "obj[%s]", niveles[i]); //Arma el string a buscar
-
-		//TODO pasarlo a la funcion que cargue las variables globales del archivo de configuracion
-		// =====================
-		char** objetivos = config_try_get_array_value(configPersonaje,
-				stringABuscar);        //Lo busco
-
-		j = 0;
-
-		//Por cada uno, genero una lista
-		listaObjetivos = list_create();
-		while (objetivos[j] != NULL ) { //Vuelvo a ciclar por objetivos
-			list_add_new(listaObjetivos, objetivos[j], sizeof(char)); //Armo la lista
-			j++;
-		}
-
-		aux.nomNivel = malloc(sizeof(char) * strlen(niveles[i]));
-		strcpy(aux.nomNivel, niveles[i]);
-		aux.Objetivos = listaObjetivos;
-		list_add_new(listaNiveles, &aux, sizeof(nivel_t));
-
+	int i=0;
+	int indiceNivel;
+	for( indiceNivel = 0;  indiceNivel < cantidadNiveles; indiceNivel ++) {
 		//creo estructura del nivel que va a jugar cada hilo
-		hilosNiv[i].nivel.nomNivel = aux.nomNivel;
-		hilosNiv[i].nivel.Objetivos = aux.Objetivos;
-		hilosNiv[i].nivel.num_of_thread = i;
-
-		// =====================
-
+		hilosNiv[i].nivel.nomNivel = ((nivel_t*) list_get_data(personaje.listaNiveles,indiceNivel))->nomNivel;
+		hilosNiv[i].nivel.Objetivos = ((nivel_t*) list_get_data(personaje.listaNiveles,	indiceNivel))->Objetivos;
+		hilosNiv[i].nivel.num_of_thread = indiceNivel;
 
 		//Tiro el hilo para jugar de cada nivel
 		if (pthread_create(&hilosNiv[i].thread, NULL, jugar, (void *) &hilosNiv[i].nivel)) {
@@ -111,26 +55,27 @@ int main(int argc, char*argv[]) {
 
 		i++;
 	}
-	free(stringABuscar);
 
 	char *join_return;
-	for (i = 0; i < cantThreads; i++) {
+	for (i = 0; i < cantidadNiveles; i++) {
 		pthread_join(hilosNiv[i].thread, (void**)&join_return);
 	}
 
-	//TODO msj al orquestador FIN_PLAN_NIVELES.
 	//Cuando terminaron todos los niveles. Manda msj al orquestador de que ya termino todos sus niveles
+	int socketOrquestador = connectToServer(ip_plataforma, atoi(puerto_orq), logger);
+	notificarFinPlanNiveles(socketOrquestador);
+	cerrarConexiones(&socketOrquestador);
 
 	if(join_return != NULL)
-		log_debug(logger, "El personaje %c %s", simbolo, join_return);
+		log_debug(logger, "El personaje %c %s", personaje.simbolo, join_return);
 
 	log_destroy(logger);
-	config_destroy(configPersonaje); // TODO PASAR A IMPLEMENTACION GLOBAL
-	for (j = 0; j < list_size(listaNiveles); j++) {
-		nivel_t *aux = (nivel_t *) list_get(listaNiveles, j);
+	destruirArchivoConfiguracion(configPersonaje);
+	for (i = 0; i < list_size(personaje.listaNiveles); i++) {
+		nivel_t *aux = (nivel_t *) list_get(personaje.listaNiveles, i);
 		list_destroy(aux->Objetivos);
 	}
-	list_destroy_and_destroy_elements(listaNiveles, (void *) nivel_destroyer);
+	list_destroy_and_destroy_elements(personaje.listaNiveles, (void *) nivel_destroyer);
 
 	pthread_mutex_destroy(&semPersonaje);
 
@@ -138,6 +83,78 @@ int main(int argc, char*argv[]) {
 
 }
 
+
+void notificarFinPlanNiveles(int socketOrquestador){
+	tPaquete pkgDevolverRecursos;
+	pkgDevolverRecursos.type   = P_FIN_PLAN_NIVELES;
+	pkgDevolverRecursos.length = 0;
+	enviarPaquete(socketOrquestador, &pkgDevolverRecursos, logger, "Se notifica a la plataforma la finalizacion del plan de niveles del personaje");
+
+}
+
+void destruirArchivoConfiguracion(t_config *configPersonaje){
+	config_destroy(configPersonaje);
+}
+
+void cargarArchivoConfiguracion(char* archivoConfiguracion){
+	//valida que los campos basicos esten en el archivo
+	configPersonaje = config_try_create(archivoConfiguracion, "nombre,simbolo,planDeNiveles,vidas,orquestador");
+
+	// Obtenemos el nombre del personaje - global de solo lectura
+	personaje.nombre = config_get_string_value(configPersonaje, "nombre");
+
+	// Obtenemos el simbolo - global de solo lectura
+	personaje.simbolo = config_get_string_value(configPersonaje, "simbolo")[0];
+
+	personaje.vidasMaximas = config_get_int_value(configPersonaje, "vidas"); //Obtenemos las vidas
+
+	// Obetenemos los datos del orquestador
+	char * dir_orq = config_get_string_value(configPersonaje, "orquestador");
+	obtenerIpYPuerto(dir_orq, ip_plataforma, puerto_orq);
+
+	//Obtenemos el plan de niveles
+	char** niveles = config_try_get_array_value(configPersonaje, "planDeNiveles");
+	t_list* listaObjetivos;
+	personaje.listaNiveles = list_create();
+	int j, i = 0;
+	nivel_t aux;
+
+	char *stringABuscar = malloc(sizeof(char) * 25);
+
+
+	//Armamos lista de niveles con sus listas de objetivos del config
+	while (niveles[i] != NULL ) {  //Cicla los niveles
+
+		sprintf(stringABuscar, "obj[%s]", niveles[i]); //Arma el string a buscar
+
+		char** objetivos = config_try_get_array_value(configPersonaje, stringABuscar);
+
+		j = 0;
+
+		//Por cada nivel, genero una lista de objetivos
+		listaObjetivos = list_create();
+		while (objetivos[j] != NULL ) { //Por cada objetivo
+			list_add_new(listaObjetivos, objetivos[j], sizeof(char)); //Agrego a la lista
+			j++;
+		}
+
+		//agregamos el nivel a la lista de niveles
+		aux.nomNivel = malloc(sizeof(char) * strlen(niveles[i]));
+		strcpy(aux.nomNivel, niveles[i]);
+		aux.Objetivos = listaObjetivos;
+		list_add_new(personaje.listaNiveles, &aux, sizeof(nivel_t));
+
+		i++;
+	}
+	free(stringABuscar);
+
+}
+
+void obtenerIpYPuerto(char *dirADividir, char * ip,  char * puerto){
+	ip_plataforma  = strtok(dirADividir, ":"); // Separar ip
+	puerto_orq 	   = strtok(NULL, ":"); // Separar puerto
+
+}
 static void nivel_destroyer(nivel_t*nivel) {
 	free(nivel->nomNivel);
 	free(nivel);
@@ -146,222 +163,92 @@ static void nivel_destroyer(nivel_t*nivel) {
 void *jugar(void *args) {
 
 	//Recupero la informacion del nivel en el que juega el personaje
-	nivel_t *nivelQueJuego;
-	nivelQueJuego = (nivel_t *) args;
 
-	int currObj; //objetivo actual
-	int posX = 0, posY = 0;
-	int posRecursoX, posRecursoY;
 
-	//Variables para conectarme al orquestador y planificador
-	int sockOrq, sockPlan;
 
-	//fixme el socket orquestador deberia ser global y llamarse socketPlataforma,  el socket del planificador no deberia existir
+	personajeIndividual_t personajePorNivel;
 
-	char * ip_planif = malloc(sizeof(char) * 23);  //TODO hacer free
-	int puertoPlanif;
+	personajePorNivel.posX=0;
+	personajePorNivel.posY=0;
+	personajePorNivel.nivelQueJuego = (nivel_t *) args;
+
 	bool finalice = false;
 	bool murioPersonaje = false;
 
-	while (1) {//TODO BORRAR este while, no se usa
+	while (1) {//FIXME CAMBIAR este while, para adaptarlo a la ejecucion de koopa
 
-
-		// TODO Armar una funcion que genere las variables globales con el archivo de config.
-		// ============================== PASAR A VARIABLE GLOBAL
 		if (!inicializeVidas) { //Si no inicialice vidas, las inicializo
-			vidas = config_get_int_value(configPersonaje, "vidas"); //Obtenemos las vidas
+			personaje.vidas=personaje.vidasMaximas;
 			inicializeVidas = true; //Esta variable solo se pone en false cuando el chaboncito se queda sin vidas y quiere reiniciar
 			//reiniciar=false;
 		}
-		// ==============================
 
 		//Setea los flags del inicio
 		finalice = false;
 		murioPersonaje = false;
 
-		while (vidas > 0) {
+		while (personaje.vidas  > 0) {
 
 			murioPersonaje = false;
 			finalice = false;
 
-			log_info(logger, "Vidas de %c: %d", simbolo, vidas);
-			message_t msjPlan;
+			log_info(logger, "Vidas de %c: %d", personaje.simbolo, personaje.vidas);
 
-			// FIXME La conexion se debe realizar fuera del while, ya que la unica posibilidad de que
-			// se reinicie la conexion es que el personaje se quede sin vidas y desee reiniciar.
-			// Hay que chequear, para ello, que al morir el personaje realize las acciones necesarias.
-			sockOrq = connectServer(ip_plataforma, atoi(puerto_orq), logger, "orquestador");
+			// todo Hay que chequear que al morir el personaje realize las acciones necesarias.
+			personajePorNivel.socketPlataforma= connectToServer(ip_plataforma, atoi(puerto_orq), logger);
 
-			handshake_orq(&sockOrq, &puertoPlanif, ip_planif, nivelQueJuego->nomNivel);
+			handshake_plataforma(&personajePorNivel);
 
-			//todo sacar el coonect server y usar directamente el sockOrq
-			// =======================
-			sockPlan = connectServer(ip_plataforma, puertoPlanif, logger, "planificador");
-
-			handshake_planif(&sockPlan, &posX, &posY);
-			// =======================
 
 			// Por cada objetivo del nivel,
-			for (currObj=0; currObj < list_size(nivelQueJuego->Objetivos); currObj++) {
+			for (personajePorNivel.objetivoActual=0; (personajePorNivel.objetivoActual < list_size(personajePorNivel.nivelQueJuego->Objetivos)) && (!personajeEstaMuerto(murioPersonaje)); personajePorNivel.objetivoActual++) {
 
 				murioPersonaje = false;
 
 				//agarra un recurso de la lista de objetivos del nivel
-				char* recurso = (char*) list_get_data(nivelQueJuego->Objetivos,	currObj);
+				char* recurso = (char*) list_get_data(personajePorNivel.nivelQueJuego->Objetivos,	personajePorNivel.objetivoActual);
 
-				//TODO pasar a una funcion externa el pedido
-				// =======================
-				//pide la posicion del recurso
-				msjPlan.type = PERSONAJE;
-				msjPlan.detail = POSICION_RECURSO;
-				msjPlan.detail2 = *recurso;
-				msjPlan.name = simbolo;
+				pedirPosicionRecurso(&personajePorNivel, recurso);
 
-				enviaMensaje(sockPlan, &msjPlan, sizeof(message_t), logger,"Solicitud de Posicion del recurso");
-
-				recibeMensaje(sockPlan, &msjPlan, sizeof(message_t), logger,"Recibo posicion de recurso");
-
-
-				//valida que lo que recibe sea una posicion
-
-				if (msjPlan.type == POSICION_RECURSO) {
-					posRecursoX = msjPlan.detail;
-					posRecursoY = msjPlan.detail2;
-				} else {
-					log_error(logger,"Llegaron (%d, %d, %c, %d) cuando debía llegar POSICION_RECURSO", msjPlan.type, msjPlan.detail, msjPlan.detail2,msjPlan.name);
-					exit(EXIT_FAILURE);
-				}
-
-
-				// =======================
-
-
-				while (1) {
+				while (!conseguiRecurso(personajePorNivel)) {
 
 					//FIXME modificar la funcion de muerte por senal y que lo mate y llame a una funcion de muerte que pare to do y pregunte si quiere volver a jugar
-					if (validarSenial(&murioPersonaje) || vidas<=0)
+					if (validarSenial(&murioPersonaje) || personaje.vidas<=0)
 						break;
 
 					//Espera que el planificador le de el turno
-					recibeMensaje(sockPlan, &msjPlan, sizeof(message_t), logger, "Espero turno");
+					recibirMensajeTurno(personajePorNivel.socketPlataforma);
 
 					//fixme ver si son bloqueantes y si los necesito
-					if (validarSenial(&murioPersonaje) || vidas<=0)
+					if (validarSenial(&murioPersonaje) || personaje.vidas<=0)
 						break;
-
-					//TODO transformarlo en una funcion validar Mensaje del Turno()
-					// =======================
-					//Valido que el mensaje de turno sea correcto
-					if (msjPlan.detail != TURNO) {
-						log_error(logger, "Llegaron (detail: %d, detail2: %d, name: %d, type: %d) cuando debía llegar TURNO",
-								msjPlan.detail, msjPlan.detail2, msjPlan.name,msjPlan.type);
-						exit(EXIT_FAILURE);
-					}
 
 					log_info(logger, "Habemus turno");
 
-					// =======================
+					//El personaje se mueve
+					moverAlPersonaje(&personajePorNivel);
 
-					//TODO refactorizar a una funcion  de mover al personaje
-					// =======================
-					int mov;
-
-						//TODO refactorizar a una funcion de envio me mensaje de movimiento
-						// =======================
-						//TODO generar funcion de envio de mensaje al planificador
-						// Armamos mensaje de movimiento a realizar con el recurso que necesitamos.
-						msjPlan.type = PERSONAJE;
-						msjPlan.detail = MOVIMIENTO;
-						msjPlan.detail2 = mov = calculaMovimiento(posX, posY,posRecursoX, posRecursoY);
-						msjPlan.name = *recurso;
-
-						//Aviso a planificador que me movi
-						enviaMensaje(sockPlan, &msjPlan, sizeof(msjPlan), logger, "Requerimiento de Movimiento");
-
-						recibeMensaje(sockPlan, &msjPlan, sizeof(msjPlan), logger, "Confirmación de movimiento");
-
-						// =======================
-
-					//TODO VERIFICAR si chequea aca si esta muerto por un enemigo y que pasa cuando sale del while y entra en el for
-					if(estaMuerto(msjPlan.detail, &murioPersonaje))
-						break;
-
-					//Actualizo mi posición y de acuerdo a eso armo mensaje de TURNO
-					actualizaPosicion(mov, &posX, &posY);
-
-					if (msjPlan.type != MOVIMIENTO) {
-						log_error(logger, "Llegaron (detail: %d, detail2:%d, name:%c, type:%d) cuando debía llegar MOVIMIENTO",
-								  msjPlan.detail, msjPlan.detail2, msjPlan.name, msjPlan.type);
-						exit(EXIT_FAILURE);
-					}
-
-					//Si llego al recurso no pide otro turno, solo sale del while a buscar el siguiente recurso, si puede.
-					if (posY == posRecursoY && posX == posRecursoX)
-						break;
-					//TODO: si esta bloqueado por un recurso, el planificador no le confirma el turno. REVISAR TODO
-					else { //Si no llego al recurso sigue moviéndose
-
-						//No llegué al recurso
-						msjPlan.type = PERSONAJE;
-						msjPlan.detail = TURNO;
-
-						enviaMensaje(sockPlan, &msjPlan, sizeof(msjPlan), logger, "Fin de turno");
-					}
-
-				} //Fin de while(1) de busqueda de un recurso
-
-				if (murioPersonaje || muertePorSenial || vidas<=0) //sale del for
-					break;
+				}
 
 			} //Fin de for de objetivos
 
-			//FIXME no deberia cerrar todas las conexiones hasta que se decide que no quiere reiniciar el juego
-			//=======================
-			if (!murioPersonaje) {
-				finalice = true;
-				devolverRecursos(&sockPlan, &msjPlan);
-				cerrarConexiones(&sockPlan, &sockOrq);
-			}
+			manejarDesconexiones(personajePorNivel, murioPersonaje, &finalice);
 
-			if(vidas <= 0){
-				devolverRecursos(&sockPlan, &msjPlan);
-				cerrarConexiones(&sockPlan, &sockOrq);
-			}
-
-			//FIXME DEBERIA restarle una vida sola en lugar de matarlo completamente
-			if(muertePorSenial){
-				devolverRecursos(&sockPlan, &msjPlan);
-				cerrarConexiones(&sockPlan, &sockOrq);
-			}
-			//=======================
-
-			if(murioPersonaje){
-				if (vidas<=0) { //Si me quede sin vidas armo un mensaje especial para que el planificador libere memoria
-					//TODO preguntar si tiene q reiniciar o no - contemplar estas posibilidades en la funcion de muerte
-					//TODO si dice q no = > finalice=true
-					armarMsj(&msjPlan, simbolo, PERSONAJE, SALIR, MUERTO_ENEMIGOS);
-					enviaMensaje(sockPlan, &msjPlan, sizeof(msjPlan), logger, "Salida al planificador");
-					recibeMensaje(sockPlan, &msjPlan, sizeof(msjPlan), logger, "Recibo confirmacion del planificador");
-				}
-				vidas--;
-				log_debug(logger, "Me han matado :/");
-				cerrarConexiones(&sockPlan, &sockOrq);
-			}
 
 			if(muertePorSenial || finalice)
 				break;
 
 		} //Fin del while(vidas>0)
 
-		//TODO borrar
-		if (finalice || muertePorSenial || vidas<=0)
+		//TODO borrar cuando sepamos usar bien las senales
+		if (finalice || muertePorSenial || personaje.vidas<=0)
 			break;
 
 	} //Fin de while(1) de control de reinicio del personaje TODO Borrar
 
 	//Aqui siempre va a terminar porque: termino su nivel bien; se cerro el proceso por señal; se acabaron sus vidas y no quiere reiniciar
 
-	if (vidas<=0) {
+	if (personaje.vidas<=0) {
 		char *exit_return;
 		exit_return = strdup("se ha quedado sin vidas y murio :'(");
 		pthread_exit((void *)exit_return);
@@ -378,95 +265,243 @@ void *jugar(void *args) {
 
 }
 
-bool estaMuerto(int8_t detail, bool *murioPj){//FIXME no deberia devolver nada porque ya pisa el valor y se usa una sola vez
-	if(detail == MUERTO_DEADLOCK)
+void manejarDesconexiones(personajeIndividual_t personajePorNivel, bool murioPersonaje, bool* finalice){
+	if (!murioPersonaje) {
+		*finalice = true;
+		devolverRecursosPorFinNivel(personajePorNivel.socketPlataforma);
+		cerrarConexiones(&personajePorNivel.socketPlataforma);
+	}
+
+	if(personaje.vidas <= 0){
+		devolverRecursosPorMuerte(personajePorNivel.socketPlataforma);
+		cerrarConexiones(&personajePorNivel.socketPlataforma);
+	}
+
+	//FIXME DEBERIA restarle una vida sola en lugar de matarlo completamente ?? REVISAR
+	if(muertePorSenial){
+		devolverRecursosPorMuerte(personajePorNivel.socketPlataforma);
+		cerrarConexiones(&personajePorNivel.socketPlataforma);
+	}
+
+	if(murioPersonaje){
+		if (personaje.vidas<=0) {
+			//Si me quede sin vidas armo un mensaje especial para que el planificador libere memoria
+			//TODO preguntar si tiene q reiniciar o no - contemplar estas posibilidades en la funcion de muerte
+			//TODO si dice q no = > finalice=true
+
+			devolverRecursosPorMuerte(personajePorNivel.socketPlataforma);
+		}
+		personaje.vidas--;
+		log_debug(logger, "Me han matado :/");
+		cerrarConexiones(&personajePorNivel.socketPlataforma);
+	}
+
+}
+bool personajeEstaMuerto(bool murioPersonaje){
+	//si esta muerto por alguna señal o porque se quedo sin vidas
+	return (murioPersonaje || muertePorSenial || personaje.vidas<=0);
+}
+
+bool conseguiRecurso(personajeIndividual_t personajePorNivel){
+	return ((personajePorNivel.posY == personajePorNivel.posRecursoY) && (personajePorNivel.posX == personajePorNivel.posRecursoX));
+}
+
+void moverAlPersonaje(personajeIndividual_t* personajePorNivel){
+	tDirMovimiento  mov;
+
+	calcularYEnviarMovimiento(*personajePorNivel);
+
+	//Actualizo mi posición y de acuerdo a eso armo mensaje de TURNO
+	actualizaPosicion(&mov, personajePorNivel);
+
+	/*
+	 Para que se hace esto?? hace falta avisarle a la plataforma que no alcanzo el recurso?
+	 Si lo alcanzo le aviso?
+	 */
+
+	//El personaje no llego al recurso
+	tPaquete pkgFinTurno;
+	pkgFinTurno.type   = P_FIN_TURNO;
+	pkgFinTurno.length = 0;
+	enviarPaquete(personajePorNivel->socketPlataforma, &pkgFinTurno, logger, "Fin de turno del personaje");
+
+}
+
+void calcularYEnviarMovimiento(personajeIndividual_t personajePorNivel){
+	tMensaje tipoMensaje;
+	tMovimientoPers movimientoAEnviar;
+	movimientoAEnviar.simbolo=personaje.simbolo;
+	movimientoAEnviar.direccion=calculaMovimiento(personajePorNivel);
+
+	tPaquete pkgMovimiento;
+	//serializarMovimientoPers(tMensaje tipoMensaje, tMovimientoPers movimientoPers, tPaquete* pPaquete)
+	serializarMovimientoPers(P_MOVIMIENTO, movimientoAEnviar, &pkgMovimiento);
+
+	enviarPaquete(personajePorNivel.socketPlataforma, &pkgMovimiento, logger, "Envio pedido de movimiento del personaje");
+
+	char* sPayload;
+	recibirPaquete(personajePorNivel.socketPlataforma, &tipoMensaje, &sPayload, logger, "Recibo confirmacion del movimiento");
+
+	if (tipoMensaje != PL_CONFIRMACION_MOV){
+
+		//todo verificar excepcions
+		//TODO VERIFICAR si chequea aca si esta muerto por un enemigo y que pasa cuando sale del while y entra en el for
+		/*if(estaMuerto(msjPlan.detail, &murioPersonaje))
+			break;*/
+
+		log_error(logger, "Llego un mensaje (tipoMensaje: %d) cuando debia llegar PL_CONFIRMACION_MOV", tipoMensaje);
+		exit(EXIT_FAILURE);
+	}
+
+}
+
+void recibirMensajeTurno(int socketPlataforma){
+	tMensaje tipoMensaje;
+	char* sPayload;
+	recibirPaquete(socketPlataforma, &tipoMensaje, &sPayload, logger, "Se le otorgo un turno al personaje");
+
+	if (tipoMensaje != PL_OTORGA_TURNO){
+		log_error(logger, "Llego un mensaje (tipoMensaje: %d) cuando debia llegar PL_OTORGA_TURNO", tipoMensaje);
+		exit(EXIT_FAILURE);
+	}
+
+}
+
+
+void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurso){
+
+	tMensaje tipoMensaje;
+	tPregPosicion solicitudRecurso;
+	solicitudRecurso.simbolo=personaje.simbolo;
+	solicitudRecurso.recurso= *recurso;
+
+	tPaquete pkgSolicitudRecurso;
+	serializarPregPosicion(PL_SOLICITUD_RECURSO, solicitudRecurso, &pkgSolicitudRecurso);
+
+	enviarPaquete(personajePorNivel->socketPlataforma, &pkgSolicitudRecurso, logger, "Solicito la posicion de un recurso");
+
+	char* sPayload;
+	recibirPaquete(personajePorNivel->socketPlataforma, &tipoMensaje, &sPayload, logger, "Recibo posicion del recurso");
+
+	tRtaPosicion* rtaSolicitudRecurso;
+	rtaSolicitudRecurso = deserializarRtaPosicion(sPayload);
+
+	if (tipoMensaje != PL_CONFIRMACION_MOV){
+
+		log_error(logger, "Llego un mensaje (tipoMensaje: %d) cuando debia llegar PL_CONFIRMACION_MOV", tipoMensaje);
+		exit(EXIT_FAILURE);
+	}
+
+
+	personajePorNivel->posRecursoX = rtaSolicitudRecurso->posX;
+	personajePorNivel->posRecursoY = rtaSolicitudRecurso->posY;
+
+}
+
+bool estaMuerto(tMensaje tipoMensaje, bool *murioPj){
+	//FIXME no deberia devolver nada porque ya pisa el valor
+	//no se usa
+	if(tipoMensaje == PL_MUERTO_POR_DEADLOCK)
 		return (*murioPj = true);
-	if(detail == MUERTO_ENEMIGOS)
+	if(tipoMensaje == PL_MUERTO_POR_ENEMIGO)
 		return (*murioPj = true);
 	return (*murioPj =false);
 }
 
-void handshake_planif(int *sockPlan, int *posX, int *posY) {
-	message_t msjPlan;
-	msjPlan.type = PERSONAJE;
-	msjPlan.detail = SALUDO;
-	msjPlan.name = simbolo;
+void handshake_plataforma(personajeIndividual_t* personajePorNivel){
+	tMensaje tipoMensaje;
+	tHandshakePers handshakePers;
+	handshakePers.simbolo = personaje.simbolo;
+	handshakePers.nombreNivel = malloc(sizeof(personajePorNivel->nivelQueJuego->nomNivel));
+	strcpy(handshakePers.nombreNivel, "unNombre");
+	/* Se crea el paquete */
+	tPaquete pkgHandshake;
+	serializarHandshakePers(P_HANDSHAKE, handshakePers, &pkgHandshake);
 
-	enviaMensaje(*sockPlan, &msjPlan, sizeof(message_t), logger, "Envia SALUDO al planificador");
+	enviarPaquete(personajePorNivel->socketPlataforma, &pkgHandshake, logger, "Se envia saludo a la plataforma");
 
-	recibeMensaje(*sockPlan, &msjPlan, sizeof(message_t), logger, "Recibo SALUDO del planificador");
+	char* sPayload;
+	recibirPaquete(personajePorNivel->socketPlataforma, &tipoMensaje, &sPayload, logger, "Recibo si existe el nivel solicitado");
 
-	if (msjPlan.type == SALUDO) {
-		*posX = msjPlan.detail;
-		*posY = msjPlan.detail2;
-	} else {
-		log_error(logger, "Tipo de msj incorrecto: se esperaba SALUDO");
+	//Recibo un aviso de que existe o no el nivel
+	if (tipoMensaje == PL_NIVEL_INEXISTENTE){
+		reintentarHandshake(personajePorNivel->socketPlataforma, &pkgHandshake);
+	}
+}
+
+void reintentarHandshake(int socketPlataforma, tPaquete* pkgHandshake){
+
+	cerrarConexiones(&socketPlataforma);
+
+	sleep(800); //espero un poquito antes de conectarme de nuevo
+
+	socketPlataforma= connectToServer(ip_plataforma, atoi(puerto_orq), logger);
+
+	enviarPaquete(socketPlataforma, pkgHandshake, logger, "Se envia saludo a la plataforma");
+
+	tMensaje tipoMensaje;
+	char* sPayload;
+	recibirPaquete(socketPlataforma, &tipoMensaje, &sPayload, logger, "Recibo estado en el que quedo el personaje");
+
+	//Recibo un aviso de que existe o no el nivel
+	if (tipoMensaje == PL_NIVEL_INEXISTENTE){
+		reintentarHandshake(socketPlataforma, pkgHandshake);
+	}
+}
+
+void cerrarConexiones(int * socketPlataforma){
+	close(*socketPlataforma);
+	log_debug(logger, "Cierro conexion con la plataforma");
+}
+/*
+ *
+ * lo comento porque todavia no se uso
+ *
+ *
+ *
+void morir(char* causaMuerte, personajeIndividual_t personajePorNivel) {
+	log_info(logger, "%s murio por: %s", personaje.nombre, causaMuerte);
+	*personajePorNivel.objetivoActual=1000;
+	personaje.vidas--;
+}*/
+
+
+void devolverRecursosPorFinNivel(int socketPlataforma) {
+	tPaquete pkgDevolverRecursos;
+	pkgDevolverRecursos.type   = P_DESCONECTARSE_FINALIZADO;
+	pkgDevolverRecursos.length = 0;
+	enviarPaquete(socketPlataforma, &pkgDevolverRecursos, logger, "Se liberan los recursos del personaje por terminar el nivel");
+
+	tMensaje tipoMensaje;
+	char* sPayload;
+	recibirPaquete(socketPlataforma, &tipoMensaje, &sPayload, logger, "Recibo confirmacion de salida y liberacion de recursos");
+
+	if (tipoMensaje != PL_CONFIRMACION_ELIMINACION) {
+		log_error(logger, "Tipo de mensaje incorrecto, se esperaba PL_CONFIRMACION_ELIMINACION y llego %d", tipoMensaje);
 		exit(EXIT_FAILURE);
 	}
+
+	log_trace(logger, "Los recursos fueron liberados por conclusion del nivel");
+
 }
 
-void handshake_orq(int *sockOrq, int *puertoPlanif, char*ip_planif, char *nom_nivel){
-	orq_t msjOrq;
-	msjOrq.type = PERSONAJE;
-	msjOrq.detail = SALUDO;
-	msjOrq.ip[0] = simbolo;
-	strcpy(msjOrq.name, nom_nivel);
+void devolverRecursosPorMuerte(int socketPlataforma){
+	tPaquete pkgDevolverRecursos;
+	pkgDevolverRecursos.type   = P_DESCONECTARSE_MUERTE;
+	pkgDevolverRecursos.length = 0;
+	enviarPaquete(socketPlataforma, &pkgDevolverRecursos, logger, "Se liberan los recursos del personaje por muerte del personaje");
 
-	enviaMensaje(*sockOrq, &msjOrq, sizeof(orq_t), logger, "Envio de SALUDO al orquestador");
+	tMensaje tipoMensaje;
+	char* sPayload;
+	recibirPaquete(socketPlataforma, &tipoMensaje, &sPayload, logger, "Recibo confirmacion de salida y liberacion de recursos por muerte del personaje");
 
-	recibeMensaje(*sockOrq, &msjOrq, sizeof(orq_t), logger, "Recibo puerto e ip de mi planificador en SALUDO");
-
-	if (msjOrq.detail == SALUDO) {
-		if (string_equals_ignore_case(msjOrq.ip, ip_plataforma)) {
-			strcpy(ip_planif, msjOrq.ip);
-			*puertoPlanif = msjOrq.port;
-		} else {
-			log_warning(logger, "Las ip's del planificador no coinciden: laMia=%s y laQueMePasaron=%s", ip_plataforma, msjOrq.ip);
-			exit(EXIT_FAILURE);
-		}
-	} else {
-		if (msjOrq.detail == NADA) {
-			log_error(logger, "El nivel solicitado no esta disponible");
-			pthread_exit(NULL );
-		} else {
-			log_error(logger, "Tipo de mensaje incorrecto se esperaba NADA");
-			exit(EXIT_FAILURE);
-		}
-	}
-}
-
-void cerrarConexiones(int * sockPlan, int *sockOrq){
-	close(*sockPlan);
-	close(*sockOrq);
-	log_debug(logger, "Cierro conexion con el orquestador y planificador");
-}
-
-void morir(char* causaMuerte, int *currObj) {
-	log_info(logger, "%s murio por: %s", nombre_pj, causaMuerte);
-	*currObj=1000;
-	vidas--;
-}
-
-
-bool devolverRecursos(int *sockPlan, message_t *message) {
-
-	message->type = PERSONAJE;
-	message->detail = SALIR;
-	message->detail2 = NADA;
-	message->name = simbolo;
-
-	enviaMensaje(*sockPlan, message, sizeof(message_t), logger, "Salida al planificador");
-
-	recibeMensaje(*sockPlan, message, sizeof(message_t), logger, "Confirmo salida");
-
-	if (message->type == SALIR) {
-		log_trace(logger, "Recursos liberados");
-		return true;
-	} else {
-		log_error(logger, "Tipo de msj incorrecto se esperaba SALIR y me llego (type=%d, detail=%d)", message->type, message->detail);
+	if (tipoMensaje != PL_CONFIRMACION_ELIMINACION) {
+		log_error(logger, "Tipo de mensaje incorrecto, se esperaba PL_CONFIRMACION_ELIMINACION y llego %d", tipoMensaje);
 		exit(EXIT_FAILURE);
 	}
-	return false;
+
+	log_trace(logger, "Los recursos fueron liberados por la muerte del personaje ");
+
 }
 
 //Seniales
@@ -483,64 +518,71 @@ void morirSenial() {
 }
 
 void aumentarVidas() {
-	vidas++;
-	log_info(logger, "Vidas de %c: %d", simbolo, vidas);
+	personaje.vidas ++;
+	log_info(logger, "Vidas del personaje %c: %d", personaje.simbolo, personaje.vidas);
 }
 
 void restarVidas() {
-	vidas--;
-	log_info(logger, "Vidas de %c: %d", simbolo, vidas);
+	personaje.vidas--;
+	log_info(logger, "Vidas del personaje %c: %d", personaje.simbolo, personaje.vidas);
 }
 //Seniales
 
-int calculaMovimiento(int posX, int posY, int posRX, int posRY) {
+int calculaMovimiento(personajeIndividual_t personajePorNivel){
 
-	if (posX == posRX && posY == posRY)
+	if (conseguiRecurso(personajePorNivel)){
 		return -1;
-
+	}
 	while (1) {
 		r = rand() % 2;
-		if (r) { //Sobre el eje x
-			if (r && posX < posRX)
-				return DERECHA;
-			else if (posX > posRX)
-				return IZQUIERDA;
-		} else { // Sobre el eje y
-			if (posY < posRY)
-				return ABAJO;
-			else if (posY > posRY)
-				return ARRIBA;
+		if (r) {
+
+			//Sobre el eje x
+
+			if (r && personajePorNivel.posX < personajePorNivel.posRecursoX)
+				return derecha;
+			else if (personajePorNivel.posX > personajePorNivel.posRecursoX)
+				return izquierda;
+		} else {
+
+			// Sobre el eje y
+
+			if (personajePorNivel.posY < personajePorNivel.posRecursoY)
+				return abajo;
+			else if (personajePorNivel.posY > personajePorNivel.posRecursoY)
+				return arriba;
 		}
 	}
 
 	return -700;
 }
 
-// Actualiza las variables posicion del personaje a partir del movimiento que recibe por parametro.
-void actualizaPosicion(int movimiento, int *posX, int *posY) {
-	switch (movimiento) {
-// El eje Y es alreves, por eso para ir para arriba hay que restar en el eje y.
-	case ARRIBA:
-		(*posY)--;
-		break;
-	case ABAJO:
-		(*posY)++;
-		break;
-	case DERECHA:
-		(*posX)++;
-		break;
-	case IZQUIERDA:
-		(*posX)--;
-		break;
+
+void actualizaPosicion(tDirMovimiento* movimiento, personajeIndividual_t *personajePorNivel) {
+	// Actualiza las variables posicion del personaje a partir del movimiento que recibe por parametro.
+	// El eje Y es alreves, por eso para ir para arriba hay que restar en el eje y.
+	switch (*movimiento) {
+		case arriba:
+			(personajePorNivel->posY)--;
+			break;
+		case abajo:
+			(personajePorNivel->posY)++;
+			break;
+		case derecha:
+			(personajePorNivel->posX)++;
+			break;
+		case izquierda:
+			(personajePorNivel->posY)--;
+			break;
 	}
+
 }
 /*
  *
   COSAS PARA AGREGAR
 
-1- Verificar cuando el personaje termina sus objetivos y cuando termine, el envio del mensaje al planificador (tiene que mandar un type = PERSONAJE detail=SALIR + detail2=NADA)
-2- Controlar la modificacion de vidas con semaforos
-3- Si el personaje pierde todas las vidas debe:
+1- Controlar la modificacion de vidas con semaforos
+2- Si el personaje pierde todas las vidas debe:
  	*lockear al resto de los threads y preguntar si quiere reiniciar o no.
 	*Los hilos bloqueados deberian mandar un mensaje de SALIR + hilos sin vidas y lockearse esperando ser desbloqueados por el hilo que realizo la consulta.
 Si no se quiere reiniciar, debe mandar SALIR + MURIO_ENEMIGOS

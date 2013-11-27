@@ -79,7 +79,7 @@ static struct fuse_opt fuse_options[] = {
 // Dentro de los argumentos que recibe nuestro programa obligatoriamente
 // debe estar el path al directorio donde vamos a montar nuestro FS
 fuse_fill_dir_t* functi_filler(void *buf, const char *name,const struct stat *stbuf, off_t off){
-	printf("Recibi carpeta: %s\n", name);
+	//printf("Recibi carpeta: %s\n", name);
 	return 0;
 }
 
