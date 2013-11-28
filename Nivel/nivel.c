@@ -8,7 +8,7 @@
 
 #include "nivel.h"
 #define TAM_EVENTO (sizeof(struct inotify_event)+24)
-#define TAM_BUFER (1024*TAM_EVENTO)
+#define TAM_BUFER (1*TAM_EVENTO)
 
 t_log *logger;
 t_list *list_personajes;
@@ -24,7 +24,6 @@ int hayQueAsesinar = true;
 char* dir_plataforma;
 int recovery;
 tAlgoritmo algoritmo;
-char* algoritmoAux;
 int quantum;
 uint32_t retardo;
 int timeCheck;
@@ -139,21 +138,30 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
+	//actualizarInfoNivel(argv[1]);
 	//WHILE PRINCIPAL
 	while (1) {
+		//actualizarInfoNivel(argv[1]);
 		if((rv=poll(uDescriptores,2,-1))==-1) perror("poll");
 		else{
 			if (uDescriptores[1].revents&POLLIN){
-
 				read(descriptorNotify,buferNotify,TAM_BUFER);
 				struct inotify_event* evento=(struct inotify_event*) &buferNotify[0];
 				if(evento->mask & IN_MODIFY){//avisar a planificador que cambio el archivo config
-					levantarArchivoConf2(argv[1]);
+					actualizarInfoNivel(argv[1]);
 					pthread_mutex_lock(&semMSJ);
+					//ENVIANDO A PLATAFORMA NOTIFICACION DE ALGORITMO ASIGNADO
+					tInfoNivel infoDeNivel;
 					tipoDeMensaje=N_ACTUALIZACION_CRITERIOS;
+					infoDeNivel.algoritmo=algoritmo;
 					infoDeNivel.quantum=quantum;
 					infoDeNivel.delay=retardo;
-					serializarInfoNivel(tipoDeMensaje,infoDeNivel,paquete);
+					//serializacion propia porque la de protocolo no anda bien
+					paquete->type=N_DATOS;
+					paquete->length=sizeof(infoDeNivel);
+					memcpy(paquete->payload,&infoDeNivel.delay,sizeof(uint32_t));
+					memcpy(paquete->payload+sizeof(uint32_t),&infoDeNivel.quantum,sizeof(int8_t));
+					memcpy(paquete->payload+sizeof(uint32_t)+sizeof(int8_t),&infoDeNivel.algoritmo,sizeof(tAlgoritmo));
 					enviarPaquete(sockete,paquete,logger,"notificando a plataforma algoritmo");
 					pthread_mutex_unlock(&semMSJ);
 				}
@@ -261,6 +269,7 @@ int main(int argc, char* argv[]) {
 	return 0;
 }
 void levantarArchivoConf(char* argumento){
+	char* algoritmoAux;
 	t_config *configNivel; //TODO destruir el config cuando cierra el nivel,
 	char **arrCaja;
 	char* cajaAux;
@@ -318,12 +327,13 @@ void levantarArchivoConf(char* argumento){
 }
 void levantarArchivoConf2(char* argumento){
 	t_config *configNivel; //TODO destruir el config cuando cierra el nivel,
+	char* algoritmoAux;
 	int i,posXCaja,posYCaja,cantCajas;
 	char* dir_plataforma;
 	char* messageLimitErr= malloc(sizeof(char) * 100);
-	char* lineaCaja=malloc(15*sizeof(char)+3*sizeof(int)+1);
+	char** lineaCaja;
 	char** dirYpuerto;
-	char** cajaRecursos=NULL;
+
 	dirYpuerto=(char**)malloc(sizeof(char*)*2);
 	dirYpuerto[0]=malloc(sizeof(int)*4+sizeof(char)*3);
 	dirYpuerto[1]=malloc(sizeof(int));
@@ -331,18 +341,15 @@ void levantarArchivoConf2(char* argumento){
 
 	configNivel=config_create(argumento);
 	cantCajas=config_keys_amount(configNivel)-9;
-	cajaRecursos=malloc(cantCajas*sizeof(char*));
-
+	lineaCaja=malloc(cantCajas*15*sizeof(char));
+	puts("entrando al for");
 	for(i=0;i<cantCajas;i++){
-		char *clave=malloc(5*sizeof(char));
+		printf("valor de i:%i",i);
+		char* clave;
 		clave=string_from_format("Caja%i",i+1);
-		lineaCaja=config_get_string_value(configNivel,clave);
-		cajaRecursos=string_split(lineaCaja,",");
-	    posXCaja=atoi(cajaRecursos[3]);
-		posYCaja=atoi(cajaRecursos[4]);
-		/*printf("posXCaja:%i\n",posXCaja);
-		printf("posYCaja:%i\n",posYCaja);
-		printf("cajaRecursos[1]:%c\n",*cajaRecursos[1]);*/
+		lineaCaja=config_get_array_value(configNivel,clave);
+	    posXCaja=atoi(lineaCaja[3]);
+		posYCaja=atoi(lineaCaja[4]);
 		if (posYCaja > maxRows || posXCaja > maxCols || posYCaja < 1 || posXCaja < 1) {
 			sprintf(messageLimitErr, "La caja %s excede los limites de la pantalla. (%d,%d) - (%d,%d)",clave,posXCaja,posYCaja,maxRows,maxCols);
 			cerrarNivel(messageLimitErr);
@@ -350,14 +357,11 @@ void levantarArchivoConf2(char* argumento){
 		}
 		pthread_mutex_lock(&semItems);
 		// Si la validacion fue exitosa creamos la caja de recursos
-		CrearCaja(list_items, *cajaRecursos[1], atoi(cajaRecursos[3]), atoi(cajaRecursos[4]), atoi(cajaRecursos[2]));
+		CrearCaja(list_items, *lineaCaja[1],atoi(lineaCaja[3]),atoi(lineaCaja[4]),atoi(lineaCaja[2]));//*cajaRecursos[1], atoi(cajaRecursos[3]), atoi(cajaRecursos[4]), atoi(cajaRecursos[2]));
 		pthread_mutex_unlock(&semItems);
-		free(clave);
 	}
-
-
-	free(messageLimitErr);
 	free(lineaCaja);
+	free(messageLimitErr);
 	nom_nivel 	   = string_duplicate(config_get_string_value(configNivel,"Nombre"));//config_get_string_value(configNivel, "Nombre");
 	recovery       = config_get_int_value(configNivel, "Recovery");
 	cant_enemigos  = config_get_int_value(configNivel, "Enemigos");
@@ -373,8 +377,23 @@ void levantarArchivoConf2(char* argumento){
 	ip_plataforma  = string_duplicate(dirYpuerto[0]);//strtok(dir_plataforma, ":");
 	port_orq 	   = atoi(dirYpuerto[1]);//strtok(NULL, ":");
 	cantRecursos   = list_size(list_items);
-
 	config_destroy(configNivel);
+}
+void actualizarInfoNivel(char* argumento){
+	extern tAlgoritmo algoritmo;
+	extern int quantum;
+	extern uint32_t retardo;
+	char* algoritmoAux;
+	t_config *configNivel;
+
+	configNivel=config_create(argumento);
+	algoritmoAux   = config_get_string_value(configNivel, "algoritmo");
+	char rr[]="RR";
+	if(strcmp(algoritmoAux,rr)==0)
+		algoritmo=RR;else algoritmo=SRDF;
+	quantum 	   = config_get_int_value(configNivel, "quantum");
+	retardo 	   = config_get_int_value(configNivel, "retardo");
+	//config_destroy(configNivel);
 }
 
 void *enemigo(void * args) {
