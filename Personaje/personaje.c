@@ -59,13 +59,12 @@ int main(int argc, char*argv[]) {
 	cantidadNiveles =list_size(personaje.listaNiveles);
 	hilosNiv = calloc(cantidadNiveles, sizeof(threadNivel_t));
 
-	int i=0; // TODO Verificar el uso de esta variable e indiceNivel. No se podrian unificar?
-	int indiceNivel;
-	for( indiceNivel = 0;  indiceNivel < cantidadNiveles; indiceNivel ++) {
+	int i;
+	for( i = 0;  i < cantidadNiveles; i ++) {
 		//creo estructura del nivel que va a jugar cada hilo
-		hilosNiv[i].nivel.nomNivel = ((nivel_t*) list_get_data(personaje.listaNiveles,indiceNivel))->nomNivel;
-		hilosNiv[i].nivel.Objetivos = ((nivel_t*) list_get_data(personaje.listaNiveles,	indiceNivel))->Objetivos;
-		hilosNiv[i].nivel.num_of_thread = indiceNivel;
+		hilosNiv[i].nivel.nomNivel = ((nivel_t*) list_get_data(personaje.listaNiveles,i))->nomNivel;
+		hilosNiv[i].nivel.Objetivos = ((nivel_t*) list_get_data(personaje.listaNiveles,	i))->Objetivos;
+		hilosNiv[i].nivel.num_of_thread = i;
 
 		//Tiro el hilo para jugar de cada nivel
 		if (pthread_create(&hilosNiv[i].thread, NULL, jugar, (void *) &hilosNiv[i].nivel)) {
@@ -443,7 +442,7 @@ void handshake_plataforma(personajeIndividual_t* personajePorNivel){
 	tHandshakePers handshakePers;
 	handshakePers.simbolo = personaje.simbolo;
 	handshakePers.nombreNivel = malloc(sizeof(personajePorNivel->nivelQueJuego->nomNivel));
-	strcpy(handshakePers.nombreNivel, "unNombre"); // FIXME WTF?!?!?!?!
+	strcpy(handshakePers.nombreNivel, personajePorNivel->nivelQueJuego->nomNivel);
 	/* Se crea el paquete */
 	tPaquete pkgHandshake;
 	serializarHandshakePers(P_HANDSHAKE, handshakePers, &pkgHandshake);
