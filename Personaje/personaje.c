@@ -45,7 +45,7 @@ int main(int argc, char*argv[]) {
 		log_error(logger, "Error en el manejo de la senal de muerte del personaje.\n", stderr);
 		exit(EXIT_FAILURE);
 	}
-	if (signal(SIGTERM, restar_vida) == SIG_ERR) {
+	if (signal(SIGTERM, restarVida) == SIG_ERR) {
 		log_error(logger, "Error en el manejo de la senal de restar vidas del personaje.\n", stderr);
 		exit(EXIT_FAILURE);
 	}
@@ -191,7 +191,7 @@ void *jugar(void *args) {
 
 	//Recupero la informacion del nivel en el que juega el personaje
 
-	bool terminoPlanNiveles = false;
+	//bool terminoPlanNiveles = false;
 
 	personajeIndividual_t personajePorNivel;
 
@@ -247,9 +247,9 @@ void *jugar(void *args) {
 
 			}  // Termina el plan de objetivos o muere.
 
-			/* Si las vidas son mayores a 0, significa que termino su plan de objetivos */
-			if (personaje.vidas > 0)
-				terminoPlanNiveles = true;
+			/* todo  Si las vidas son mayores a 0, significa que termino su plan de objetivos */
+			/*if (personaje.vidas > 0)
+				terminoPlanNiveles = true;*/
 
 		} //Fin de for de objetivos
 
@@ -266,7 +266,7 @@ void *jugar(void *args) {
 
 	// -----------------
 	if(murioPersonaje){
-		restar_vida();
+		restarVida();
 		if (personaje.vidas<=0) {
 			devolverRecursosPorMuerte(personajePorNivel.socketPlataforma);
 		}
@@ -366,12 +366,12 @@ void calcularYEnviarMovimiento(personajeIndividual_t personajePorNivel){
 	switch(tipoMensaje){
 		case PL_MUERTO_POR_ENEMIGO:{
 			log_info(logger, "El personaje se murio por enemigos");
-			restar_vida();
+			restarVida();
 			break;
 		}
 		case PL_MUERTO_POR_DEADLOCK:{
 			log_info(logger, "El personaje se murio por deadlock");
-			restar_vida();
+			restarVida();
 			break;
 		}
 		case PL_CONFIRMACION_MOV:{
