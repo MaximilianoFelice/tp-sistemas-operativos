@@ -1,5 +1,12 @@
-#!/bin/bash
-# -*- ENCODING: UTF-8 -*-
+num=0
+while [ $num -lt 600 ]
+do
+	truncate -s 0 $num
+	num=`expr $num + 1`
+done
+while [ $num -lt 1200 ]
+do
+	mkdir $num
+	num=`expr $num + 1`
+done
 
-for i in {1..600}; do truncate -s 0 $i; done
-for i in {601..1200}; do mkdir $i; done

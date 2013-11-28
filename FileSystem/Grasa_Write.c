@@ -28,20 +28,7 @@ int grasa_mkdir (const char *path, mode_t mode){
 	char *nombre = malloc(strlen(path) + 1), *nom_to_free = nombre;
 	char *dir_padre = malloc(strlen(path) + 1), *dir_to_free = dir_padre;
 
-	// Obtiene el nombre del path:
-	strcpy(nombre, path);
-	if (lastchar(nombre, '/')){
-		nombre[strlen(nombre) -1] = '\0';
-	}
-	nombre = strrchr(nombre, '/');
-	nombre = &(nombre[1]);
-
-	// Obtiene el directorio superior:
-	strcpy(dir_padre, path);
-	if (lastchar(dir_padre, '/')){
-		dir_padre[strlen(dir_padre) -1] = '\0';
-	}
-	(strrchr(dir_padre, '/'))[1] = '\0'; 	// Borra el nombre del dir_padre.
+	split_path(path, &dir_padre, &nombre);
 
 	// Ubica el nodo correspondiente. Si es el raiz, lo marca como 0, Si es menor a 0, lo crea (mismos permisos).
 	if (strcmp(dir_padre, "/") == 0){
@@ -50,22 +37,24 @@ int grasa_mkdir (const char *path, mode_t mode){
 		grasa_mkdir(path, mode);
 	}
 
+	node = bitmap_start;
+
+	// Busca si existe algun otro directorio con ese nombre. Caso afirmativo, se lo avisa a FUSE con -EEXIST.
+	for (i=0; i < 1024 ;i++){
+		if ((&node_table_start[i])->state != DIRECTORY_T) break;
+		char *fname;
+		fname = (char*) &((&node_table_start[i])->fname);
+		if ((strcmp(fname, nombre) == 0) & (node_table_start[i].parent_dir_block == nodo_padre)) {
+			res = -EEXIST;
+			goto finalizar;
+		}
+	}
+
 	// Toma un lock de escritura.
 			log_lock_trace(logger, "Mkdir: Pide lock escritura. Escribiendo: %d. En cola: %d.", rwlock.__data.__writer, rwlock.__data.__nr_writers_queued);
 	pthread_rwlock_wrlock(&rwlock);
 			log_lock_trace(logger, "Mkdir: Recibe lock escritura.");
 	// Abrir conexion y traer directorios, guarda el bloque de inicio para luego liberar memoria
-	node = bitmap_start;
-
-	// Busca si existe algun otro directorio con ese nombre. Caso afirmativo, se lo avisa a FUSE con -EEXIST.
-	for (i=0; i < 1024 ;i++){
-		char *fname;
-		fname = (char*) &((&node_table_start[i])->fname);
-		if (((&node_table_start[i])->state != DELETED_T) & (strcmp(fname, nombre) == 0)) {
-			res = -EEXIST;
-			goto finalizar;
-		}
-	}
 
 	// Busca el primer nodo libre (state 0) y cuando lo encuentra, lo crea:
 	for (i = 0; (node->state != 0) & (i < NODE_TABLE_SIZE); i++) node = &(node[1]);
@@ -92,9 +81,6 @@ int grasa_mkdir (const char *path, mode_t mode){
 	return res;
 
 }
-
-
-
 
 
 /*
@@ -328,6 +314,17 @@ int grasa_mknod (const char* path, mode_t mode, dev_t dev){
 
 	node = node_table_start;
 
+	// Busca si existe algun otro directorio con ese nombre. Caso afirmativo, se lo avisa a FUSE con -EEXIST.
+	for (i=0; i < 1024 ;i++){
+		if ((&node_table_start[i])->state != FILE_T) break;
+		char *fname;
+		fname = (char*) &((&node_table_start[i])->fname);
+		if ((strcmp(fname, nombre) == 0) & (node_table_start[i].parent_dir_block == nodo_padre)) {
+			res = -EEXIST;
+			goto finalizar;
+		}
+	}
+
 	// Toma un lock de escritura.
 			log_lock_trace(logger, "Mknod: Pide lock escritura. Escribiendo: %d. En cola: %d.", rwlock.__data.__writer, rwlock.__data.__nr_writers_queued);
 	pthread_rwlock_wrlock(&rwlock);
@@ -419,7 +416,19 @@ int grasa_rename (const char* oldpath, const char* newpath){
 }
 
 /*
+ *	@DESC
+ *		Algunas implementaciones de FUSE llaman a esta funcion para hacer el setteo de attributes.
  *
+ *	@PARAM
+ *		path - Ruta del archivo
+ *		name - Nombre del archivo (puede cambiarse)
+ *		value - Unknown
+ *		size - Tamanio del archivo
+ *		flags - Banderas que indican el estado del archivo
+ *
+ *	@RET
+ *		0 si salio bien
+ *		negativo - Rompio algo.
  */
 int grasa_setxattr(const char* path, const char* name, const char* value, size_t size, int flags){
 	int node_number = determinar_nodo(path);
