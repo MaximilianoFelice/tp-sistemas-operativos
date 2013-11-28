@@ -483,11 +483,7 @@ void cerrarConexiones(int * socketPlataforma){
 	close(*socketPlataforma);
 	log_debug(logger, "Cierro conexion con la plataforma");
 }
-/*
- * todo
- * en donde se verifica la muerte del personaje cuando lo mata un enemigo?
-deberia verse adentro del while (!conseguiRecurso(personajePorNivel))
-pero no se donde le avisa plataforma que se murio*/
+
 
 void devolverRecursosPorFinNivel(int socketPlataforma) {
 	tPaquete pkgDevolverRecursos;
