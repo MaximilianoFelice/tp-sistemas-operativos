@@ -22,6 +22,7 @@ int r = 0;
 bool muertePorSenial=false;
 bool inicializeVidas = false;
 threadNivel_t *hilosNiv;
+t_dictionary *listaPersonajePorNiveles; //diccionario
 int cantidadNiveles;
 
 
@@ -120,6 +121,7 @@ void destruirArchivoConfiguracion(t_config *configPersonaje){
 }
 
 void cargarArchivoConfiguracion(char* archivoConfiguracion){
+
 	//valida que los campos basicos esten en el archivo
 	configPersonaje = config_try_create(archivoConfiguracion, "nombre,simbolo,planDeNiveles,vidas,orquestador");
 
@@ -141,6 +143,8 @@ void cargarArchivoConfiguracion(char* archivoConfiguracion){
 	personaje.listaNiveles = list_create();
 	int j, i = 0;
 	nivel_t aux;
+
+	listaPersonajePorNiveles = dictionary_create();
 
 	char *stringABuscar = malloc(sizeof(char) * 25);
 
@@ -200,6 +204,9 @@ void *jugar(void *args) {
 
 	personajePorNivel.socketPlataforma= connectToServer(ip_plataforma, atoi(puerto_orq), logger);
 
+	dictionary_put(listaPersonajePorNiveles, personajePorNivel.nivelQueJuego->nomNivel, &personajePorNivel);
+
+
 	handshake_plataforma(&personajePorNivel);
 
 	//Setea los flags del inicio
@@ -252,7 +259,9 @@ void *jugar(void *args) {
 	} //Fin del while(vidas>0)
 
 
-	manejarDesconexiones(personajePorNivel, murioPersonaje, &finalice);
+
+	manejarDesconexiones(&personajePorNivel, murioPersonaje, &finalice);
+
 
 	// -----------------
 	if(murioPersonaje){
@@ -283,21 +292,27 @@ void *jugar(void *args) {
 
 }
 
-void manejarDesconexiones(personajeIndividual_t personajePorNivel, bool murioPersonaje, bool* finalice){
+void desconectarPersonaje(personajeIndividual_t* personajePorNivel){
+	cerrarConexiones(&personajePorNivel->socketPlataforma);
+	personajePorNivel->socketPlataforma=0;// NOTA: esto es para la desconexion de todos los personajes cuando se reinicia el juego
+}
+
+void manejarDesconexiones(personajeIndividual_t* personajePorNivel, bool murioPersonaje, bool* finalice){
 	if (!murioPersonaje) {
 		*finalice = true;
-		devolverRecursosPorFinNivel(personajePorNivel.socketPlataforma);
-		cerrarConexiones(&personajePorNivel.socketPlataforma);
+		devolverRecursosPorFinNivel(personajePorNivel->socketPlataforma);
+		desconectarPersonaje(personajePorNivel);
+
 	}
 
 	if(personaje.vidas <= 0){
-		devolverRecursosPorMuerte(personajePorNivel.socketPlataforma);
-		cerrarConexiones(&personajePorNivel.socketPlataforma);
+		devolverRecursosPorMuerte(personajePorNivel->socketPlataforma);
+		desconectarPersonaje(personajePorNivel);
 	}
 
 	if(muertePorSenial){
-		devolverRecursosPorMuerte(personajePorNivel.socketPlataforma);
-		cerrarConexiones(&personajePorNivel.socketPlataforma);
+		devolverRecursosPorMuerte(personajePorNivel->socketPlataforma);
+		desconectarPersonaje(personajePorNivel);
 	}
 
 
@@ -456,7 +471,11 @@ void cerrarConexiones(int * socketPlataforma){
 	close(*socketPlataforma);
 	log_debug(logger, "Cierro conexion con la plataforma");
 }
-
+/*
+ * todo
+ * en donde se verifica la muerte del personaje cuando lo mata un enemigo?
+deberia verse adentro del while (!conseguiRecurso(personajePorNivel))
+pero no se donde le avisa plataforma que se murio*/
 
 void devolverRecursosPorFinNivel(int socketPlataforma) {
 	tPaquete pkgDevolverRecursos;
@@ -564,13 +583,17 @@ void restar_vida(){
 	pthread_mutex_lock(&semModificadorDeVidas);
 	personaje.vidas--;
 
+	personajeIndividual_t* unPersonaje;
 	if (personaje.vidas <= 0) {
 		int i;
 
 		/* matar a todos los threads */
 		for (i = 0; i < cantidadNiveles; i++){
 			pthread_cancel(hilosNiv->thread);
-			/* FIXME POR CADA THREAD HAY QUE MANEJAR LA DESCONEXION */
+
+			unPersonaje = dictionary_get(listaPersonajePorNiveles, hilosNiv->nivel.nomNivel);
+			if (unPersonaje->socketPlataforma!=0)
+				desconectarPersonaje(unPersonaje);
 		}
 
 		printf("\n ¿Desea volver a intentar? (Y/N) ");

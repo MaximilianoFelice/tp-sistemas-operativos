@@ -77,7 +77,9 @@ static void nivel_destroyer(nivel_t*nivel);
 
 void *jugar(void *args);
 
-void manejarDesconexiones(personajeIndividual_t personajePorNivel, bool murioPersonaje, bool* finalice);
+void desconectarPersonaje(personajeIndividual_t* personajePorNivel);
+
+void manejarDesconexiones(personajeIndividual_t* personajePorNivel, bool murioPersonaje, bool* finalice);
 
 bool personajeEstaMuerto(bool murioPersonaje);
 

@@ -108,7 +108,7 @@ typedef struct {
 } tHandshakeNivel;
 
 typedef struct {
-	int8_t delay;
+	uint32_t delay;
 	int8_t quantum;
 	tAlgoritmo algoritmo;
 } tInfoNivel;
