@@ -59,7 +59,7 @@ int main(int argc, char*argv[]) {
 	cantidadNiveles =list_size(personaje.listaNiveles);
 	hilosNiv = calloc(cantidadNiveles, sizeof(threadNivel_t));
 
-	int i=0;
+	int i=0; // TODO Verificar el uso de esta variable e indiceNivel. No se podrian unificar?
 	int indiceNivel;
 	for( indiceNivel = 0;  indiceNivel < cantidadNiveles; indiceNivel ++) {
 		//creo estructura del nivel que va a jugar cada hilo
@@ -443,7 +443,7 @@ void handshake_plataforma(personajeIndividual_t* personajePorNivel){
 	tHandshakePers handshakePers;
 	handshakePers.simbolo = personaje.simbolo;
 	handshakePers.nombreNivel = malloc(sizeof(personajePorNivel->nivelQueJuego->nomNivel));
-	strcpy(handshakePers.nombreNivel, "unNombre");
+	strcpy(handshakePers.nombreNivel, "unNombre"); // FIXME WTF?!?!?!?!
 	/* Se crea el paquete */
 	tPaquete pkgHandshake;
 	serializarHandshakePers(P_HANDSHAKE, handshakePers, &pkgHandshake);
