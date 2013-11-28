@@ -33,7 +33,7 @@ int executeKoopa(char *koopaPath, char *scriptPath);
  * Funciones privadas orquestador
  */
 
-int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* socketsOrquestador, t_list *lPlanificadores);
+int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOrquestador, t_list *lPlanificadores);
 int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char* sPayload);
 void crearHiloPlanificador(pthread_t *pPlanificador, tNivel *nivelNuevo, t_list *lPlanificadores);
 
@@ -175,7 +175,7 @@ void *orquestador(void *vPuerto) {
 	pthread_exit(NULL);
 }
 
-int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* socketsOrquestador, t_list *lPlanificadores) {
+int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOrquestador, t_list *lPlanificadores) {
 
 	int iIndiceNivel;
 	iIndiceNivel = existeNivel(listaNiveles, sPayload);
@@ -192,7 +192,7 @@ int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* socketsOrques
 	tMensaje tipoMensaje;
 	tInfoNivel *pInfoNivel;
 
-	tNivel *nivelNuevo = (tNivel *) malloc(sizeof(tNivel));
+	tNivel *pNivelNuevo = (tNivel *) malloc(sizeof(tNivel));
 	pPlanificador 	   = (pthread_t *) malloc(sizeof(pthread_t));
 	log_debug(logger, "Se conecto el nivel %s", sPayload);
 	char* sNombreNivel = strdup(sPayload);
@@ -210,14 +210,12 @@ int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* socketsOrques
 	// Validacion de que el nivel me envia informacion correcta
 	if (tipoMensaje == N_DATOS) {
 
-		crearNivel(listaNiveles, nivelNuevo, iSocketComunicacion, sNombreNivel, pInfoNivel);
-		crearHiloPlanificador(pPlanificador, nivelNuevo, lPlanificadores);
-
-		inicializarConexion(&nivelNuevo->masterfds, &nivelNuevo->maxSock, &iSocketComunicacion);
-		delegarConexion(&nivelNuevo->masterfds, socketsOrquestador, &iSocketComunicacion, &nivelNuevo->maxSock);
+		crearNivel(listaNiveles, pNivelNuevo, iSocketComunicacion, sNombreNivel, pInfoNivel);
+		crearHiloPlanificador(pPlanificador, pNivelNuevo, lPlanificadores);
+		delegarConexion(&pNivelNuevo->masterfds, pSetSocketsOrquestador, iSocketComunicacion, &pNivelNuevo->maxSock);
 
 		// Logueo el nuevo hilo recien creado
-		log_debug(logger, "Nuevo planificador del nivel: '%s' y planifica con: %s", nivelNuevo->nombre, nivelNuevo->algoritmo);
+		log_debug(logger, "Nuevo planificador del nivel: '%s' y planifica con: %i", pNivelNuevo->nombre, pNivelNuevo->algoritmo);
 
 	} else {
 		log_error(logger,"Tipo de mensaje incorrecto: se esperaba datos del nivel");
@@ -247,7 +245,7 @@ int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char*
 		pkgHandshake.type   = PL_HANDSHAKE;
 		pkgHandshake.length = 0;
 
-		delegarConexion(&pNivelPedido->masterfds, socketsOrquestador, &iSocketComunicacion, &pNivelPedido->maxSock);
+		delegarConexion(&pNivelPedido->masterfds, socketsOrquestador, iSocketComunicacion, &pNivelPedido->maxSock);
 		agregarPersonaje(pNivelPedido->cListos, pHandshakePers->simbolo, iSocketComunicacion);
 		signal_personajes(&pNivelPedido->hay_personajes);
 
@@ -270,19 +268,20 @@ int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char*
 	return EXIT_SUCCESS;
 }
 
-void crearNivel(t_list* lNiveles, tNivel* nivelNuevo, int socket, char *levelName, tInfoNivel *pInfoNivel) {
-	nivelNuevo->nombre = malloc(strlen(levelName) + 1);
-	strcpy(nivelNuevo->nombre, levelName);
-	nivelNuevo->cListos 	= queue_create();
-	nivelNuevo->lBloqueados = list_create();
-	nivelNuevo->lMuertos 	= list_create();
-	nivelNuevo->socket 		= socket;
-	nivelNuevo->quantum 	= pInfoNivel->quantum;
-	nivelNuevo->algoritmo 	= pInfoNivel->algoritmo;
-	nivelNuevo->delay 		= pInfoNivel->delay;
-	nivelNuevo->maxSock 	= 0;
+void crearNivel(t_list* lNiveles, tNivel* pNivelNuevo, int socket, char *levelName, tInfoNivel *pInfoNivel) {
+	pNivelNuevo->nombre = malloc(strlen(levelName) + 1);
+	strcpy(pNivelNuevo->nombre, levelName);
+	pNivelNuevo->cListos 	 = queue_create();
+	pNivelNuevo->lBloqueados = list_create();
+	pNivelNuevo->lMuertos 	 = list_create();
+	pNivelNuevo->socket 	 = socket;
+	pNivelNuevo->quantum 	 = pInfoNivel->quantum;
+	pNivelNuevo->algoritmo 	 = pInfoNivel->algoritmo;
+	pNivelNuevo->delay 		 = pInfoNivel->delay;
+	pNivelNuevo->maxSock 	 = socket;
+	FD_ZERO(&(pNivelNuevo->masterfds));
 
-	list_add(lNiveles, nivelNuevo);
+	list_add(lNiveles, pNivelNuevo);
 }
 
 
@@ -743,23 +742,23 @@ tPersonaje* desbloquearPersonaje(t_list* lBloqueados, tSimbolo recurso) {
 	}
 }
 
-void delegarConexion(fd_set *master_planif, fd_set *master_orq, int *sock, int *maxSock) {
-	//Saco el socket del conjunto de sockets del orquestador
-	FD_CLR(*sock, master_orq);
-	FD_SET(*sock, master_planif);
+void delegarConexion(fd_set *conjuntoDestino, fd_set *conjuntoOrigen, int iSocket, int *maxSock) {
 
-	//Lo agrego al conjunto del planificador
-	if (FD_ISSET(*sock, master_planif)) {
-		log_debug(logger, "--> Delegue la conexion del personaje al planificador <--");
+	FD_CLR(iSocket, conjuntoOrigen); // Saco el socket del conjunto de sockets del origen
+	FD_SET(iSocket, conjuntoDestino); //Lo agrego al conjunto destino
+
+
+	if (FD_ISSET(iSocket, conjuntoDestino)) {
+		log_debug(logger, "--> Se delega la conexion <--");
 
 	} else {
-		log_warning(logger, "WARN: Error al delegar conexiones");
+		log_warning(logger, "Error al delegar conexiones");
 		exit(EXIT_FAILURE);
 	}
 
 	//Actualizo el tope del set de sockets
-	if (*sock > *maxSock) {
-		*maxSock = *sock;
+	if (iSocket > *maxSock) {
+		*maxSock = iSocket;
 	}
 }
 

@@ -70,7 +70,7 @@ void marcarPersonajeComoReady(t_list *ready, int sock);
 
 
 //Delegar conexiones
-void delegarConexion(fd_set *master_planif, fd_set *master_orq, int *sock, int *maxSock);
+void delegarConexion(fd_set * conjuntoDestino, fd_set *conjuntoOrigen, int iSocket, int *maxSock);
 void inicializarConexion(fd_set *master_planif, int *maxSock, int *sock);
 void imprimirConexiones(fd_set *master_planif, int maxSock, char* host);
 void signal_personajes(bool *hay_personajes);
