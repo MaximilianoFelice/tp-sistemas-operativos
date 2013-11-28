@@ -111,13 +111,12 @@ void morirSenial();
 
 void aumentarVidas();
 
-void restarVidas();
+void restarVida();
 
 int calculaMovimiento(personajeIndividual_t personajePorNivel);
 
 void actualizaPosicion(tDirMovimiento* movimiento, personajeIndividual_t *personajePorNivel);
 
-void restar_vida();
 
 
 

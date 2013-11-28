@@ -248,7 +248,8 @@ void *jugar(void *args) {
 			}  // Termina el plan de objetivos o muere.
 
 			/* Si las vidas son mayores a 0, significa que termino su plan de objetivos */
-			if (personaje.vidas > 0) terminoPlanNiveles = true;
+			if (personaje.vidas > 0)
+				terminoPlanNiveles = true;
 
 		} //Fin de for de objetivos
 
@@ -362,15 +363,26 @@ void calcularYEnviarMovimiento(personajeIndividual_t personajePorNivel){
 	char* sPayload;
 	recibirPaquete(personajePorNivel.socketPlataforma, &tipoMensaje, &sPayload, logger, "Recibo confirmacion del movimiento");
 
-	if (tipoMensaje != PL_CONFIRMACION_MOV){
-
-		//todo verificar excepcions
-		//TODO VERIFICAR si chequea aca si esta muerto por un enemigo y que pasa cuando sale del while y entra en el for
-		/*if(estaMuerto(msjPlan.detail, &murioPersonaje))
-			break;*/
-
-		log_error(logger, "Llego un mensaje (tipoMensaje: %d) cuando debia llegar PL_CONFIRMACION_MOV", tipoMensaje);
-		exit(EXIT_FAILURE);
+	switch(tipoMensaje){
+		case PL_MUERTO_POR_ENEMIGO:{
+			log_info(logger, "El personaje se murio por enemigos");
+			restar_vida();
+			break;
+		}
+		case PL_MUERTO_POR_DEADLOCK:{
+			log_info(logger, "El personaje se murio por deadlock");
+			restar_vida();
+			break;
+		}
+		case PL_CONFIRMACION_MOV:{
+			log_info(logger, "Movimiento confirmado");
+			break;
+		}
+		default: {
+			log_error(logger, "Llego un mensaje (tipoMensaje: %d) cuando debia llegar PL_CONFIRMACION_MOV", tipoMensaje);
+			exit(EXIT_FAILURE);
+			break;
+		}
 	}
 
 }
@@ -578,7 +590,7 @@ void actualizaPosicion(tDirMovimiento* movimiento, personajeIndividual_t *person
 
 }
 
-void restar_vida(){
+void restarVida(){
 	char n;
 	pthread_mutex_lock(&semModificadorDeVidas);
 	personaje.vidas--;
