@@ -17,17 +17,17 @@ t_list *list_items; //R-W
 char* nom_nivel; //R
 int cantRecursos; //R
 int maxRows=0, maxCols=0; //Del area del nivel //R
-tPaquete paquete;
+tPaquete* paquete;//=malloc(sizeof(tPaquete));
 
 int cant_enemigos; //R
 int sleep_enemigos; //R
 int hayQueAsesinar = true;
 char* dir_plataforma;
 int recovery;
-char* algoritmo;
+tAlgoritmo algoritmo;//char* algoritmo;
 char* algoritmoAux;
 int quantum;
-int retardo;
+uint32_t retardo;
 int timeCheck;
 char* ip_plataforma;
 char* port_orq;
@@ -38,6 +38,7 @@ pthread_mutex_t semMSJ;
 pthread_mutex_t semItems;
 
 int main(int argc, char* argv[]) {
+
 	signal(SIGINT, cerrarForzado);
 	char buferNotify[TAM_BUFER];
 	int i,vigilante,rv,descriptorNotify;
@@ -47,6 +48,8 @@ int main(int argc, char* argv[]) {
 	pthread_mutex_init(&semItems,NULL);
 	int posX = 0, posY = 0;// Para los personajes
 	int posRecY = 0, posRecX = 0;// Para los recursos
+	extern tPaquete* paquete;
+	paquete=malloc(sizeof(tPaquete));
 
 	//LOG
 	logger = logInit(argv, "NIVEL");
@@ -54,12 +57,12 @@ int main(int argc, char* argv[]) {
 	// INICIALIZANDO GRAFICA DE MAPAS
 	list_items = list_create();
 	list_personajes = list_create();
-	nivel_gui_inicializar();
-	nivel_gui_get_area_nivel(&maxRows, &maxCols);
+	///nivel_gui_inicializar();
+	///nivel_gui_get_area_nivel(&maxRows, &maxCols);
 
 	//LEVANTAR EL ARCHIVO CONFIGURACION EN VARIABLES GLOBALES
 	levantarArchivoConf(argv[1]);
-	printf("algoritmo quedo con:%s\n",algoritmo);
+	//printf("algoritmo quedo con:%s\n",algoritmo);
 
 	//SOCKETS
 	sockete=connectToServer(ip_plataforma,atoi(port_orq),logger);
@@ -68,12 +71,16 @@ int main(int argc, char* argv[]) {
 
 	// MENSAJE INICIAL A ORQUESTADOR (SALUDO)
 	//la serializacion
-	paquete.type=N_HANDSHAKE;
-	memcpy(paquete.payload,nom_nivel,strlen(nom_nivel)+1);
-	printf("en payload envio:%s\n",paquete.payload);
-	paquete.length=strlen(nom_nivel)+1;
-	printf("el tamaño del payload+length sera:%i\n",paquete.length);
-	enviarPaquete(sockete,&paquete,logger,"handshake nivel");
+	printf("nom_nivel es:%s\n",nom_nivel);
+	paquete->type=N_HANDSHAKE;
+	paquete->length=strlen(nom_nivel)+1;
+	puts("antes del memcpy");
+	memcpy(paquete->payload,nom_nivel,strlen(nom_nivel)+1);
+
+	printf("en payload envio:%s\n",paquete->payload);
+
+	printf("el tamaño del payload+length sera:%i\n",paquete->length);
+	enviarPaquete(sockete,paquete,logger,"handshake nivel");
 	puts("se envio el paquete con N_HANDSHAKE");
 	sleep(1);
 
@@ -85,39 +92,50 @@ int main(int argc, char* argv[]) {
 		log_error(logger,"tipo de mensaje incorrecto -se esperaba PL_HANDSHAKE-");
 		exit(EXIT_FAILURE);
 	}
-	//puts("se recibio el paquete de respuesta de N_HANDSHAKE");
+	puts("se recibio el paquete de respuesta de N_HANDSHAKE");
 	//sleep(1);
 
 	//ENVIANDO A PLATAFORMA NOTIFICACION DE ALGORITMO ASIGNADO
 	tInfoNivel infoDeNivel;
 	tipoDeMensaje=N_DATOS;
-	memcpy(&infoDeNivel.algoritmo, algoritmo, sizeof(tAlgoritmo));
-	//infoDeNivel.algoritmo=algoritmo;
+	//memcpy(&infoDeNivel.algoritmo, algoritmo, sizeof(tAlgoritmo));
+	infoDeNivel.algoritmo=algoritmo;
 	infoDeNivel.quantum=quantum;
 	infoDeNivel.delay=retardo;
-	serializarInfoNivel(N_DATOS,infoDeNivel,&paquete);//tipoDeMensaje,infoDeNivel,&paquete);
-	/*printf("contenido de retardo:%i\n",(int8_t)retardo);
+
+	//tPaquete* paq2=malloc(sizeof(tPaquete));
+	//paq2=serializarInfoNivel2(&infoDeNivel,tipoDeMensaje);
+
+	//paquete=(tPaquete) *(serializarInfoNivel2(&infoDeNivel,tipoDeMensaje));
+
+	//serializarInfoNivel(N_DATOS,infoDeNivel,&paquete);//tipoDeMensaje,infoDeNivel,&paquete);
+	printf("contenido de retardo:%i\n",retardo);
 	printf("contenido de infoDeNivel.quantum:%i\n",infoDeNivel.quantum);
-	printf("contenido de infoDeNivel.delay:%i\n",(int)infoDeNivel.delay);
-	printf("contenido de infoDeNivel.algoritmo:%i\n",infoDeNivel.algoritmo);
+	printf("contenido de infoDeNivel.delay:%i\n",infoDeNivel.delay);
+	printf("contenido de infoDeNivel.algoritmo:%d\n",infoDeNivel.algoritmo);
 
-	printf("el paquete quedo:\n");
-	printf("paquete.type:%i\n",paquete.type);
-	printf("paquete.length:%i\n",paquete.length);
-	//char* dato1=malloc(sizeof(infoDeNivel.quantum));
-	int dato1;
-	char* dato2=malloc(sizeof(infoDeNivel.delay));
-	char* dato3=malloc(sizeof(infoDeNivel.algoritmo));
-	//memcpy(dato1,paquete.payload,sizeof(infoDeNivel.delay));
-	dato1=(int)*paquete.payload;
-	memcpy(dato2,paquete.payload+sizeof(infoDeNivel.delay),sizeof(infoDeNivel.quantum));
-	memcpy(dato3,paquete.payload+sizeof(infoDeNivel.delay)+sizeof(infoDeNivel.quantum),sizeof(infoDeNivel.algoritmo));
-	printf("paquete.payload:\n");
-	printf("paquete.payload-retardo:%i\n",dato1);
-	printf("paquete.payload-quantum:%i\n",(int8_t)*dato2);
-	printf("paquete.payload-algoritmo:%s\n",dato3);*/
+	//serializacion propia porque la de protocolo no anda bien
+	paquete->type=N_DATOS;
+	paquete->length=sizeof(infoDeNivel);
+	memcpy(paquete->payload,&infoDeNivel.delay,sizeof(uint32_t));
+	memcpy(paquete->payload+sizeof(uint32_t),&infoDeNivel.quantum,sizeof(int8_t));
+	memcpy(paquete->payload+sizeof(uint32_t)+sizeof(int8_t),&infoDeNivel.algoritmo,sizeof(tAlgoritmo));
+	puts("el paquete quedo:");
+	printf("paquete.type:%i\n",paquete->type);
+	printf("paquete.length:%i\n",paquete->length);
 
-	enviarPaquete(sockete,&paquete,logger,"notificando a plataforma algoritmo");
+	//desearializacion propia para ver como serializa-deserializa
+	tInfoNivel infoNivel2;
+	memcpy(&infoNivel2.delay,paquete->payload,sizeof(uint32_t));
+	memcpy(&infoNivel2.quantum,paquete->payload+sizeof(uint32_t),sizeof(int8_t));
+	memcpy(&infoNivel2.algoritmo,paquete->payload+sizeof(uint32_t)+sizeof(int8_t),sizeof(tAlgoritmo));
+	puts("deserializacion:");
+	printf("infoNivel2.delay:%i\n",infoNivel2.delay);
+	printf("infoNivel2.quantum:%i\n",infoNivel2.quantum);
+	printf("infoNivel2.algoritmo:%d\n",infoNivel2.algoritmo);
+
+
+	enviarPaquete(sockete,paquete,logger,"notificando a plataforma algoritmo");
 	puts("se envio a plataforma la info para su Algoritmo");
 	//sleep(4);
 
@@ -131,8 +149,9 @@ int main(int argc, char* argv[]) {
 	uDescriptores[0].events=POLLIN;
 	uDescriptores[1].fd=descriptorNotify;
 	uDescriptores[1].events=POLLIN;
+	puts("pasando por poll y inotify");
 
-
+/*
 	////CREANDO Y LANZANDO HILOS ENEMIGOS
 	threadEnemy_t *hilosEnemigos;
 	hilosEnemigos = calloc(cant_enemigos, sizeof(threadEnemy_t));
@@ -144,7 +163,7 @@ int main(int argc, char* argv[]) {
 			exit(EXIT_FAILURE);
 		}
 	}
-
+*/
 	//WHILE PRINCIPAL
 	while (1) {
 		//puts("entrando al while principal");
@@ -158,12 +177,12 @@ int main(int argc, char* argv[]) {
 					levantarArchivoConf(argv[1]);
 					pthread_mutex_lock(&semMSJ);
 					tipoDeMensaje=N_ACTUALIZACION_CRITERIOS;
-					memcpy(&infoDeNivel.algoritmo, algoritmo, sizeof(tAlgoritmo));
+					//memcpy(&infoDeNivel.algoritmo, algoritmo, sizeof(tAlgoritmo));
 					//infoDeNivel.algoritmo=algoritmo;
 					infoDeNivel.quantum=quantum;
 					infoDeNivel.delay=retardo;
-					serializarInfoNivel(tipoDeMensaje,infoDeNivel,&paquete);
-					enviarPaquete(sockete,&paquete,logger,"notificando a plataforma algoritmo");
+					serializarInfoNivel(tipoDeMensaje,infoDeNivel,paquete);
+					enviarPaquete(sockete,paquete,logger,"notificando a plataforma algoritmo");
 					pthread_mutex_unlock(&semMSJ);
 				}
 			}
@@ -187,10 +206,10 @@ int main(int argc, char* argv[]) {
 					posRespondida.posX=posRecX;
 					posRespondida.posY=posRecY;
 					pthread_mutex_lock(&semMSJ);
-					paquete.type=N_POS_RECURSO;
-					memcpy(&paquete.payload,&posRespondida,sizeof(tRtaPosicion));
-					paquete.length=sizeof(tRtaPosicion);
-					enviarPaquete(sockete,&paquete,logger,"enviando pos de recurso a plataforma");
+					paquete->type=N_POS_RECURSO;
+					memcpy(paquete->payload,&posRespondida,sizeof(tRtaPosicion));
+					paquete->length=sizeof(tRtaPosicion);
+					enviarPaquete(sockete,paquete,logger,"enviando pos de recurso a plataforma");
 					pthread_mutex_unlock(&semMSJ);
 				break;
 				case PL_MOV_PERSONAJE:
@@ -246,10 +265,10 @@ int main(int argc, char* argv[]) {
 						personaG=list_find(list_personajes,(void*)buscarPersonaje);
 						list_add_new(personaG->recursos,&(posConsultada->recurso),sizeof(tSimbolo));
 						pthread_mutex_lock(&semMSJ);
-						paquete.type=N_ENTREGA_RECURSO;
-						paquete.length=0;
+						paquete->type=N_ENTREGA_RECURSO;
+						paquete->length=0;
 						// Envio mensaje donde confirmo la otorgacion del recurso pedido
-						enviarPaquete(sockete,&paquete,logger,"enviando confirmacion de otorgamiento de recurso a plataforma");
+						enviarPaquete(sockete,paquete,logger,"enviando confirmacion de otorgamiento de recurso a plataforma");
 						pthread_mutex_unlock(&semMSJ);
 					} else {
 						// Logueo el bloqueo del personaje
@@ -295,16 +314,16 @@ void levantarArchivoConf(char* argumento){
 		// Convierto en int las posiciones de la caja
 		posXCaja = atoi(arrCaja[3]);
 		posYCaja = atoi(arrCaja[4]);
-
+/*
 		// Validamos que la caja a crear esté dentro de los valores posibles del mapa
 		if (posYCaja > maxRows || posXCaja > maxCols || posYCaja < 1 || posXCaja < 1) {
 			sprintf(messageLimitErr, "La caja %c excede los limites de la pantalla. (%d,%d) - (%d,%d)", arrCaja[1][0], posXCaja, posYCaja, maxRows, maxCols);
 			cerrarNivel(messageLimitErr);
 			exit(EXIT_FAILURE);
-		}
+		}*/
 		pthread_mutex_lock(&semItems);
 		// Si la validacion fue exitosa creamos la caja de recursos
-		CrearCaja(list_items, arrCaja[1][0], atoi(arrCaja[3]), atoi(arrCaja[4]), atoi(arrCaja[2]));
+	/*	CrearCaja(list_items, arrCaja[1][0], atoi(arrCaja[3]), atoi(arrCaja[4]), atoi(arrCaja[2]));*/
 		pthread_mutex_unlock(&semItems);
 		// Rearma el cajaAux para la iteracion
 		sprintf(cajaAux, "Caja%d", ++t);
@@ -318,11 +337,13 @@ void levantarArchivoConf(char* argumento){
 	recovery       = config_get_int_value(configNivel, "Recovery");
 	cant_enemigos  = config_get_int_value(configNivel, "Enemigos");
 	sleep_enemigos = config_get_int_value(configNivel, "Sleep_Enemigos");
-	algoritmo   = config_get_string_value(configNivel, "algoritmo");
-	/*char* rr="RR";
-	char* sdrf="SDRF";
-	if(strcmp(algoritmoAux,rr)==0){memcpy(&algoritmo,rr,sizeof(rr));}else{ memcpy(&algoritmo,sdrf,sizeof(sdrf));}
-	printf("strcmp dio:%i\n",strcmp(algoritmoAux,rr));*/
+	algoritmoAux   = config_get_string_value(configNivel, "algoritmo");
+	char* rr="RR";
+	//if(strcmp(config_get_string_value(configNivel,"algoritmo"),rr)==0)algoritmo=RR;else algoritmo=SRDF;
+	if(strcmp(algoritmoAux,rr)==0)algoritmo=RR;else algoritmo=SRDF;
+	/*char* sdrf="SDRF";
+	if(strcmp(algoritmoAux,rr)==0){memcpy(&algoritmo,rr,sizeof(rr));}else{ memcpy(&algoritmo,sdrf,sizeof(sdrf));}*/
+	printf("strcmp dio:%i\n",strcmp(algoritmoAux,rr));
 	quantum 	   = config_get_int_value(configNivel, "quantum");
 	retardo 	   = config_get_int_value(configNivel, "retardo");
 	timeCheck      = config_get_int_value(configNivel, "TiempoChequeoDeadlock");
@@ -473,12 +494,12 @@ void *enemigo(void * args) {
 						else {//se esta en la misma posicion que la victima =>matarla
 							//un semaforo para que no mande mensaje al mismo tiempo que otros enemigos o el while principal
 							//otro semaforo para que no desasigne y se esten evaluando otros
-							log_debug(logger, "El personaje %c esta muerto",paquete.type);
+							log_debug(logger, "El personaje %c esta muerto",paquete->type);
 							pthread_mutex_lock(&semMSJ);
-							paquete.type=N_MUERTO_POR_ENEMIGO;
-							memcpy(&paquete.payload,&(item->id),sizeof(char));
-							paquete.length=sizeof(char);
-							enviarPaquete(sockete,&paquete,logger,"enviando notificacion de muerte de personaje a plataforma");
+							paquete->type=N_MUERTO_POR_ENEMIGO;
+							memcpy(paquete->payload,&(item->id),sizeof(char));
+							paquete->length=sizeof(char);
+							enviarPaquete(sockete,paquete,logger,"enviando notificacion de muerte de personaje a plataforma");
 							pthread_mutex_unlock(&semMSJ);
 							pthread_mutex_lock(&semItems);
 							liberarRecsPersonaje(item->id);
@@ -578,10 +599,10 @@ void *deteccionInterbloqueo (void *parametro){
 			if(recovery==1){
 				//notificar a plataforma, entonces vecSatisfechos contendra -1-->el personaje quedo bloqueado
 				pthread_mutex_lock(&semMSJ);
-				paquete.type=N_PERSONAJES_DEADLOCK;
+				paquete->type=N_PERSONAJES_DEADLOCK;
 				//memcpy(&paquete.payload,item->id,sizeof(char));
-				paquete.length=sizeof(char);
-				enviarPaquete(sockete,&paquete,logger,"enviando notificacion de bloqueo de personajes a plataforma");
+				paquete->length=sizeof(char);
+				enviarPaquete(sockete,paquete,logger,"enviando notificacion de bloqueo de personajes a plataforma");
 				/*
 				msj.type=NIVEL;
 				msj.detail=INFO;
