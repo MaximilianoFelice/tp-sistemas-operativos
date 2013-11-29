@@ -44,7 +44,7 @@ int grasa_mkdir (const char *path, mode_t mode){
 		if ((&node_table_start[i])->state != DIRECTORY_T) break;
 		char *fname;
 		fname = (char*) &((&node_table_start[i])->fname);
-		if ((strcmp(fname, nombre) == 0) & (node_table_start[i].parent_dir_block == nodo_padre)) {
+		if ((node_table_start[i].parent_dir_block == nodo_padre) &(strcmp(fname, nombre) == 0)) { /* Lazy evaluation: Es importante el orden, le agrega performance */
 			res = -EEXIST;
 			goto finalizar;
 		}
@@ -319,7 +319,7 @@ int grasa_mknod (const char* path, mode_t mode, dev_t dev){
 		if ((&node_table_start[i])->state != FILE_T) break;
 		char *fname;
 		fname = (char*) &((&node_table_start[i])->fname);
-		if ((strcmp(fname, nombre) == 0) & (node_table_start[i].parent_dir_block == nodo_padre)) {
+		if ((node_table_start[i].parent_dir_block == nodo_padre) & (strcmp(fname, nombre) == 0)) {/* Lazy evaluation: Es importante el orden, le agrega performance */
 			res = -EEXIST;
 			goto finalizar;
 		}
@@ -387,7 +387,17 @@ int grasa_unlink (const char* path){
 
 	file_data = &(node_table_start[node - 1]);
 
+	// Toma un lock de escritura.
+			log_lock_trace(logger, "Ulink: Pide lock escritura. Escribiendo: %d. En cola: %d.", rwlock.__data.__writer, rwlock.__data.__nr_writers_queued);
+	pthread_rwlock_wrlock(&rwlock);
+			log_lock_trace(logger, "Ulink: Recibe lock escritura.");
+
 	delete_nodes_upto(file_data, 0, 0);
+
+	// Devuelve el lock de escritura.
+	pthread_rwlock_unlock(&rwlock);
+			log_lock_trace(logger, "Ulink: Devuelve lock escritura. En cola: %d", rwlock.__data.__nr_writers_queued);
+
 
 	return grasa_rmdir(path);
 	}
@@ -405,9 +415,19 @@ int grasa_rename (const char* oldpath, const char* newpath){
 	split_path(newpath, &newroute, &newname);
 	int old_node = determinar_nodo(oldpath), new_parent_node = determinar_nodo(newroute);
 
+	// Toma un lock de escritura.
+			log_lock_trace(logger, "Rename: Pide lock escritura. Escribiendo: %d. En cola: %d.", rwlock.__data.__writer, rwlock.__data.__nr_writers_queued);
+	pthread_rwlock_wrlock(&rwlock);
+			log_lock_trace(logger, "Rename: Recibe lock escritura.");
+
 	// Modifica los valores del file. Como el determinar_nodo devuelve el numero de nodo +1, lo reubica.
 	strcpy((char *) &(node_table_start[old_node - 1].fname[0]), newname);
 	node_table_start[old_node -1].parent_dir_block = new_parent_node;
+
+	// Devuelve el lock de escritura.
+	pthread_rwlock_unlock(&rwlock);
+			log_lock_trace(logger, "Rename: Devuelve lock escritura. En cola: %d", rwlock.__data.__nr_writers_queued);
+
 
 	free(tofree1);
 	free(tofree2);
@@ -466,11 +486,30 @@ int grasa_utime(const char *path, struct utimbuf *timeBuf){
 	/* Si el buffer es nulo, entonces ambos tiempos deben ser cargados con la hora actual */
 	if (timeBuf == NULL){
 		/* Time devuelve la hora actual */
-		node->m_date = time(NULL);
+		node->m_date = time(NULL); /* No lockeamos porque, el ultimo que cae, es el que le corresponde dejar la hora */
 		return 0;
 	}
 
 	node->m_date = timeBuf->modtime;
 	/* GRASA no tiene definidos cambios en el Access Time */
+	return 0;
+}
+
+/*
+ *
+ */
+int grasa_flush(const char* path, struct fuse_file_info *fi){
+
+	// Toma un lock de escritura.
+			log_lock_trace(logger, "Flush: Pide lock escritura. Escribiendo: %d. En cola: %d.", rwlock.__data.__writer, rwlock.__data.__nr_writers_queued);
+	pthread_rwlock_wrlock(&rwlock);
+			log_lock_trace(logger, "Flush: Recibe lock escritura.");
+
+	fdatasync(discDescriptor);
+
+	// Devuelve el lock de escritura.
+	pthread_rwlock_unlock(&rwlock);
+			log_lock_trace(logger, "Flush: Devuelve lock escritura. En cola: %d", rwlock.__data.__nr_writers_queued);
+
 	return 0;
 }

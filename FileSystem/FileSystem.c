@@ -102,6 +102,7 @@ void sig_term_handler(int sig){
 			log_destroy(logger);
 
 			// Cierra lo que tiene en memoria.
+			munlockall(); /* Desbloquea todas las paginas que tenia bloqueadas */
 			if (munmap(header_start, ACTUAL_DISC_SIZE_B ) == -1) printf("ERROR");
 
 			close(discDescriptor);
@@ -143,7 +144,7 @@ int main (int argc, char *argv[]){
 	}
 
 	// Settea el log level del disco:
-	t_log_level log_level = LOG_LEVEL_TRACE;
+	t_log_level log_level = LOG_LEVEL_NONE;
 	if (runtime_options.log_level_param != NULL){
 		if (!strcmp(runtime_options.log_level_param, "LockTrace")) log_level = LOG_LEVEL_LOCK_TRACE;
 		else if (!strcmp(runtime_options.log_level_param, "Trace")) log_level = LOG_LEVEL_TRACE;
@@ -151,7 +152,8 @@ int main (int argc, char *argv[]){
 		else if (!strcmp(runtime_options.log_level_param, "Info")) log_level = LOG_LEVEL_INFO;
 		else if (!strcmp(runtime_options.log_level_param, "Warning")) log_level = LOG_LEVEL_WARNING;
 		else if (!strcmp(runtime_options.log_level_param, "Error")) log_level = LOG_LEVEL_ERROR;
-		else log_level = LOG_LEVEL_TRACE;
+		else if (!strcmp(runtime_options.log_level_param, "None")) log_level = LOG_LEVEL_NONE;
+		else log_level = LOG_LEVEL_NONE;
 	}
 
 	// Settea el log path
@@ -171,7 +173,11 @@ int main (int argc, char *argv[]){
 	bitmap_start = (struct grasa_file_t*) &header_start[GHEADERBLOCKS];
 	node_table_start = (struct grasa_file_t*) &header_start[GHEADERBLOCKS + BITMAP_BLOCK_SIZE];
 	data_block_start = (struct grasa_file_t*) &header_start[GHEADERBLOCKS + BITMAP_BLOCK_SIZE + NODE_TABLE_SIZE];
-
+	/* Obliga a que se mantenga la tabla de nodos y el bitmap en memoria */
+	mlock(bitmap_start, BITMAP_BLOCK_SIZE*BLOCKSIZE);
+	mlock(node_table_start, NODE_TABLE_SIZE*BLOCKSIZE);
+	/* El codigo es tan, pero tan egocentrico, que le dice al SO como tratar la memoria */
+	madvise(header_start, ACTUAL_DISC_SIZE_B ,MADV_RANDOM);
 
 	// Crea el log:
 	logger = log_create(strcat(LOG_PATH,"Log.txt"), "Grasa Filesystem", 1, log_level);
@@ -196,6 +202,7 @@ int main (int argc, char *argv[]){
 	log_destroy(logger);
 
 	// Cierra lo que tiene en memoria.
+	munlockall(); /* Desbloquea todas las paginas que tenia bloqueadas */
 	if (munmap(header_start, ACTUAL_DISC_SIZE_B ) == -1) printf("ERROR");
 
 	close(fd);
