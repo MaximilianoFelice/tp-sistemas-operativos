@@ -190,6 +190,7 @@ int main(int argc, char* argv[]) {
 						paquete->type=N_PERSONAJE_ERROR;
 						paquete->length=0;
 						enviarPaquete(sockete,paquete,logger,"WARN: El personaje ya existe");
+						pthread_mutex_unlock(&semItems);
 						break;
 					}
 					pthread_mutex_unlock(&semItems);
@@ -290,6 +291,8 @@ int main(int argc, char* argv[]) {
 				} //Fin del switch
 			}
 		}
+
+		nivel_gui_dibujar(list_items, nom_nivel);
 	}
 	inotify_rm_watch(descriptorNotify,vigilante);
 	close(descriptorNotify);

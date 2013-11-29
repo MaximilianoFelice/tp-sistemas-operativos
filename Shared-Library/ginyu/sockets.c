@@ -199,8 +199,6 @@ signed int getConnection(fd_set *setSockets, int *maxSock, int sockListener, tMe
 	return -1;
 }
 
-
-
 signed int multiplexar(fd_set *master, fd_set *temp, int *maxSock, tMensaje* tipoMensaje, char** buffer, t_log* logger)
 {
 	int iSocket;

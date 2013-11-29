@@ -159,13 +159,10 @@ void *orquestador(void *vPuerto) {
 			switch (tipoMensaje) {
 			case N_HANDSHAKE: // Un nuevo nivel se conecta
 				conexionNivel(iSocketComunicacion, sPayload, &setSocketsOrquestador, lPlanificadores);
-				log_debug(logger, "------------------------------");
 				break;
 
 			case P_HANDSHAKE:
-				log_debug(logger, "Hola");
 				conexionPersonaje(iSocketComunicacion, &setSocketsOrquestador, sPayload);
-				log_debug(logger, "------------------------------");
 				break;
 
 			default:
@@ -294,7 +291,7 @@ void sendPersonajeRepetido(int socketPersonaje){
 	enviarPaquete(socketPersonaje, &pkgPersonajeRepetido, logger, "El personaje ya esta jugando ese nivel");
 }
 
-bool avisoConexionANivel(int sockNivel,char *sPayload, tSimbolo simbolo){ //TODO completar
+bool avisoConexionANivel(int sockNivel,char *sPayload, tSimbolo simbolo){
 
 	tMensaje tipoMensaje;
 	tHandshakeNivel handshakeNivel;

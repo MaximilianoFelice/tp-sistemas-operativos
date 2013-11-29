@@ -451,7 +451,7 @@ void handshake_plataforma(personajeIndividual_t* personajePorNivel){
 	recibirPaquete(personajePorNivel->socketPlataforma, &tipoMensaje, &sPayload, logger, "Recibo si existe el nivel solicitado");
 
 	//Recibo un aviso de que existe o no el nivel
-	if (tipoMensaje == PL_NIVEL_INEXISTENTE){
+	if (tipoMensaje == PL_NIVEL_INEXISTENTE || tipoMensaje == PL_PERSONAJE_REPETIDO){
 		reintentarHandshake(personajePorNivel->socketPlataforma, &pkgHandshake);
 	}
 }

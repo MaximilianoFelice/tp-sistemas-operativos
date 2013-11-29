@@ -120,7 +120,6 @@ tPregPosicion * deserializarPregPosicion(char * payload) {
 int serializarHandshakeNivel(tMensaje tipoMensaje, tHandshakeNivel simbolo, tPaquete* pPaquete) {
 
 	pPaquete->type = tipoMensaje;
-
 	pPaquete->length = sizeof(simbolo);
 	memcpy(pPaquete->payload, &simbolo, pPaquete->length);
 
