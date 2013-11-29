@@ -37,11 +37,11 @@ int grasa_mkdir (const char *path, mode_t mode){
 		grasa_mkdir(path, mode);
 	}
 
-	node = bitmap_start;
+	node = node_table_start;
 
 	// Busca si existe algun otro directorio con ese nombre. Caso afirmativo, se lo avisa a FUSE con -EEXIST.
-	for (i=0; i < 1024 ;i++){
-		if ((&node_table_start[i])->state != DIRECTORY_T) break;
+	for (i=0; i < NODE_TABLE_SIZE ;i++){
+		if ((&node_table_start[i])->state != DIRECTORY_T) continue;
 		char *fname;
 		fname = (char*) &((&node_table_start[i])->fname);
 		if ((node_table_start[i].parent_dir_block == nodo_padre) &(strcmp(fname, nombre) == 0)) { /* Lazy evaluation: Es importante el orden, le agrega performance */
@@ -57,10 +57,10 @@ int grasa_mkdir (const char *path, mode_t mode){
 	// Abrir conexion y traer directorios, guarda el bloque de inicio para luego liberar memoria
 
 	// Busca el primer nodo libre (state 0) y cuando lo encuentra, lo crea:
-	for (i = 0; (node->state != 0) & (i < NODE_TABLE_SIZE); i++) node = &(node[1]);
+	for (i = 0; (node->state != 0) & (i <= NODE_TABLE_SIZE); i++) node = &(node_table_start[i]);
 	// Si no hay un nodo libre, devuelve un error.
-	if (i >= NODE_TABLE_SIZE){
-		res = -ENOENT;
+	if (i > NODE_TABLE_SIZE){
+		res = -EDQUOT;
 		goto finalizar;
 	}
 
@@ -105,7 +105,7 @@ int grasa_rmdir (const char* path){
 	pthread_rwlock_wrlock(&rwlock);
 			log_lock_trace(logger, "Rmdir: Recibe lock escritura.");
 	// Abre conexiones y levanta la tabla de nodos en memoria.
-	node = bitmap_start;
+	node = &(node_table_start[-1]);
 
 	node = &(node[nodo_padre]);
 
@@ -315,8 +315,8 @@ int grasa_mknod (const char* path, mode_t mode, dev_t dev){
 	node = node_table_start;
 
 	// Busca si existe algun otro directorio con ese nombre. Caso afirmativo, se lo avisa a FUSE con -EEXIST.
-	for (i=0; i < 1024 ;i++){
-		if ((&node_table_start[i])->state != FILE_T) break;
+	for (i=0; i < NODE_TABLE_SIZE ;i++){
+		if ((&node_table_start[i])->state != FILE_T) continue;
 		char *fname;
 		fname = (char*) &((&node_table_start[i])->fname);
 		if ((node_table_start[i].parent_dir_block == nodo_padre) & (strcmp(fname, nombre) == 0)) {/* Lazy evaluation: Es importante el orden, le agrega performance */
@@ -331,10 +331,10 @@ int grasa_mknod (const char* path, mode_t mode, dev_t dev){
 			log_lock_trace(logger, "Mknod: Recibe lock escritura.");
 
 	// Busca el primer nodo libre (state 0) y cuando lo encuentra, lo crea:
-	for (i = 0; (node->state != 0) & (i < NODE_TABLE_SIZE); i++) node = &(node[1]);
+	for (i = 0; (node->state != 0) & (i <= NODE_TABLE_SIZE); i++) node = &(node_table_start[i]);
 	// Si no hay un nodo libre, devuelve un error.
-	if (i >= NODE_TABLE_SIZE){
-		res = -ENOENT;
+	if (i > NODE_TABLE_SIZE){
+		res = -EDQUOT;
 		goto finalizar;
 	}
 

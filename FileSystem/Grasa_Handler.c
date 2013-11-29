@@ -122,7 +122,7 @@ int get_node(void){
 	// Limpia el contenido del nodo.
 	i -= (GHEADERBLOCKS + BITMAP_BLOCK_SIZE + NODE_TABLE_SIZE);
 	node = &data_block[i];
-	memset(node, 0, BLOCKSIZE);
+//	memset(node, 0, BLOCKSIZE);
 
 	// Cierra el bitmap
 	bitarray_destroy(bitarray);
@@ -163,6 +163,7 @@ int add_node(struct grasa_file_t *file_data, int node_number){
 	// Si es el ultimo nodo en el bloque de punteros, pasa al siguiente
 	if (position == 0){
 		new_pointer_block = get_node();
+		memset((char*)&(header_start[new_pointer_block]), 0, BLOCKSIZE);
 		file_data->blk_indirect[node_pointer_number] = new_pointer_block;
 		// Cuando crea un bloque, settea al siguente como 0, dejando una marca.
 		file_data->blk_indirect[node_pointer_number +1] = 0;

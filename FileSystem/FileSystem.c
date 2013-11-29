@@ -95,6 +95,9 @@ void sig_term_handler(int sig){
 	log_error(logger, "Programa terminado anormalmente con signal %d", sig);
 	// Termina el programa de forma normal.
 	if (sig == SIGTERM){
+
+		fdatasync(discDescriptor);
+
 		// Destruye el lock:
 			pthread_rwlock_destroy(&rwlock);
 
@@ -193,6 +196,8 @@ int main (int argc, char *argv[]){
 	log_info(logger, "Se ingresa al modulo de FUSE");
 
 	res = fuse_main(args.argc, args.argv, &grasa_oper, NULL);
+
+	fdatasync(discDescriptor);
 
 	// Destruye el lock:
 	pthread_rwlock_destroy(&rwlock);
