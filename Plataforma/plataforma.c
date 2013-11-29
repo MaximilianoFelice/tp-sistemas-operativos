@@ -235,19 +235,21 @@ int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char*
 	log_info(logger, "Se conectó el personaje %c pidiendo el nivel '%s'", pHandshakePers->simbolo, pHandshakePers->nombreNivel);
 
 	iIndiceNivel = existeNivel(listaNiveles, pHandshakePers->nombreNivel);
+	log_debug(logger, "ExisteNivel()");
 
 	if (iIndiceNivel >= 0) {
 		tNivel *pNivelPedido = (tNivel*) malloc(sizeof(tNivel));
-		pNivelPedido = list_get(listaNiveles, iIndiceNivel);
-
+		pNivelPedido = list_get_data(listaNiveles, iIndiceNivel);
+		if(pNivelPedido == NULL)
+			log_debug(logger, "Saco mal el nivel: Puntero en NULL");
 		// Logueo del pedido de nivel del personaje
 
 		tPaquete pkgHandshake;
 		pkgHandshake.type   = PL_HANDSHAKE;
 		pkgHandshake.length = 0;
 
-		delegarConexion(&pNivelPedido->masterfds, socketsOrquestador, iSocketComunicacion, &pNivelPedido->maxSock);
 		agregarPersonaje(pNivelPedido->cListos, pHandshakePers->simbolo, iSocketComunicacion);
+		delegarConexion(&pNivelPedido->masterfds, socketsOrquestador, iSocketComunicacion, &pNivelPedido->maxSock);
 		signal_personajes(&pNivelPedido->hay_personajes);
 
 		// Le contesto el handshake
@@ -288,6 +290,8 @@ void crearNivel(t_list* lNiveles, tNivel* pNivelNuevo, int socket, char *levelNa
 
 
 void agregarPersonaje(t_queue *cPersonajes, tSimbolo simbolo, int socket) {
+
+	log_debug(logger, "Apunto de agregar a un personaje");
 	tPersonaje *pPersonajeNuevo;
 	pPersonajeNuevo = malloc(sizeof(tPersonaje));
 
@@ -296,7 +300,11 @@ void agregarPersonaje(t_queue *cPersonajes, tSimbolo simbolo, int socket) {
 	pPersonajeNuevo->recursos 	  	= list_create();
 	pPersonajeNuevo->valorAlgoritmo = -1;
 
+	log_debug(logger, "Antes del queue_push");
+
 	queue_push(cPersonajes, pPersonajeNuevo);
+
+	log_debug(logger, "Despues del queue_push");
 }
 
 
@@ -310,8 +318,6 @@ void crearHiloPlanificador(pthread_t *pPlanificador, tNivel *nivelNuevo, t_list 
     list_add(lPlanificadores, pPlanificador);
 
 }
-
-
 
 /*
  * PLANIFICADOR
@@ -334,8 +340,9 @@ void *planificador(void * pvNivel) {
     pPersonajeActual = NULL;
     // Ciclo donde se multiplexa para escuchar personajes que se conectan
     while (1) {
-
+    	log_debug(logger, "Hola soy el planificador");
         wait_personajes(&pNivel->hay_personajes);
+        log_debug(logger, "Hola, pase el wait_personajes");
         //si no hay personaje, se saca de la cola y se lo pone a jugar enviandole mensaje para jugar
         seleccionarJugador(pPersonajeActual, pNivel);
 
@@ -605,9 +612,11 @@ int existeNivel(t_list * lNiveles, char* sLevelName) {
 
 	if (iCantNiveles > 0) {
 		bEncontrado = 0;
-		for (iNivelLoop = 0; (iNivelLoop < iCantNiveles) && (bEncontrado == 0); iNivelLoop++) {
+		for (iNivelLoop = 0; (iNivelLoop < iCantNiveles) /*&& (bEncontrado == 0)*/; iNivelLoop++) {
 			pNivelGuardado = (tNivel *)list_get(listaNiveles, iNivelLoop);
-			bEncontrado    = (strcmp(pNivelGuardado->nombre, sLevelName) == 0);
+			if(string_equals_ignore_case(pNivelGuardado->nombre, sLevelName))
+				return iNivelLoop;
+			//bEncontrado    = (strcmp(pNivelGuardado->nombre, sLevelName) == 0); //Si no daba una vuelta de más y devolvia mal el indice
 		}
 
 		if (bEncontrado == 1) {
