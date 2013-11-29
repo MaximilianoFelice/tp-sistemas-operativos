@@ -58,6 +58,7 @@ int main(int argc, char*argv[]) {
 	cargarArchivoConfiguracion(argv[1]);
 	cantidadNiveles =list_size(personaje.listaNiveles);
 	hilosNiv = calloc(cantidadNiveles, sizeof(threadNivel_t));
+	personaje.vidas = personaje.vidasMaximas; //TODO les agrgue esto porque en el while(personaje.vidas>0) preguntaba por basura
 
 	int i;
 	for( i = 0;  i < cantidadNiveles; i ++) {
@@ -205,7 +206,6 @@ void *jugar(void *args) {
 
 	dictionary_put(listaPersonajePorNiveles, personajePorNivel.nivelQueJuego->nomNivel, &personajePorNivel);
 
-
 	handshake_plataforma(&personajePorNivel);
 
 	//Setea los flags del inicio
@@ -225,8 +225,7 @@ void *jugar(void *args) {
 			murioPersonaje = false;
 
 			//agarra un recurso de la lista de objetivos del nivel
-			char* recurso = (char*) list_get_data(personajePorNivel.nivelQueJuego->Objetivos,	personajePorNivel.objetivoActual);
-
+			char* recurso = (char*) list_get_data(personajePorNivel.nivelQueJuego->Objetivos, personajePorNivel.objetivoActual);
 			pedirPosicionRecurso(&personajePorNivel, recurso);
 
 			while (!conseguiRecurso(personajePorNivel)) {
@@ -261,7 +260,6 @@ void *jugar(void *args) {
 
 
 	manejarDesconexiones(&personajePorNivel, murioPersonaje, &finalice);
-
 
 	// -----------------
 	if(murioPersonaje){
