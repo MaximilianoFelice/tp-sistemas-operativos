@@ -412,15 +412,13 @@ void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurs
 	char* sPayload;
 	recibirPaquete(personajePorNivel->socketPlataforma, &tipoMensaje, &sPayload, logger, "Recibo posicion del recurso");
 
-	tRtaPosicion* rtaSolicitudRecurso;
-	rtaSolicitudRecurso = deserializarRtaPosicion(sPayload);
-
-	if (tipoMensaje != PL_CONFIRMACION_MOV){
-
-		log_error(logger, "Llego un mensaje (tipoMensaje: %d) cuando debia llegar PL_CONFIRMACION_MOV", tipoMensaje);
+	if (tipoMensaje != PL_POS_RECURSO){
+		log_error(logger, "Llego un mensaje (tipoMensaje: %d) cuando debia llegar PL_POS_RECURSO", tipoMensaje);
 		exit(EXIT_FAILURE);
 	}
 
+	tRtaPosicion* rtaSolicitudRecurso;
+	rtaSolicitudRecurso = deserializarRtaPosicion(sPayload);
 
 	personajePorNivel->posRecursoX = rtaSolicitudRecurso->posX;
 	personajePorNivel->posRecursoY = rtaSolicitudRecurso->posY;
@@ -510,6 +508,7 @@ void devolverRecursosPorMuerte(int socketPlataforma){
 	tMensaje tipoMensaje;
 	char* sPayload;
 	recibirPaquete(socketPlataforma, &tipoMensaje, &sPayload, logger, "Recibo confirmacion de salida y liberacion de recursos por muerte del personaje");
+
 
 	if (tipoMensaje != PL_CONFIRMACION_ELIMINACION) {
 		log_error(logger, "Tipo de mensaje incorrecto, se esperaba PL_CONFIRMACION_ELIMINACION y llego %d", tipoMensaje);
