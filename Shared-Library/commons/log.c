@@ -150,6 +150,12 @@ log_impl_template(log_warning, LOG_LEVEL_WARNING);
  */
 log_impl_template(log_error, LOG_LEVEL_ERROR);
 
+/**
+ * @NAME: log_none
+ * @DESC: Define un log level en el cual no se loggeara nada.
+ *
+ */
+log_impl_template(log_none, LOG_LEVEL_NONE);
 
 /**
  * @NAME: log_level_as_string

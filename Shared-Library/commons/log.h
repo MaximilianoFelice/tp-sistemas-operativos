@@ -27,7 +27,8 @@
 		LOG_LEVEL_DEBUG,
 		LOG_LEVEL_INFO,
 		LOG_LEVEL_WARNING,
-		LOG_LEVEL_ERROR
+		LOG_LEVEL_ERROR,
+		LOG_LEVEL_NONE
 	}t_log_level;
 
 	typedef struct {
@@ -48,6 +49,7 @@
 	void 		log_info(t_log* logger, const char* message, ...);
 	void 		log_warning(t_log* logger, const char* message, ...);
 	void 		log_error(t_log* logger, const char* message, ...);
+	void 		log_none(t_log* logger, const char* message, ...);
 
 	char 		*log_level_as_string(t_log_level level);
 	t_log_level log_level_from_string(char *level);
