@@ -37,6 +37,11 @@ pthread_mutex_t semItems;
 
 int main(int argc, char* argv[]) {
 
+	if (argc <= 1) {
+		printf("[ERROR] Se debe pasar como parametro el archivo de configuracion.\n");
+		exit(EXIT_FAILURE);
+	}
+
 	signal(SIGINT, cerrarForzado);
 	char buferNotify[TAM_BUFER];
 	int i,vigilante,rv,descriptorNotify;
@@ -62,7 +67,12 @@ int main(int argc, char* argv[]) {
 	levantarArchivoConf2(argv[1]);
 
 	//SOCKETS
-	sockete=connectToServer(ip_plataforma,port_orq,logger);
+	sockete = connectToServer(ip_plataforma,port_orq,logger);
+
+	if (sockete == EXIT_FAILURE) {
+		nivel_gui_terminar();
+		exit(EXIT_FAILURE);
+	}
 
 	// MENSAJE INICIAL A ORQUESTADOR (SALUDO)
 	//la serializacion:
