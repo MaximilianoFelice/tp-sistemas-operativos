@@ -199,8 +199,6 @@ signed int getConnection(fd_set *setSockets, int *maxSock, int sockListener, tMe
 	return -1;
 }
 
-
-
 signed int multiplexar(fd_set *master, fd_set *temp, int *maxSock, tMensaje* tipoMensaje, char** buffer, t_log* logger)
 {
 	int iSocket;
@@ -253,13 +251,13 @@ signed int connectToServer(char *ip_server, int puerto, t_log *logger)
 	// Pido socket
 	if ((iSocket = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
 		log_error(logger, "socket: %s", strerror(errno));
-		exit(EXIT_FAILURE);
+		return EXIT_FAILURE;
 	}
 
 	// Intento conectar
 	if (connect(iSocket, (struct sockaddr *) &their_addr, sizeof their_addr) == -1) {
 		log_error(logger, "connect: %s", strerror(errno));
-		exit(EXIT_FAILURE);
+		return EXIT_FAILURE;
 	}
 
 	log_trace(logger, "Se realiza conexion con socket %d", iSocket);

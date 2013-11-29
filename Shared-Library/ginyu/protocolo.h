@@ -38,6 +38,7 @@ typedef struct {
 typedef enum {
 	/* Mensajes de la plataforma */
 	PL_HANDSHAKE,
+	PL_PERSONAJE_REPETIDO,
 	PL_POS_RECURSO,
 	PL_OTORGA_TURNO,			// Plataforma le manda al personaje
 	PL_CONFIRMACION_MOV,  		// Plataforma le manda al personaje
@@ -51,6 +52,8 @@ typedef enum {
 	PL_SOLICITUD_RECURSO,
 	/* Mensajes del nivel */
 	N_HANDSHAKE,
+	N_PERSONAJE_AGREGADO,		//Se conecta un nuevo personaje correctamente
+	N_PERSONAJE_ERROR,			//El personaje ya existia
 	N_CONFIRMACION_ELIMINACION,	// AVISO
 	N_MUERTO_POR_ENEMIGO, 		// tSimbolo
 	N_PERSONAJES_DEADLOCK, 		// tSimbolo (el personaje que ya se murio)
@@ -104,7 +107,7 @@ typedef struct {
 } tHandshakePers;
 
 typedef struct {
-	char* nombreNivel;
+	tSimbolo simbolo;
 } tHandshakeNivel;
 
 typedef struct {
@@ -132,6 +135,9 @@ typedef char* tPersonajesDeadlock; // un array con todos los simbolos de los per
 
 int serializarHandshakePers(tMensaje tipoMensaje, tHandshakePers handshakePersonaje, tPaquete* pPaquete);
 tHandshakePers* deserializarHandshakePers(char * payload);
+
+int serializarHandshakeNivel(tMensaje tipoMensaje, tHandshakeNivel simbolo, tPaquete* pPaquete);
+tHandshakeNivel* deserializarHandshakeNivel(char * payload);
 
 int serializarInfoNivel(tMensaje tipoMensaje, tInfoNivel infoNivel, tPaquete* pPaquete);
 tInfoNivel* deserializarInfoNivel(char * payload);

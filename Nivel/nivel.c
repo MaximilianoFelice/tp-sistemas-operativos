@@ -37,6 +37,11 @@ pthread_mutex_t semItems;
 
 int main(int argc, char* argv[]) {
 
+	if (argc <= 1) {
+		printf("[ERROR] Se debe pasar como parametro el archivo de configuracion.\n");
+		exit(EXIT_FAILURE);
+	}
+
 	signal(SIGINT, cerrarForzado);
 	char buferNotify[TAM_BUFER];
 	int i,vigilante,rv,descriptorNotify;
@@ -62,7 +67,12 @@ int main(int argc, char* argv[]) {
 	levantarArchivoConf2(argv[1]);
 
 	//SOCKETS
-	sockete=connectToServer(ip_plataforma,port_orq,logger);
+	sockete = connectToServer(ip_plataforma,port_orq,logger);
+
+	if (sockete == EXIT_FAILURE) {
+		nivel_gui_terminar();
+		exit(EXIT_FAILURE);
+	}
 
 	// MENSAJE INICIAL A ORQUESTADOR (SALUDO)
 	//la serializacion:
@@ -74,9 +84,9 @@ int main(int argc, char* argv[]) {
 	//RECIBIENDO CONTESTACION
 	tMensaje tipoDeMensaje;
 	char* payload;
-	recibirPaquete(sockete,&tipoDeMensaje,&payload,logger,"recibe handshake de plataforma");
+	recibirPaquete(sockete,&tipoDeMensaje,&payload,logger,"Recibe handshake de plataforma");
 	if(tipoDeMensaje!=PL_HANDSHAKE) {
-		log_error(logger,"tipo de mensaje incorrecto -se esperaba PL_HANDSHAKE-");
+		log_error(logger,"Tipo de mensaje incorrecto -se esperaba PL_HANDSHAKE-");
 		exit(EXIT_FAILURE);
 	}
 	//puts("contestacion recibida");
@@ -162,22 +172,49 @@ int main(int argc, char* argv[]) {
 					memcpy(paquete->payload,&infoDeNivel.delay,sizeof(uint32_t));
 					memcpy(paquete->payload+sizeof(uint32_t),&infoDeNivel.quantum,sizeof(int8_t));
 					memcpy(paquete->payload+sizeof(uint32_t)+sizeof(int8_t),&infoDeNivel.algoritmo,sizeof(tAlgoritmo));
-					enviarPaquete(sockete,paquete,logger,"notificando a plataforma algoritmo");
+					enviarPaquete(sockete,paquete,logger,"Notificando a plataforma algoritmo");
 					pthread_mutex_unlock(&semMSJ);
 				}
 			}
 			if(uDescriptores[0].revents & POLLIN){
-				recibirPaquete(sockete,&tipoDeMensaje,&payload,logger,"recibiendo mensaje de plataforma");
-				int8_t tipoMsj;
+				recibirPaquete(sockete,&tipoDeMensaje,&payload,logger,"Recibiendo mensaje de plataforma");
+				int8_t tipoMsj = (int8_t)tipoDeMensaje;
+				tHandshakeNivel *nuevoPersonaje;
 				tPregPosicion* posConsultada;
 				tRtaPosicion posRespondida;
 				tMovimientoPers movPersonaje;
 				pers_t* personaG;
 				tSimbolo personajeMuerto;
 				//char* recursoPedido;
-				tipoMsj=(int8_t)tipoDeMensaje;
 
 				switch(tipoMsj){
+				case PL_HANDSHAKE:
+					nuevoPersonaje = deserializarHandshakeNivel(payload);
+					log_debug(logger,"Nuevo Personaje %c en el nivel", (char)nuevoPersonaje->simbolo);
+					//Creo el personaje en el mapa
+					pthread_mutex_lock(&semItems);
+					if(!existePersonaje(nuevoPersonaje->simbolo)){
+						CrearPersonaje(list_items, nuevoPersonaje->simbolo, INI_X, INI_Y);
+					} else {
+						paquete->type=N_PERSONAJE_ERROR;
+						paquete->length=0;
+						enviarPaquete(sockete,paquete,logger,"WARN: El personaje ya existe");
+						pthread_mutex_unlock(&semItems);
+						break;
+					}
+					pthread_mutex_unlock(&semItems);
+					// TODO validar que no haya otro personaje con el mismo simbolo jugando en el nivel
+					pjNew.simbolo = (char) nuevoPersonaje->simbolo;
+					pjNew.recursos = list_create();
+					log_info(logger, "Se agregó al personaje %c", pjNew.simbolo);
+					pthread_mutex_lock(&semMSJ);
+					paquete->type=N_PERSONAJE_AGREGADO;
+					paquete->length=0;
+					enviarPaquete(sockete,paquete,logger,"Envio confirmacion a plataforma");
+					pthread_mutex_unlock(&semMSJ);
+					// Agrego el personaje a la lista de personajes del nivel
+					list_add_new(list_personajes, (void *) &pjNew, sizeof(pers_t));
+					break;
 				case PL_POS_RECURSO:
 					posConsultada=deserializarPregPosicion(payload);
 					getPosRecurso(list_items,posConsultada->recurso, &posRecX, &posRecY);
@@ -187,7 +224,7 @@ int main(int argc, char* argv[]) {
 					paquete->type=N_POS_RECURSO;
 					memcpy(paquete->payload,&posRespondida,sizeof(tRtaPosicion));
 					paquete->length=sizeof(tRtaPosicion);
-					enviarPaquete(sockete,paquete,logger,"enviando pos de recurso a plataforma");
+					enviarPaquete(sockete,paquete,logger,"Enviando pos de recurso a plataforma");
 					pthread_mutex_unlock(&semMSJ);
 				break;
 				case PL_MOV_PERSONAJE:
@@ -263,6 +300,8 @@ int main(int argc, char* argv[]) {
 				} //Fin del switch
 			}
 		}
+
+		nivel_gui_dibujar(list_items, nom_nivel);
 	}
 	inotify_rm_watch(descriptorNotify,vigilante);
 	close(descriptorNotify);
@@ -328,10 +367,11 @@ void levantarArchivoConf(char* argumento){
 void levantarArchivoConf2(char* argumento){
 	t_config *configNivel; //TODO destruir el config cuando cierra el nivel,
 	char* algoritmoAux;
-	int i,posXCaja,posYCaja,cantCajas;
+	//int i, posXCaja,posYCaja,cantCajas;
+	int posXCaja, posYCaja;
 	char* dir_plataforma;
 	char* messageLimitErr= malloc(sizeof(char) * 100);
-	char** lineaCaja;
+	//char** lineaCaja;
 	char** dirYpuerto;
 
 	dirYpuerto=(char**)malloc(sizeof(char*)*2);
@@ -340,34 +380,75 @@ void levantarArchivoConf2(char* argumento){
 	extern char* nom_nivel;
 
 	configNivel=config_create(argumento);
-	cantCajas=config_keys_amount(configNivel)-9;
-	lineaCaja=malloc(cantCajas*15*sizeof(char));
-	puts("entrando al for");
-	for(i=0;i<cantCajas;i++){
-		printf("valor de i:%i",i);
-		char* clave;
-		clave=string_from_format("Caja%i",i+1);
-		lineaCaja=config_get_array_value(configNivel,clave);
-	    posXCaja=atoi(lineaCaja[3]);
-		posYCaja=atoi(lineaCaja[4]);
-		if (posYCaja > maxRows || posXCaja > maxCols || posYCaja < 1 || posXCaja < 1) {
-			sprintf(messageLimitErr, "La caja %s excede los limites de la pantalla. (%d,%d) - (%d,%d)",clave,posXCaja,posYCaja,maxRows,maxCols);
+	//cantCajas=config_keys_amount(configNivel)-9;
+	//lineaCaja=malloc(cantCajas*15*sizeof(char));
+	//puts("entrando al for"); //TODO sacar esto
+
+	char **arrCaja;
+	// Creamos cada caja de recursos
+	char* cajaAux;
+	cajaAux = malloc(sizeof(char) * 9);
+	sprintf(cajaAux, "Caja1");
+	int cols = 0;
+	int rows = 0;
+	// Conseguimos el area del nivel && Validamos que no haya habido error
+	if (nivel_gui_get_area_nivel(&rows, &cols))
+		cerrarNivel("Error al conseguir el área del nivel");
+	posXCaja = posYCaja = 0;
+	int t = 1;  // Variable para el ciclo de recursos
+	// Mientras pueda levantar el array
+	while ((arrCaja = config_try_get_array_value(configNivel, cajaAux)) != NULL ) {
+		// Convierto en int las posiciones de la caja
+		posXCaja = atoi(arrCaja[3]);
+		posYCaja = atoi(arrCaja[4]);
+
+		// Validamos que la caja a crear esté dentro de los valores posibles del mapa
+		if (posYCaja > rows || posXCaja > cols || posYCaja < 1 || posXCaja < 1) { //TODO cambie de lugar las X e Y en posYCaja y posXCaja
+			sprintf(messageLimitErr,"La caja %c excede los limites de la pantalla. (%d,%d) - (%d,%d)",
+					arrCaja[1][0], posXCaja, posYCaja, rows, cols);
 			cerrarNivel(messageLimitErr);
 			exit(EXIT_FAILURE);
 		}
-		pthread_mutex_lock(&semItems);
+
 		// Si la validacion fue exitosa creamos la caja de recursos
-		CrearCaja(list_items, *lineaCaja[1],atoi(lineaCaja[3]),atoi(lineaCaja[4]),atoi(lineaCaja[2]));//*cajaRecursos[1], atoi(cajaRecursos[3]), atoi(cajaRecursos[4]), atoi(cajaRecursos[2]));
-		pthread_mutex_unlock(&semItems);
+		CrearCaja(list_items, arrCaja[1][0], atoi(arrCaja[3]), atoi(arrCaja[4]), atoi(arrCaja[2]));
+
+		// Rearma el cajaAux para la iteracion
+		sprintf(cajaAux, "Caja%d", ++t);
 	}
-	free(lineaCaja);
+	log_debug(logger, "Levante las cajas del archivo de configuracion");
+	// Liberamos memoria
 	free(messageLimitErr);
+	free(cajaAux);
+
+	//CESAR te comenté esto porque me armaba mal las cajas y me tiraba seg fault asi que lo deje como lo habia hecho antes
+	//Despues fijate si queres de arreglarlo al tuyo
+//	for(i=1;i<=cantCajas;i++){
+//		//printf("valor de i:%i",i);
+//		char* clave;
+//		clave=string_from_format("Caja%i",i+1);
+//		lineaCaja=config_get_array_value(configNivel,clave);
+//	    posXCaja=atoi(lineaCaja[3]);
+//		posYCaja=atoi(lineaCaja[4]);
+//		if (posYCaja > maxRows || posXCaja > maxCols || posYCaja < 1 || posXCaja < 1) {
+//			sprintf(messageLimitErr, "La caja %s excede los limites de la pantalla. (%d,%d) - (%d,%d)",clave,posXCaja,posYCaja,maxRows,maxCols);
+//			cerrarNivel(messageLimitErr);
+//			exit(EXIT_FAILURE);
+//		}
+//		pthread_mutex_lock(&semItems);
+//		// Si la validacion fue exitosa creamos la caja de recursos
+//		CrearCaja(list_items, *lineaCaja[1],atoi(lineaCaja[3]),atoi(lineaCaja[4]),atoi(lineaCaja[2]));//*cajaRecursos[1], atoi(cajaRecursos[3]), atoi(cajaRecursos[4]), atoi(cajaRecursos[2]));
+//		pthread_mutex_unlock(&semItems);
+//	}
+	//free(lineaCaja);
+
 	nom_nivel 	   = string_duplicate(config_get_string_value(configNivel,"Nombre"));//config_get_string_value(configNivel, "Nombre");
 	recovery       = config_get_int_value(configNivel, "Recovery");
 	cant_enemigos  = config_get_int_value(configNivel, "Enemigos");
 	sleep_enemigos = config_get_int_value(configNivel, "Sleep_Enemigos");
 	algoritmoAux   = config_get_string_value(configNivel, "algoritmo");
-	char* rr="RR";
+	char* rr = malloc(sizeof(char)*2 + 1);
+	strcpy(rr, "RR");
 	if(strcmp(algoritmoAux,rr)==0)algoritmo=RR;else algoritmo=SRDF;
 	quantum 	   = config_get_int_value(configNivel, "quantum");
 	retardo 	   = config_get_int_value(configNivel, "retardo");
@@ -379,6 +460,22 @@ void levantarArchivoConf2(char* argumento){
 	cantRecursos   = list_size(list_items);
 	config_destroy(configNivel);
 }
+
+bool existePersonaje(tSimbolo simbolo){
+
+	int i;
+	int cantItems = list_size(list_items);
+	for(i = 0; i < cantItems; i++){
+		ITEM_NIVEL *item = list_get(list_items, i);
+		if(item->item_type == PERSONAJE_ITEM_TYPE){
+			if(item->id == (char) simbolo)
+				return true;
+		}
+	}
+	return false;
+
+}
+
 void actualizarInfoNivel(char* argumento){
 	extern tAlgoritmo algoritmo;
 	extern int quantum;
