@@ -178,7 +178,7 @@ int main(int argc, char* argv[]) {
 			}
 			if(uDescriptores[0].revents & POLLIN){
 				recibirPaquete(sockete,&tipoDeMensaje,&payload,logger,"Recibiendo mensaje de plataforma");
-				int8_t tipoMsj;
+				int8_t tipoMsj = (int8_t)tipoDeMensaje;
 				tHandshakeNivel *nuevoPersonaje;
 				tPregPosicion* posConsultada;
 				tRtaPosicion posRespondida;
@@ -186,7 +186,6 @@ int main(int argc, char* argv[]) {
 				pers_t* personaG;
 				tSimbolo personajeMuerto;
 				//char* recursoPedido;
-				tipoMsj=(int8_t)tipoDeMensaje;
 
 				switch(tipoMsj){
 				case PL_HANDSHAKE:
@@ -225,7 +224,7 @@ int main(int argc, char* argv[]) {
 					paquete->type=N_POS_RECURSO;
 					memcpy(paquete->payload,&posRespondida,sizeof(tRtaPosicion));
 					paquete->length=sizeof(tRtaPosicion);
-					enviarPaquete(sockete,paquete,logger,"enviando pos de recurso a plataforma");
+					enviarPaquete(sockete,paquete,logger,"Enviando pos de recurso a plataforma");
 					pthread_mutex_unlock(&semMSJ);
 				break;
 				case PL_MOV_PERSONAJE:

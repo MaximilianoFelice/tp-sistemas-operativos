@@ -350,6 +350,7 @@ void calcularYEnviarMovimiento(personajeIndividual_t personajePorNivel){
 	tMovimientoPers movimientoAEnviar;
 	movimientoAEnviar.simbolo=personaje.simbolo;
 	movimientoAEnviar.direccion=calculaMovimiento(personajePorNivel);
+	log_debug(logger, "Apunto de enviar movimiento");
 
 	tPaquete pkgMovimiento;
 	//serializarMovimientoPers(tMensaje tipoMensaje, tMovimientoPers movimientoPers, tPaquete* pPaquete)
@@ -405,7 +406,9 @@ void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurs
 	solicitudRecurso.recurso= *recurso;
 
 	tPaquete pkgSolicitudRecurso;
-	serializarPregPosicion(PL_SOLICITUD_RECURSO, solicitudRecurso, &pkgSolicitudRecurso);
+	serializarPregPosicion(P_POS_RECURSO, solicitudRecurso, &pkgSolicitudRecurso);
+
+	//recibirMensajeTurno(personajePorNivel->socketPlataforma);
 
 	enviarPaquete(personajePorNivel->socketPlataforma, &pkgSolicitudRecurso, logger, "Solicito la posicion de un recurso");
 

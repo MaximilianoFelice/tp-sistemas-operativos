@@ -48,7 +48,7 @@ int seleccionarJugador(tPersonaje* pPersonaje, tNivel* nivel);
 tPersonaje* planificacionSRDF(t_queue* cListos, int iTamanioCola);
 void solicitudRecursoPersonaje(int iSocketConexion, char *sPayload, tNivel *pNivel, tPersonaje **pPersonajeActual, t_log *logger);
 void movimientoPersonaje(int iSocketConexion, char* sPayload, tNivel *pNivel, tPersonaje* pPersonaje, t_log* logger);
-void posicionRecursoPersonaje(int iSocketConexion, char* sPayload, tNivel* pNivel, t_log* logger);
+void posicionRecursoPersonaje(int iSocketConexion, char* sPayload, int socketNivel, t_log* logger);
 int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNivel, t_log* logger);
 void muertePorEnemigoPersonaje(char* sPayload, tNivel *pNivel, tPersonaje* pPersonaje, t_log* logger);
 void recepcionRecurso(tNivel *pNivel, char *sPayload, t_log *logger);
@@ -245,7 +245,6 @@ int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char*
 		if(pNivelPedido == NULL)
 			log_error(logger, "Saco mal el nivel: Puntero en NULL");
 
-		log_debug(logger, ">>>>Antes del avisoConexionANivel");
 		bool rta_nivel = avisoConexionANivel(pNivelPedido->socket, sPayload, pHandshakePers->simbolo);
 
 		if(rta_nivel){
@@ -364,6 +363,7 @@ void *planificador(void * pvNivel) {
     tNivel* pNivel;
     pNivel = (tNivel*) pvNivel;
 
+    int socketNivel = pNivel->socket; //TODO FIXME XXX
     //Para multiplexar
     int iSocketConexion;
     fd_set readfds;
@@ -382,12 +382,12 @@ void *planificador(void * pvNivel) {
         iSocketConexion = multiplexar(&pNivel->masterfds, &readfds, &pNivel->maxSock, &tipoMensaje, &sPayload, logger);
 
         if (iSocketConexion != -1) {
-
             pthread_mutex_lock(&semNivel);
 
             switch (tipoMensaje) {
             case(P_POS_RECURSO):
-                posicionRecursoPersonaje(iSocketConexion, sPayload, pNivel, logger);
+            	log_debug(logger, "El socket del nivel es %d", socketNivel);
+                posicionRecursoPersonaje(iSocketConexion, sPayload, socketNivel, logger);
                 break;
 
             case(P_MOVIMIENTO):
@@ -513,16 +513,17 @@ tPersonaje* planificacionSRDF(t_queue* cListos, int iTamanioCola) {
     return pPersonaje;
 }
 
-void posicionRecursoPersonaje(int iSocketConexion, char* sPayload, tNivel* pNivel, t_log* logger) {
+void posicionRecursoPersonaje(int iSocketConexion, char* sPayload, int socketNivel, t_log* logger) {
     tMensaje tipoMensaje;
     tPaquete pkgPosRecurso;
     pkgPosRecurso.type    = PL_POS_RECURSO;
     pkgPosRecurso.length  = strlen(sPayload);
     strcpy(pkgPosRecurso.payload, sPayload);
-    free(sPayload); //TODO aqui hace un free() y abajo lo usa en recibirPaquete()
 
-    enviarPaquete(pNivel->socket, &pkgPosRecurso, logger, "Solicitud posicion de recurso");
-    recibirPaquete(pNivel->socket, &tipoMensaje, &sPayload, logger, "Recibo posicion del recurso");
+    log_debug(logger, "El socket es %i", socketNivel);
+
+    enviarPaquete(socketNivel, &pkgPosRecurso, logger, "Solicitud al NIVEL la posicion de recurso");
+    recibirPaquete(socketNivel, &tipoMensaje, &sPayload, logger, "Recibo del NIVEL posicion del recurso");
 
     if (tipoMensaje == N_POS_RECURSO) {
         pkgPosRecurso.type    = PL_POS_RECURSO;
