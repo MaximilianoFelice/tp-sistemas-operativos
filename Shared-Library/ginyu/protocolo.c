@@ -47,15 +47,15 @@ int serializarInfoNivel(tMensaje tipoMensaje, tInfoNivel infoNivel, tPaquete* pP
 
 	pPaquete->type = tipoMensaje;
 
-	tmp_size = sizeof(infoNivel.delay);
+	tmp_size = sizeof(uint32_t);
 	memcpy(pPaquete->payload, &infoNivel.delay, tmp_size);
 
 	offset   = tmp_size;
-	tmp_size = sizeof(infoNivel.quantum);
+	tmp_size = sizeof(int8_t);
 	memcpy(pPaquete->payload + offset, &infoNivel.quantum, tmp_size);
 
-	offset   =+ tmp_size;
-	tmp_size = sizeof(infoNivel.algoritmo);
+	offset  += tmp_size;
+	tmp_size = sizeof(tAlgoritmo);
 	memcpy(pPaquete->payload + offset, &infoNivel.algoritmo, tmp_size);
 
 	pPaquete->length = offset + tmp_size;
@@ -68,14 +68,14 @@ tInfoNivel * deserializarInfoNivel(char * payload) {
 	int offset   = 0;
 	int tmp_size = 0;
 
-	tmp_size = sizeof(int8_t);
+	tmp_size = sizeof(uint32_t);
 	memcpy(&pInfoNivel->delay, payload, tmp_size);
 
 	offset   = tmp_size;
 	tmp_size = sizeof(int8_t);
 	memcpy(&pInfoNivel->quantum, payload + offset, tmp_size);
 
-	offset   =+ tmp_size;
+	offset  += tmp_size;
 	tmp_size = sizeof(tAlgoritmo);
 	memcpy(&pInfoNivel->algoritmo, payload + offset, tmp_size);
 
@@ -115,6 +115,26 @@ tPregPosicion * deserializarPregPosicion(char * payload) {
 	memcpy(&pPregPosicion->simbolo, payload + offset, tmp_size);
 
 	return pPregPosicion;
+}
+
+int serializarHandshakeNivel(tMensaje tipoMensaje, tHandshakeNivel simbolo, tPaquete* pPaquete) {
+
+	pPaquete->type = tipoMensaje;
+	pPaquete->length = sizeof(simbolo);
+	memcpy(pPaquete->payload, &simbolo, pPaquete->length);
+
+	return EXIT_SUCCESS;
+}
+
+tHandshakeNivel* deserializarHandshakeNivel(char * payload) {
+
+	tHandshakeNivel *handshakeNivel = malloc(sizeof(tHandshakeNivel));
+	int tmp_size = 0;
+
+	tmp_size = sizeof(tSimbolo);
+	memcpy(&handshakeNivel->simbolo, payload, tmp_size);
+
+	return handshakeNivel;
 }
 
 

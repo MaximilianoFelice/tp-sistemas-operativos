@@ -58,14 +58,14 @@ int main(int argc, char*argv[]) {
 	cargarArchivoConfiguracion(argv[1]);
 	cantidadNiveles =list_size(personaje.listaNiveles);
 	hilosNiv = calloc(cantidadNiveles, sizeof(threadNivel_t));
+	personaje.vidas = personaje.vidasMaximas; //TODO les agrgue esto porque en el while(personaje.vidas>0) preguntaba por basura
 
-	int i=0;
-	int indiceNivel;
-	for( indiceNivel = 0;  indiceNivel < cantidadNiveles; indiceNivel ++) {
+	int i;
+	for( i = 0;  i < cantidadNiveles; i ++) {
 		//creo estructura del nivel que va a jugar cada hilo
-		hilosNiv[i].nivel.nomNivel = ((nivel_t*) list_get_data(personaje.listaNiveles,indiceNivel))->nomNivel;
-		hilosNiv[i].nivel.Objetivos = ((nivel_t*) list_get_data(personaje.listaNiveles,	indiceNivel))->Objetivos;
-		hilosNiv[i].nivel.num_of_thread = indiceNivel;
+		hilosNiv[i].nivel.nomNivel = ((nivel_t*) list_get_data(personaje.listaNiveles,i))->nomNivel;
+		hilosNiv[i].nivel.Objetivos = ((nivel_t*) list_get_data(personaje.listaNiveles,	i))->Objetivos;
+		hilosNiv[i].nivel.num_of_thread = i;
 
 		//Tiro el hilo para jugar de cada nivel
 		if (pthread_create(&hilosNiv[i].thread, NULL, jugar, (void *) &hilosNiv[i].nivel)) {
@@ -206,7 +206,6 @@ void *jugar(void *args) {
 
 	dictionary_put(listaPersonajePorNiveles, personajePorNivel.nivelQueJuego->nomNivel, &personajePorNivel);
 
-
 	handshake_plataforma(&personajePorNivel);
 
 	//Setea los flags del inicio
@@ -226,8 +225,7 @@ void *jugar(void *args) {
 			murioPersonaje = false;
 
 			//agarra un recurso de la lista de objetivos del nivel
-			char* recurso = (char*) list_get_data(personajePorNivel.nivelQueJuego->Objetivos,	personajePorNivel.objetivoActual);
-
+			char* recurso = (char*) list_get_data(personajePorNivel.nivelQueJuego->Objetivos, personajePorNivel.objetivoActual);
 			pedirPosicionRecurso(&personajePorNivel, recurso);
 
 			while (!conseguiRecurso(personajePorNivel)) {
@@ -350,6 +348,7 @@ void calcularYEnviarMovimiento(personajeIndividual_t personajePorNivel){
 	tMovimientoPers movimientoAEnviar;
 	movimientoAEnviar.simbolo=personaje.simbolo;
 	movimientoAEnviar.direccion=calculaMovimiento(personajePorNivel);
+	log_debug(logger, "Apunto de enviar movimiento");
 
 	tPaquete pkgMovimiento;
 	//serializarMovimientoPers(tMensaje tipoMensaje, tMovimientoPers movimientoPers, tPaquete* pPaquete)
@@ -405,22 +404,22 @@ void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurs
 	solicitudRecurso.recurso= *recurso;
 
 	tPaquete pkgSolicitudRecurso;
-	serializarPregPosicion(PL_SOLICITUD_RECURSO, solicitudRecurso, &pkgSolicitudRecurso);
+	serializarPregPosicion(P_POS_RECURSO, solicitudRecurso, &pkgSolicitudRecurso);
+
+	//recibirMensajeTurno(personajePorNivel->socketPlataforma);
 
 	enviarPaquete(personajePorNivel->socketPlataforma, &pkgSolicitudRecurso, logger, "Solicito la posicion de un recurso");
 
 	char* sPayload;
 	recibirPaquete(personajePorNivel->socketPlataforma, &tipoMensaje, &sPayload, logger, "Recibo posicion del recurso");
 
-	tRtaPosicion* rtaSolicitudRecurso;
-	rtaSolicitudRecurso = deserializarRtaPosicion(sPayload);
-
-	if (tipoMensaje != PL_CONFIRMACION_MOV){
-
-		log_error(logger, "Llego un mensaje (tipoMensaje: %d) cuando debia llegar PL_CONFIRMACION_MOV", tipoMensaje);
+	if (tipoMensaje != PL_POS_RECURSO){
+		log_error(logger, "Llego un mensaje (tipoMensaje: %d) cuando debia llegar PL_POS_RECURSO", tipoMensaje);
 		exit(EXIT_FAILURE);
 	}
 
+	tRtaPosicion* rtaSolicitudRecurso;
+	rtaSolicitudRecurso = deserializarRtaPosicion(sPayload);
 
 	personajePorNivel->posRecursoX = rtaSolicitudRecurso->posX;
 	personajePorNivel->posRecursoY = rtaSolicitudRecurso->posY;
@@ -440,7 +439,7 @@ void handshake_plataforma(personajeIndividual_t* personajePorNivel){
 	tHandshakePers handshakePers;
 	handshakePers.simbolo = personaje.simbolo;
 	handshakePers.nombreNivel = malloc(sizeof(personajePorNivel->nivelQueJuego->nomNivel));
-	strcpy(handshakePers.nombreNivel, "unNombre");
+	strcpy(handshakePers.nombreNivel, personajePorNivel->nivelQueJuego->nomNivel);
 	/* Se crea el paquete */
 	tPaquete pkgHandshake;
 	serializarHandshakePers(P_HANDSHAKE, handshakePers, &pkgHandshake);
@@ -451,7 +450,7 @@ void handshake_plataforma(personajeIndividual_t* personajePorNivel){
 	recibirPaquete(personajePorNivel->socketPlataforma, &tipoMensaje, &sPayload, logger, "Recibo si existe el nivel solicitado");
 
 	//Recibo un aviso de que existe o no el nivel
-	if (tipoMensaje == PL_NIVEL_INEXISTENTE){
+	if (tipoMensaje == PL_NIVEL_INEXISTENTE || tipoMensaje == PL_PERSONAJE_REPETIDO){
 		reintentarHandshake(personajePorNivel->socketPlataforma, &pkgHandshake);
 	}
 }
@@ -510,6 +509,7 @@ void devolverRecursosPorMuerte(int socketPlataforma){
 	tMensaje tipoMensaje;
 	char* sPayload;
 	recibirPaquete(socketPlataforma, &tipoMensaje, &sPayload, logger, "Recibo confirmacion de salida y liberacion de recursos por muerte del personaje");
+
 
 	if (tipoMensaje != PL_CONFIRMACION_ELIMINACION) {
 		log_error(logger, "Tipo de mensaje incorrecto, se esperaba PL_CONFIRMACION_ELIMINACION y llego %d", tipoMensaje);

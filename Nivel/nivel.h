@@ -94,6 +94,9 @@ void actualizaPosicion(int *contMovimiento, int *posX, int *posY);
 //bool hayAlgunEnemigoArriba(int posPerX, int posPerY);
 //pers_t* hayAlgunEnemigoArribaDeAlgunPersonaje();
 //Nivel
+void levantarArchivoConf2(char* argumento);
+bool existePersonaje(tSimbolo simbolo);
+void actualizarInfoNivel(char* argumento);
 void levantarArchivoConf(char*);
 void liberarRecsPersonaje(char);
 //void liberarRecursos(pers_t *personajeAux, int index_l_personajes);
