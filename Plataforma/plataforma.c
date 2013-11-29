@@ -280,6 +280,7 @@ void crearNivel(t_list* lNiveles, tNivel* pNivelNuevo, int socket, char *levelNa
 	pNivelNuevo->algoritmo 	 = pInfoNivel->algoritmo;
 	pNivelNuevo->delay 		 = pInfoNivel->delay;
 	pNivelNuevo->maxSock 	 = socket;
+	pNivelNuevo->hay_personajes = false;
 	FD_ZERO(&(pNivelNuevo->masterfds));
 
 	list_add(lNiveles, pNivelNuevo);
