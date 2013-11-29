@@ -381,6 +381,8 @@ void levantarArchivoConf2(char* argumento){
 	free(messageLimitErr);
 	free(cajaAux);
 
+	//CESAR te comenté esto porque me armaba mal las cajas y me tiraba seg fault asi que lo deje como lo habia hecho antes
+	//Despues fijate si queres de arreglarlo al tuyo
 //	for(i=1;i<=cantCajas;i++){
 //		//printf("valor de i:%i",i);
 //		char* clave;
