@@ -50,6 +50,7 @@ typedef enum {
 	PL_NIVEL_YA_EXISTENTE,		// AVISO
 	PL_NIVEL_INEXISTENTE,		// AVISO
 	PL_SOLICITUD_RECURSO,
+	PL_RECURSO_INEXISTENTE,
 	/* Mensajes del nivel */
 	N_HANDSHAKE,
 	N_PERSONAJE_AGREGADO,		//Se conecta un nuevo personaje correctamente

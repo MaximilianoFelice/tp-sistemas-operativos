@@ -44,7 +44,7 @@ typedef struct ThreadNivel{
 } threadNivel_t;
 
 typedef struct PersonajeGlobal{
-	char simbolo;
+	tSimbolo simbolo;
 	int vidas;
 	int vidasMaximas;
 	unsigned short puertoOrquestador;
@@ -56,7 +56,7 @@ typedef struct PersonajeGlobal{
 
 typedef struct PersonajeIndividual{
 	int socketPlataforma;
-	int objetivoActual; //objetivo actual
+	int recursoActual; //objetivo actual
 	int posX;
 	int posY;
 	int posRecursoX;
@@ -92,6 +92,8 @@ void calcularYEnviarMovimiento(personajeIndividual_t personajePorNivel);
 void recibirMensajeTurno(int socketPlataforma);
 
 void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurso);
+
+void reintentarSolicitudRecurso(personajeIndividual_t* personajePorNivel, tPaquete* pkgHandshake, char* recurso);
 
 bool estaMuerto(tMensaje tipoMensaje, bool *murioPj);
 

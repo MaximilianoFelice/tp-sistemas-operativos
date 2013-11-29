@@ -58,7 +58,7 @@ int main(int argc, char*argv[]) {
 	cargarArchivoConfiguracion(argv[1]);
 	cantidadNiveles =list_size(personaje.listaNiveles);
 	hilosNiv = calloc(cantidadNiveles, sizeof(threadNivel_t));
-	personaje.vidas = personaje.vidasMaximas; //TODO les agrgue esto porque en el while(personaje.vidas>0) preguntaba por basura
+	personaje.vidas = personaje.vidasMaximas;
 
 	int i;
 	for( i = 0;  i < cantidadNiveles; i ++) {
@@ -220,12 +220,12 @@ void *jugar(void *args) {
 		log_info(logger, "Vidas de %c: %d", personaje.simbolo, personaje.vidas);
 
 		// Por cada objetivo del nivel,
-		for (personajePorNivel.objetivoActual=0; (personajePorNivel.objetivoActual < list_size(personajePorNivel.nivelQueJuego->Objetivos)) && (!personajeEstaMuerto(murioPersonaje)); personajePorNivel.objetivoActual++) {
+		for (personajePorNivel.recursoActual=0; (personajePorNivel.recursoActual < list_size(personajePorNivel.nivelQueJuego->Objetivos)) && (!personajeEstaMuerto(murioPersonaje)); personajePorNivel.recursoActual++) {
 
 			murioPersonaje = false;
 
 			//agarra un recurso de la lista de objetivos del nivel
-			char* recurso = (char*) list_get_data(personajePorNivel.nivelQueJuego->Objetivos, personajePorNivel.objetivoActual);
+			char* recurso = (char*) list_get_data(personajePorNivel.nivelQueJuego->Objetivos, personajePorNivel.recursoActual);
 			pedirPosicionRecurso(&personajePorNivel, recurso);
 
 			while (!conseguiRecurso(personajePorNivel)) {
@@ -406,25 +406,70 @@ void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurs
 	tPaquete pkgSolicitudRecurso;
 	serializarPregPosicion(P_POS_RECURSO, solicitudRecurso, &pkgSolicitudRecurso);
 
-	//recibirMensajeTurno(personajePorNivel->socketPlataforma);
 
 	enviarPaquete(personajePorNivel->socketPlataforma, &pkgSolicitudRecurso, logger, "Solicito la posicion de un recurso");
 
 	char* sPayload;
 	recibirPaquete(personajePorNivel->socketPlataforma, &tipoMensaje, &sPayload, logger, "Recibo posicion del recurso");
 
-	if (tipoMensaje != PL_POS_RECURSO){
-		log_error(logger, "Llego un mensaje (tipoMensaje: %d) cuando debia llegar PL_POS_RECURSO", tipoMensaje);
-		exit(EXIT_FAILURE);
+	switch (tipoMensaje){
+		case PL_POS_RECURSO:{
+			tRtaPosicion* rtaSolicitudRecurso;
+			rtaSolicitudRecurso = deserializarRtaPosicion(sPayload);
+
+			personajePorNivel->posRecursoX = rtaSolicitudRecurso->posX;
+			personajePorNivel->posRecursoY = rtaSolicitudRecurso->posY;
+
+			break;
+		}
+		case PL_RECURSO_INEXISTENTE:{
+			log_error(logger, "El recurso %c no existe, reintentar pedido", recurso);
+			reintentarSolicitudRecurso(personajePorNivel,&pkgSolicitudRecurso, recurso);
+			break;
+		}
+		default:{
+			log_error(logger, "Llego un mensaje (tipoMensaje: %d) cuando debia llegar PL_POS_RECURSO", tipoMensaje);
+			exit(EXIT_FAILURE);
+			break;
+		}
 	}
 
-	tRtaPosicion* rtaSolicitudRecurso;
-	rtaSolicitudRecurso = deserializarRtaPosicion(sPayload);
-
-	personajePorNivel->posRecursoX = rtaSolicitudRecurso->posX;
-	personajePorNivel->posRecursoY = rtaSolicitudRecurso->posY;
 
 }
+
+
+void reintentarSolicitudRecurso(personajeIndividual_t* personajePorNivel, tPaquete* pkgHandshake, char* recurso){
+
+	sleep(800); //espero un poquito antes de conectarme de nuevo
+
+	enviarPaquete(personajePorNivel->socketPlataforma, pkgHandshake, logger, "Se reenvia solicitud de la posicion del recurso a la plataforma");
+
+	tMensaje tipoMensaje;
+	char* sPayload;
+	recibirPaquete(personajePorNivel->socketPlataforma, &tipoMensaje, &sPayload, logger, "Recibo estado en el que quedo el personaje");
+
+	switch (tipoMensaje){
+		case PL_POS_RECURSO:{
+			tRtaPosicion* rtaSolicitudRecurso;
+			rtaSolicitudRecurso = deserializarRtaPosicion(sPayload);
+
+			personajePorNivel->posRecursoX = rtaSolicitudRecurso->posX;
+			personajePorNivel->posRecursoY = rtaSolicitudRecurso->posY;
+
+			break;
+		}
+		case PL_RECURSO_INEXISTENTE:{
+			log_error(logger, "El recurso %c no existe, reintentar pedido", *recurso);
+			break;
+		}
+		default:{
+			log_error(logger, "Llego un mensaje (tipoMensaje: %d) cuando debia llegar PL_POS_RECURSO", tipoMensaje);
+			exit(EXIT_FAILURE);
+			break;
+		}
+	}
+}
+
 
 bool estaMuerto(tMensaje tipoMensaje, bool *murioPj){
 	if(tipoMensaje == PL_MUERTO_POR_DEADLOCK)
@@ -449,9 +494,21 @@ void handshake_plataforma(personajeIndividual_t* personajePorNivel){
 	char* sPayload;
 	recibirPaquete(personajePorNivel->socketPlataforma, &tipoMensaje, &sPayload, logger, "Recibo si existe el nivel solicitado");
 
-	//Recibo un aviso de que existe o no el nivel
-	if (tipoMensaje == PL_NIVEL_INEXISTENTE || tipoMensaje == PL_PERSONAJE_REPETIDO){
-		reintentarHandshake(personajePorNivel->socketPlataforma, &pkgHandshake);
+	switch(tipoMensaje){
+		case PL_HANDSHAKE:{
+			log_info(logger, "La plataforma le devolvio el handshake al personaje correctamente");
+			break;
+		}
+		case PL_NIVEL_INEXISTENTE:{
+			log_info(logger, "Se esta tratando de conectar un personaje que ya esta conectado con la plataforma");
+			reintentarHandshake(personajePorNivel->socketPlataforma, &pkgHandshake);
+			break;
+		}
+		case PL_PERSONAJE_REPETIDO:{//no se cual es el sentido de esto.. en que caso se daria?? FIXME
+			log_error(logger, "Se esta tratando de conectar un personaje que ya esta conectado con la plataforma");
+			break;
+		}
+
 	}
 }
 
