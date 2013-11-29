@@ -259,10 +259,7 @@ void *jugar(void *args) {
 
 	} //Fin del while(vidas>0)
 
-
-
 	manejarDesconexiones(&personajePorNivel, murioPersonaje, &finalice);
-
 
 	// -----------------
 	if(murioPersonaje){
