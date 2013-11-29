@@ -232,6 +232,8 @@ int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char*
 	pHandshakePers = deserializarHandshakePers(sPayload);
 	int iIndiceNivel;
 
+	log_info(logger, "Se conectó el personaje %c pidiendo el nivel '%s'", pHandshakePers->simbolo, pHandshakePers->nombreNivel);
+
 	iIndiceNivel = existeNivel(listaNiveles, pHandshakePers->nombreNivel);
 
 	if (iIndiceNivel >= 0) {
@@ -239,7 +241,6 @@ int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char*
 		pNivelPedido = list_get(listaNiveles, iIndiceNivel);
 
 		// Logueo del pedido de nivel del personaje
-		log_trace(logger, "Se conectó el personaje %c. Pide nivel: %s", pHandshakePers->simbolo, pHandshakePers->nombreNivel);
 
 		tPaquete pkgHandshake;
 		pkgHandshake.type   = PL_HANDSHAKE;
@@ -522,7 +523,7 @@ void muertePorEnemigoPersonaje(char* sPayload, tNivel *pNivel, tPersonaje* pPers
 	pkgMuertePers.type    = PL_MUERTO_POR_ENEMIGO;
 	pkgMuertePers.length  = strlen(sPayload);
 
-	/* TODO analizar bien que pasa cuando muere el eprsonaje */
+	/* TODO analizar bien que pasa cuando muere el personaje */
 
 	enviarPaquete(pPersonaje->socket, &pkgMuertePers, logger, "Envio mensaje de muerte por personaje");
 }
@@ -601,11 +602,11 @@ int existeNivel(t_list * lNiveles, char* sLevelName) {
 	int iCantNiveles = list_size(lNiveles);
 	tNivel* pNivelGuardado;
 
-	if (!list_is_empty(lNiveles)) {
-
+	if (iCantNiveles > 0) {
+		bEncontrado = 0;
 		for (iNivelLoop = 0; (iNivelLoop < iCantNiveles) && (bEncontrado == 0); iNivelLoop++) {
 			pNivelGuardado = (tNivel *)list_get(listaNiveles, iNivelLoop);
-			bEncontrado    = (strcmp (pNivelGuardado->nombre, sLevelName) == 0);
+			bEncontrado    = (strcmp(pNivelGuardado->nombre, sLevelName) == 0);
 		}
 
 		if (bEncontrado == 1) {

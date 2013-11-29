@@ -91,7 +91,6 @@ int recibirPaquete(int socketReceptor, tMensaje* tipoMensaje, char** psPayload, 
 	int bytesRecibidosHeader = 0;
 	int bytesRecibidos = 0;
 
-	puts("Recibiendo paquete"); //TODO borrar esta linea
 	log_debug(pLogger, "<<< %s", sMensajeLogger);
 	bytesRecibidosHeader = recv(socketReceptor, &header, sizeof(tHeader), MSG_WAITALL);
 
@@ -102,14 +101,12 @@ int recibirPaquete(int socketReceptor, tMensaje* tipoMensaje, char** psPayload, 
 		log_error(pLogger, "%s: %s", sMensajeLogger,  strerror(errno));
 		return -1;	// ERROR
 	}
-	printf("Se recibe header de %d bytes. Tipo %d y largo %d \n", bytesRecibidosHeader, header.type, header.length); //TODO borrar esta linea
-	puts("Se recibe header correctamente"); //TODO borrar esta linea
+
+	log_debug(pLogger, "Se recibe header de %d bytes y tipo de mensaje %d", bytesRecibidosHeader, header.type); //TODO borrar esta linea
 
 	*tipoMensaje = (tMensaje) header.type;
 
 	if (header.length > 0) {
-		puts("Recibiendo payload"); //TODO borrar esta linea
-
 		*psPayload = malloc(header.length);
 
 		bytesRecibidos = recv(socketReceptor, *psPayload, header.length, MSG_WAITALL);
@@ -119,9 +116,8 @@ int recibirPaquete(int socketReceptor, tMensaje* tipoMensaje, char** psPayload, 
 			free(psPayload);	// ERROR, se libera el espacio reservado
 			return -1;
 		}
-		printf("Se reciben %d bytes de payload\n", bytesRecibidos);//TODO borrar esta linea
+		log_debug(pLogger, "Se reciben %d bytes de payload", bytesRecibidos);//TODO borrar esta linea
 	}
-	puts("Paquete recibido"); //TODO borrar esta linea
 	return bytesRecibidos + bytesRecibidosHeader;
 }
 
@@ -144,16 +140,17 @@ signed int getConnection(fd_set *setSockets, int *maxSock, int sockListener, tMe
 	FD_ZERO(&setTemporal);
 	setTemporal = *setSockets;
 
-	struct sockaddr_in remoteAddress;
-	socklen_t addressLength;
-	puts("Pre SELECT"); //TODO borrar esta linea
+	struct sockaddr_in clientAddress;
+	socklen_t sinClientSize;
+	sinClientSize = sizeof(clientAddress);
+
 	//--Multiplexa conexiones
 	if (select(*maxSock + 1, &setTemporal, NULL, NULL, NULL) == -1) {
 		log_error(logger, "select: %s", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
-	puts("Post SELECT"); //TODO borrar esta linea
-	//--Cicla las conexiones para ver cual cambió
+
+	//--Cicla las conexiones para ver cual cambio
 	for (iSocket = 0; iSocket <= *maxSock; iSocket++) {
 
 		//--Si el i° socket cambió
@@ -161,9 +158,9 @@ signed int getConnection(fd_set *setSockets, int *maxSock, int sockListener, tMe
 			//--Si el que cambió, es el listener
 
 			if (iSocket == sockListener) {
-				puts("NUEVA CONEXION");
+
 				//--Gestiona nueva conexión
-				iNewSocket = accept(sockListener, (struct sockaddr*) &remoteAddress, (socklen_t *) &addressLength);
+				iNewSocket = accept(sockListener, (struct sockaddr*) &clientAddress, &sinClientSize);
 
 				if (iNewSocket == -1) {
 					log_error(logger, "accept: %s", strerror(errno));
@@ -194,7 +191,6 @@ signed int getConnection(fd_set *setSockets, int *maxSock, int sockListener, tMe
 					FD_CLR(iSocket, setSockets);
 
 				} else {
-					printf("Se retorna socket %d \n", iSocket);//TODO borrar esta linea
 					return iSocket;
 				}
 			}
