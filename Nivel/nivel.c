@@ -184,7 +184,7 @@ int main(int argc, char* argv[]) {
 					log_debug(logger,"Nuevo Personaje %c en el nivel", (char)nuevoPersonaje->simbolo);
 					//Creo el personaje en el mapa
 					pthread_mutex_lock(&semItems);
-					if(personajeNoExiste(nuevoPersonaje->simbolo)){
+					if(!existePersonaje(nuevoPersonaje->simbolo)){
 						CrearPersonaje(list_items, nuevoPersonaje->simbolo, INI_X, INI_Y);
 					} else {
 						paquete->type=N_PERSONAJE_ERROR;
@@ -194,7 +194,7 @@ int main(int argc, char* argv[]) {
 					}
 					pthread_mutex_unlock(&semItems);
 					// TODO validar que no haya otro personaje con el mismo simbolo jugando en el nivel
-					pjNew.simbolo = nuevoPersonaje->simbolo;
+					pjNew.simbolo = (char) nuevoPersonaje->simbolo;
 					pjNew.recursos = list_create();
 					log_info(logger, "Se agregó al personaje %c", pjNew.simbolo);
 					pthread_mutex_lock(&semMSJ);
@@ -449,7 +449,7 @@ void levantarArchivoConf2(char* argumento){
 	config_destroy(configNivel);
 }
 
-bool personajeNoExiste(tSimbolo simbolo){
+bool existePersonaje(tSimbolo simbolo){
 
 	int i;
 	int cantItems = list_size(list_items);
