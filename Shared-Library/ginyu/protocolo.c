@@ -117,6 +117,27 @@ tPregPosicion * deserializarPregPosicion(char * payload) {
 	return pPregPosicion;
 }
 
+int serializarHandshakeNivel(tMensaje tipoMensaje, tHandshakeNivel simbolo, tPaquete* pPaquete) {
+
+	pPaquete->type = tipoMensaje;
+
+	pPaquete->length = sizeof(simbolo);
+	memcpy(pPaquete->payload, &simbolo, pPaquete->length);
+
+	return EXIT_SUCCESS;
+}
+
+tHandshakeNivel* deserializarHandshakeNivel(char * payload) {
+
+	tHandshakeNivel *handshakeNivel = malloc(sizeof(tHandshakeNivel));
+	int tmp_size = 0;
+
+	tmp_size = sizeof(tSimbolo);
+	memcpy(&handshakeNivel->simbolo, payload, tmp_size);
+
+	return handshakeNivel;
+}
+
 
 int serializarRtaPosicion(tMensaje tipoMensaje, tRtaPosicion rtaPosicion, tPaquete* pPaquete) {
 

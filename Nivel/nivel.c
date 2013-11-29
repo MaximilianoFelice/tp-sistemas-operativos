@@ -74,9 +74,9 @@ int main(int argc, char* argv[]) {
 	//RECIBIENDO CONTESTACION
 	tMensaje tipoDeMensaje;
 	char* payload;
-	recibirPaquete(sockete,&tipoDeMensaje,&payload,logger,"recibe handshake de plataforma");
+	recibirPaquete(sockete,&tipoDeMensaje,&payload,logger,"Recibe handshake de plataforma");
 	if(tipoDeMensaje!=PL_HANDSHAKE) {
-		log_error(logger,"tipo de mensaje incorrecto -se esperaba PL_HANDSHAKE-");
+		log_error(logger,"Tipo de mensaje incorrecto -se esperaba PL_HANDSHAKE-");
 		exit(EXIT_FAILURE);
 	}
 	//puts("contestacion recibida");
@@ -162,13 +162,14 @@ int main(int argc, char* argv[]) {
 					memcpy(paquete->payload,&infoDeNivel.delay,sizeof(uint32_t));
 					memcpy(paquete->payload+sizeof(uint32_t),&infoDeNivel.quantum,sizeof(int8_t));
 					memcpy(paquete->payload+sizeof(uint32_t)+sizeof(int8_t),&infoDeNivel.algoritmo,sizeof(tAlgoritmo));
-					enviarPaquete(sockete,paquete,logger,"notificando a plataforma algoritmo");
+					enviarPaquete(sockete,paquete,logger,"Notificando a plataforma algoritmo");
 					pthread_mutex_unlock(&semMSJ);
 				}
 			}
 			if(uDescriptores[0].revents & POLLIN){
-				recibirPaquete(sockete,&tipoDeMensaje,&payload,logger,"recibiendo mensaje de plataforma");
+				recibirPaquete(sockete,&tipoDeMensaje,&payload,logger,"Recibiendo mensaje de plataforma");
 				int8_t tipoMsj;
+				tHandshakeNivel *nuevoPersonaje;
 				tPregPosicion* posConsultada;
 				tRtaPosicion posRespondida;
 				tMovimientoPers movPersonaje;
@@ -178,6 +179,32 @@ int main(int argc, char* argv[]) {
 				tipoMsj=(int8_t)tipoDeMensaje;
 
 				switch(tipoMsj){
+				case PL_HANDSHAKE:
+					nuevoPersonaje = deserializarHandshakeNivel(payload);
+					log_debug(logger,"Nuevo Personaje %c en el nivel", (char)nuevoPersonaje->simbolo);
+					//Creo el personaje en el mapa
+					pthread_mutex_lock(&semItems);
+					if(personajeNoExiste(nuevoPersonaje->simbolo)){
+						CrearPersonaje(list_items, nuevoPersonaje->simbolo, INI_X, INI_Y);
+					} else {
+						paquete->type=N_PERSONAJE_ERROR;
+						paquete->length=0;
+						enviarPaquete(sockete,paquete,logger,"WARN: El personaje ya existe");
+						break;
+					}
+					pthread_mutex_unlock(&semItems);
+					// TODO validar que no haya otro personaje con el mismo simbolo jugando en el nivel
+					pjNew.simbolo = nuevoPersonaje->simbolo;
+					pjNew.recursos = list_create();
+					log_info(logger, "Se agregó al personaje %c", pjNew.simbolo);
+					pthread_mutex_lock(&semMSJ);
+					paquete->type=N_PERSONAJE_AGREGADO;
+					paquete->length=0;
+					enviarPaquete(sockete,paquete,logger,"Envio confirmacion a plataforma");
+					pthread_mutex_unlock(&semMSJ);
+					// Agrego el personaje a la lista de personajes del nivel
+					list_add_new(list_personajes, (void *) &pjNew, sizeof(pers_t));
+					break;
 				case PL_POS_RECURSO:
 					posConsultada=deserializarPregPosicion(payload);
 					getPosRecurso(list_items,posConsultada->recurso, &posRecX, &posRecY);
@@ -328,10 +355,11 @@ void levantarArchivoConf(char* argumento){
 void levantarArchivoConf2(char* argumento){
 	t_config *configNivel; //TODO destruir el config cuando cierra el nivel,
 	char* algoritmoAux;
-	int posXCaja,posYCaja,cantCajas;
+	//int i, posXCaja,posYCaja,cantCajas;
+	int posXCaja, posYCaja;
 	char* dir_plataforma;
 	char* messageLimitErr= malloc(sizeof(char) * 100);
-	char** lineaCaja;
+	//char** lineaCaja;
 	char** dirYpuerto;
 
 	dirYpuerto=(char**)malloc(sizeof(char*)*2);
@@ -340,7 +368,7 @@ void levantarArchivoConf2(char* argumento){
 	extern char* nom_nivel;
 
 	configNivel=config_create(argumento);
-	cantCajas=config_keys_amount(configNivel)-9;
+	//cantCajas=config_keys_amount(configNivel)-9;
 	//lineaCaja=malloc(cantCajas*15*sizeof(char));
 	//puts("entrando al for"); //TODO sacar esto
 
@@ -420,6 +448,22 @@ void levantarArchivoConf2(char* argumento){
 	cantRecursos   = list_size(list_items);
 	config_destroy(configNivel);
 }
+
+bool personajeNoExiste(tSimbolo simbolo){
+
+	int i;
+	int cantItems = list_size(list_items);
+	for(i = 0; i < cantItems; i++){
+		ITEM_NIVEL *item = list_get(list_items, i);
+		if(item->item_type == PERSONAJE_ITEM_TYPE){
+			if(item->id == (char) simbolo)
+				return true;
+		}
+	}
+	return false;
+
+}
+
 void actualizarInfoNivel(char* argumento){
 	extern tAlgoritmo algoritmo;
 	extern int quantum;
