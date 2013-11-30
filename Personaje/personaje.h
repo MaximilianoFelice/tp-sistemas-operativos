@@ -79,7 +79,7 @@ void *jugar(void *args);
 
 void desconectarPersonaje(personajeIndividual_t* personajePorNivel);
 
-void manejarDesconexiones(personajeIndividual_t* personajePorNivel, bool murioPersonaje, bool* finalice);
+void manejarDesconexiones(personajeIndividual_t* personajePorNivel, bool murioPersonaje);//, bool* finalice);
 
 bool personajeEstaMuerto(bool murioPersonaje);
 
