@@ -163,10 +163,10 @@ signed int getConnection(fd_set *setSockets, int *maxSock, int sockListener, tMe
 				iNewSocket = accept(sockListener, (struct sockaddr*) &clientAddress, &sinClientSize);
 
 				if (iNewSocket == -1) {
-					log_error(logger, "accept: %s", strerror(errno));
+					log_error(logger, "getConnection :: accept: %s", strerror(errno));
 
 				} else {
-					log_trace(logger, "Nueva conexion socket: %d", iNewSocket);
+					log_trace(logger, "getConnection :: Nueva conexion socket: %d", iNewSocket);
 					//--Agrega el nuevo listener
 					FD_SET(iNewSocket, setSockets);
 
@@ -180,7 +180,7 @@ signed int getConnection(fd_set *setSockets, int *maxSock, int sockListener, tMe
 				if ((iBytesRecibidos = recibirPaquete(iSocket, tipoMensaje, payload, logger, "Se recibe informacion")) <= 0) {
 					//--Si cerró la conexión o hubo error
 					if (iBytesRecibidos == 0) {
-						log_trace(logger, "Fin de conexion de socket %d.", iSocket);
+						log_debug(logger, "Fin de conexion de socket %d.", iSocket);
 
 					} else {
 						log_error(logger, "recv: %s", strerror(errno));
@@ -189,13 +189,14 @@ signed int getConnection(fd_set *setSockets, int *maxSock, int sockListener, tMe
 					//--Cierra la conexión y lo saca de la lista
 					close(iSocket);
 					FD_CLR(iSocket, setSockets);
-
-				} else {
-					return iSocket;
+					*tipoMensaje = DESCONEXION;
 				}
+
+				return iSocket;
 			}
 		}
 	}
+
 	return -1;
 }
 
@@ -220,20 +221,22 @@ signed int multiplexar(fd_set *master, fd_set *temp, int *maxSock, tMensaje* tip
 			if ((nBytes = recibirPaquete(iSocket, tipoMensaje, buffer, logger, "Se recibe Mensaje")) <= 0) {
 				//--Si cerró la conexión o hubo error
 				if (nBytes == 0) {
-					log_trace(logger,"Planificador: Fin de conexion de %d.", iSocket);
+					log_trace(logger, "multiplexar :: Fin de conexion de %d.", iSocket);
+
 				} else {
-					log_error(logger, "Planificador: recv: %s", strerror(errno));
+					log_error(logger, "multiplexar :: recv: %s", strerror(errno));
 				}
 				//--Cierra la conexión y lo saca de la lista
 				close(iSocket);
 				FD_CLR(iSocket, master);
+				*tipoMensaje = DESCONEXION;
 
-			} else { //Tengo info
-				return iSocket;
 			}
 
+			return iSocket;
 		}
 	}
+
 	return -1;
 }
 
@@ -263,4 +266,13 @@ signed int connectToServer(char *ip_server, int puerto, t_log *logger)
 	log_trace(logger, "Se realiza conexion con socket %d", iSocket);
 
 	return iSocket;
+}
+
+int desconectarseDe(int iSocket)
+{
+	if (close(iSocket)) {
+		return EXIT_SUCCESS;
+	} else {
+		return EXIT_FAILURE;
+	}
 }

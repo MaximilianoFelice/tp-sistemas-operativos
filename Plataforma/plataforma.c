@@ -20,18 +20,20 @@ bool hay_personajes;
 /*
  * Funciones privadas
  */
-
 tPersonaje* desbloquearPersonaje(t_list* lBloqueados, tSimbolo recurso);
+int existePersonaje(t_list *pListaPersonajes, int iSocket);
+tPersonaje *sacarPersonajeDeListas(tNivel *pNivel, int iSocket);
+
 
 /*
  * Funciones privadas plataforma
  */
 int executeKoopa(char *koopaPath, char *scriptPath);
 
+
 /*
  * Funciones privadas orquestador
  */
-
 int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOrquestador, t_list *lPlanificadores);
 int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char* sPayload);
 bool avisoConexionANivel(int sockNivel,char *sPayload, tSimbolo simbolo);
@@ -39,10 +41,10 @@ void sendPersonajeRepetido(int socketPersonaje);
 void sendNivelRepetido(int sockPersonaje);
 void crearHiloPlanificador(pthread_t *pPlanificador, tNivel *nivelNuevo, t_list *lPlanificadores);
 
+
 /*
  * Funciones privadas planificador
  */
-
 int seleccionarJugador(tPersonaje** pPersonaje, tNivel* nivel, int iEnviarTurno);
 tPersonaje* planificacionSRDF(t_queue* cListos, int iTamanioCola);
 void solicitudRecursoPersonaje(int iSocketConexion, char *sPayload, tNivel *pNivel, tPersonaje **pPersonajeActual, t_log *logger);
@@ -53,6 +55,7 @@ void muertePorEnemigoPersonaje(char* sPayload, tNivel *pNivel, tPersonaje* pPers
 void recepcionRecurso(tNivel *pNivel, char *sPayload, t_log *logger);
 void enviarTurno(tPersonaje *pPersonaje);
 void confirmarMovimiento(tPersonaje *pPersonajeActual, t_log *logger);
+void desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexion);
 
 /*
  * PLATAFORMA
@@ -388,7 +391,6 @@ void *planificador(void * pvNivel) {
         seleccionarJugador(&pPersonajeActual, pNivel, iEnviarTurno);
 
         iSocketConexion = multiplexar(&pNivel->masterfds, &readfds, &pNivel->maxSock, &tipoMensaje, &sPayload, logger);
-
         if (iSocketConexion != -1) {
             pthread_mutex_lock(&semNivel);
             iEnviarTurno = 0;
@@ -441,6 +443,11 @@ void *planificador(void * pvNivel) {
 				iEnviarTurno = 1;
 				break;
 
+            case(DESCONEXION):
+				desconectar(pNivel, &pPersonajeActual, iSocketConexion);
+				iEnviarTurno = 1;
+				break;
+
             default:
             	iEnviarTurno = 0;
                 break;
@@ -461,7 +468,7 @@ int seleccionarJugador(tPersonaje** pPersonaje, tNivel* nivel, int iEnviarTurno)
         switch(nivel->algoritmo) {
         case RR:
             if ((*pPersonaje)->valorAlgoritmo < nivel->quantum) {
-            	log_debug(logger, "quantum personaje: %d quantum nivel: %d. Enviar Turno: %d", (*pPersonaje)->valorAlgoritmo, nivel->quantum, iEnviarTurno);
+            	log_debug(logger, "Quantum personaje: %d \n Quantum nivel: %d. \n Enviar Turno: %d.", (*pPersonaje)->valorAlgoritmo, nivel->quantum, iEnviarTurno);
                 // Puede seguir jugando
             	if (iEnviarTurno == 1) {
             		enviarTurno(*pPersonaje);
@@ -555,8 +562,8 @@ tPersonaje* planificacionSRDF(t_queue* cListos, int iTamanioCola) {
 void posicionRecursoPersonaje(int iSocketConexion, char* sPayload, int socketNivel, t_log* logger) {
     tMensaje tipoMensaje;
     tPaquete pkgPosRecurso;
-    pkgPosRecurso.type    = PL_POS_RECURSO;
-    pkgPosRecurso.length  = strlen(sPayload);
+    pkgPosRecurso.type   = PL_POS_RECURSO;
+    pkgPosRecurso.length = strlen(sPayload);
     strcpy(pkgPosRecurso.payload, sPayload);
 
     log_debug(logger, "El socket es %i", socketNivel);
@@ -675,10 +682,26 @@ void recepcionRecurso(tNivel *pNivel, char *sPayload, t_log *logger) {
 		log_info(logger, "Se desbloquea el personaje: %c", pPersonaje->simbolo);
 		queue_push(pNivel->cListos, pPersonaje);
 		log_info(logger, "Se mueve al personaje: %c a la cola de listos", pPersonaje->simbolo);
+
 	} else {
 		log_info(logger, "No se encontro ningun personaje esperando por el recurso");
 	}
 
+}
+
+void desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexion) {
+	tPersonaje *pPersonaje;
+	log_info(logger, "Se detecta desconexion...");
+	/*UNDER CONSTRUCTION*/
+
+	pPersonaje = sacarPersonajeDeListas(pNivel, iSocketConexion);
+	if (pPersonaje != NULL) {
+		log_info(logger, "Se desconecto el personaje %c", pPersonaje->simbolo);
+
+		if (pPersonaje->simbolo == (*pPersonajeActual)->simbolo) {
+			*pPersonajeActual = NULL;
+		}
+	}
 }
 
 
@@ -686,57 +709,65 @@ void recepcionRecurso(tNivel *pNivel, char *sPayload, t_log *logger) {
  * Verificar si el nivel existe, si existe devuelve el indice de su posicion, sino devuelve -1
  */
 int existeNivel(t_list * lNiveles, char* sLevelName) {
-	int iNivelLoop, bEncontrado;
+	int iNivelLoop;
 	int iCantNiveles = list_size(lNiveles);
 	tNivel* pNivelGuardado;
 
 	if (iCantNiveles > 0) {
-		bEncontrado = 0;
-		for (iNivelLoop = 0; (iNivelLoop < iCantNiveles) /*&& (bEncontrado == 0)*/; iNivelLoop++) {
+
+		for (iNivelLoop = 0; iNivelLoop < iCantNiveles; iNivelLoop++) {
 			pNivelGuardado = (tNivel *)list_get(listaNiveles, iNivelLoop);
-			if(string_equals_ignore_case(pNivelGuardado->nombre, sLevelName))
+
+			if (string_equals_ignore_case(pNivelGuardado->nombre, sLevelName)) {
 				return iNivelLoop;
-		}
-
-		if (bEncontrado == 1) {
-			return iNivelLoop;
+			}
 		}
 	}
 
 	return -1;
 }
 
-int buscarPersonajePorSocket(t_list *lista, int socket, tPersonaje *personaje){
-	int contPj;
+/*
+ * Verificar si el personaje existe, si existe devuelve el indice de su posicion, sino devuelve -1
+ */
+int existePersonaje(t_list *pListaPersonajes, int iSocket) {
+	int iPersonajeLoop;
+	int iCantPersonajes = list_size(pListaPersonajes);
+	tPersonaje* pPersonajeGuardado;
 
-	for (contPj =0 ; contPj<list_size(lista); contPj++) {
-		personaje = list_get(lista, contPj);
+	if (iCantPersonajes > 0) {
 
-		if(personaje->socket == socket) {
-			return contPj;
+		for (iPersonajeLoop = 0; iPersonajeLoop < iCantPersonajes; iPersonajeLoop++) {
+			pPersonajeGuardado = (tPersonaje *)list_get(pListaPersonajes, iPersonajeLoop);
+
+			if (pPersonajeGuardado->socket == iSocket) {
+				return iPersonajeLoop;
+			}
 		}
 	}
 
 	return -1;
 }
 
-bool sacarPersonajeDeListas(t_list *ready, t_list *block, int socket,  tPersonaje *pjLevantador) {
-	int indice_personaje;
-	bool encontrado = false;
+/*
+ * Elimina al personaje que contiene el socket pasado por parametro de todas las listas del nivel y lo devuelve, si no lo encuentra devuelve null
+ */
+tPersonaje *sacarPersonajeDeListas(tNivel *pNivel, int iSocket) {
+	int iIndicePersonaje;
 
-	indice_personaje = buscarPersonajePorSocket(block, socket, pjLevantador);
+	iIndicePersonaje = existePersonaje(pNivel->cListos->elements, iSocket);
 
-	if(indice_personaje != -1){
-		encontrado = true; //Si lo encontras en Blk, cambiamos el flag
-		pjLevantador = list_remove(block, indice_personaje); // Y sacamos al personaje de la lista de bloqueados
-	}
-	//Si no lo encuentra: lo busco en la lista de Ready y lo saco de la misma
-	if (!encontrado) { //Si no lo encontras, buscarlo en rdy
-		indice_personaje = buscarPersonajePorSocket(ready, socket, pjLevantador);
-		pjLevantador = list_remove(ready, indice_personaje); // Lo sacamos de la lista
+	if (iIndicePersonaje != -1) {
+		return (list_remove(pNivel->cListos->elements, iIndicePersonaje)); // Y sacamos al personaje de la lista de bloqueados
 	}
 
-	return encontrado;
+	iIndicePersonaje = existePersonaje(pNivel->lBloqueados, iSocket);
+
+	if (iIndicePersonaje != -1) {
+		return (list_remove(pNivel->lBloqueados, iIndicePersonaje));
+	}
+
+	return NULL;
 }
 
 void imprimirLista(tNivel *pNivel, tPersonaje *pPersonaje) {

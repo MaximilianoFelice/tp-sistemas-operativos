@@ -76,6 +76,7 @@ typedef enum {
 	P_FIN_TURNO,				//AVISO a plataforma
 	P_FIN_PLAN_NIVELES,			//AVISO cuando se terminan todos los niveles
 	/* Mensajes comunes */
+	DESCONEXION,
 	NO_SE_OBTIENE_RESPUESTA
 } tMensaje;
 

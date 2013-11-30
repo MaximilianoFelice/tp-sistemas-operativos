@@ -36,4 +36,6 @@ signed int multiplexar(fd_set *master, fd_set *temp, int *maxSock, tMensaje* tip
 
 signed int connectToServer(char *ip_server, int puerto, t_log *logger);
 
+int desconectarseDe(int iSocket);
+
 #endif /* LIBSOCKETS_H_ */

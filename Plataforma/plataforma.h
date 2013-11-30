@@ -60,7 +60,6 @@ typedef struct {
 void *orquestador(void *) ;
 void *planificador(void *);
 
-bool sacarPersonajeDeListas(t_list *ready, t_list *block, int sock,  tPersonaje *pjLevantador);
 void desbloquearPersonajes(t_list* block, t_list *ready, tPersonaje *pjLevantador, bool encontrado, char*nom_nivel, int proxPj);
 void imprimirLista(tNivel *pNivel, tPersonaje *pPersonaje);
 void marcarPersonajeComoReady(t_list *ready, int sock);
