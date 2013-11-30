@@ -445,12 +445,10 @@ void *planificador(void * pvNivel) {
 
 int seleccionarJugador(tPersonaje** pPersonaje, tNivel* nivel, int iEnviarTurno) {
     int iTamanioCola;
-    log_debug(logger, "ENTRE A SELECCION JUGADOR: socketNivel: %d", nivel->socket);
     // Me fijo si puede seguir jugando
     if (*pPersonaje != NULL) {
         switch(nivel->algoritmo) {
         case RR:
-        	log_debug(logger, "es un RR");
             if ((*pPersonaje)->valorAlgoritmo < nivel->quantum) {
             	log_debug(logger, "quantum personaje: %d quantum nivel: %d. Enviar Turno: %d", (*pPersonaje)->valorAlgoritmo, nivel->quantum, iEnviarTurno);
                 // Puede seguir jugando
@@ -479,7 +477,6 @@ int seleccionarJugador(tPersonaje** pPersonaje, tNivel* nivel, int iEnviarTurno)
         }
     }
 
-    log_debug(logger, "ERA NULL");
     // Busco al proximo personaje para darle turno
     iTamanioCola = queue_size(nivel->cListos);
 
@@ -723,43 +720,40 @@ bool sacarPersonajeDeListas(t_list *ready, t_list *block, int socket,  tPersonaj
 	return encontrado;
 }
 
-//void imprimirLista(tNivel *pNivel, tPersonaje *pPersonaje) {
-//
-//	char* tmp;
-//	char* retorno;
-//	int i;
-//	tPersonaje *pPersAux;
-//
-//	if (queue_is_empty(pNivel->cListos) && (pPersonaje == NULL)) { //Si no hay nadie listo, no se quien esta ejecutando
-//		asprintf(&retorno, "Lista de: %s\n\tEjecutando:\n\tListos: \t", pNivel->nombre);
-//	} else {
-//		asprintf(&retorno, "Lista de: %s\n\tEjecutando: %c\n\tListos: \t", pNivel->nombre, pPersonaje->simbolo);
-//	}
-//
-//	int iCantidadListos = queue_size(pNivel->cListos);
-//	for (i = 0; i < iCantidadListos; i++) {
-//		pPersAux = (tPersonaje *)list_get_data(pNivel->cListos->elements, i);
-//		asprintf(&tmp, "%c -> ", pPersAux->simbolo);
-//		string_append(&retorno, tmp);
-//		free(tmp);
-//	}
-//
-//	asprintf(&tmp, "\n\tBloqueados: \t");
-//	string_append(&retorno, tmp);
-//	free(tmp);
-//
-//	int iCantidadBloqueados = queue_size(pNivel->cBloqueados);
-//	for (i = 0; i < iCantidadBloqueados; i++) {
-//		pPersAux = list_get(pNivel->cListos->elements, i);
-//		asprintf(&tmp, "%c -> ", pPersAux->simbolo);
-//		string_append(&retorno, tmp);
-//		free(tmp);
-//	}
-//
-//	log_info(logger, retorno);
-//	free(tmp);
-//	free(retorno);
-//}
+void imprimirLista(tNivel *pNivel, tPersonaje *pPersonaje) {
+
+	char* tmp = malloc(30);
+	char* retorno = malloc(500);
+	int i;
+	tPersonaje *pPersAux;
+
+	if (queue_is_empty(pNivel->cListos) && (pPersonaje == NULL)) { //Si no hay nadie listo, no se quien esta ejecutando
+		sprintf(retorno, "Lista de: %s\n\tEjecutando:\n\tListos: \t", pNivel->nombre);
+	} else {
+		sprintf(retorno, "Lista de: %s\n\tEjecutando: %c\n\tListos: \t", pNivel->nombre, pPersonaje->simbolo);
+	}
+
+	int iCantidadListos = queue_size(pNivel->cListos);
+	for (i = 0; i < iCantidadListos; i++) {
+		pPersAux = (tPersonaje *)queue_pop(pNivel->cListos);
+		sprintf(tmp, "%c -> ", pPersAux->simbolo);
+		string_append(&retorno, tmp);
+	}
+
+	sprintf(tmp, "\n\tBloqueados: \t");
+	string_append(&retorno, tmp);
+
+	int iCantidadBloqueados = list_size(pNivel->lBloqueados);
+	for (i = 0; i < iCantidadBloqueados; i++) {
+		pPersAux = (tPersonaje *) list_get(pNivel->lBloqueados, i);
+		sprintf(tmp, "%c -> ", pPersAux->simbolo);
+		string_append(&retorno, tmp);
+	}
+
+	log_info(logger, retorno);
+	free(tmp);
+	free(retorno);
+}
 
 tPersonajeBloqueado* sacarDeListaBloqueados(t_list* lBloqueados, tSimbolo simbolo) {
 	tPersonajeBloqueado *pPersonajeBloqueado;
