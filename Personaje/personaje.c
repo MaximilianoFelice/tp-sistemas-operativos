@@ -20,7 +20,7 @@ char * puerto_orq;
 
 int r = 0;
 bool muertePorSenial=false;
-bool inicializeVidas = false;
+
 threadNivel_t *hilosNiv;
 t_dictionary *listaPersonajePorNiveles; //diccionario
 int cantidadNiveles;
@@ -256,11 +256,10 @@ void *jugar(void *args) {
 		if(muertePorSenial || finalice) //fixme ver como adaptarlo mejor para sacarle las banderas
 			break;
 
-	} //Fin del while(vidas>0)
+	}
 
 	manejarDesconexiones(&personajePorNivel, murioPersonaje, &finalice);
 
-	// -----------------
 	if(murioPersonaje){
 		restarVida();
 		if (personaje.vidas<=0) {
@@ -270,13 +269,12 @@ void *jugar(void *args) {
 		cerrarConexiones(&personajePorNivel.socketPlataforma);
 	}
 
-	// --------
-
 	if (personaje.vidas<=0) {
 		char *exit_return;
 		exit_return = strdup("se ha quedado sin vidas y murio");
 		pthread_exit((void *)exit_return);
 	}
+
 	if (muertePorSenial) {
 		char *exit_return;
 		exit_return = strdup("ha terminado por senial SIGINT");
@@ -290,8 +288,10 @@ void *jugar(void *args) {
 }
 
 void desconectarPersonaje(personajeIndividual_t* personajePorNivel){
+
 	cerrarConexiones(&personajePorNivel->socketPlataforma);
-	personajePorNivel->socketPlataforma=0;// NOTA: esto es para la desconexion de todos los personajes cuando se reinicia el juego
+	personajePorNivel->socketPlataforma=0; // NOTA: esto es para la desconexion de todos los personajes cuando se reinicia el juego
+
 }
 
 void manejarDesconexiones(personajeIndividual_t* personajePorNivel, bool murioPersonaje, bool* finalice){
@@ -506,7 +506,7 @@ void reintentarSolicitudRecurso(personajeIndividual_t* personajePorNivel, tPaque
 	}
 }
 
-
+/*
 bool estaMuerto(tMensaje tipoMensaje, bool *murioPj){
 	if(tipoMensaje == PL_MUERTO_POR_DEADLOCK)
 		return (*murioPj = true);
@@ -514,7 +514,7 @@ bool estaMuerto(tMensaje tipoMensaje, bool *murioPj){
 		return (*murioPj = true);
 	return (*murioPj =false);
 }
-
+*/
 void handshake_plataforma(personajeIndividual_t* personajePorNivel){
 	tMensaje tipoMensaje;
 	tHandshakePers handshakePers;
@@ -614,15 +614,6 @@ void devolverRecursosPorMuerte(int socketPlataforma){
 
 	log_trace(logger, "Los recursos fueron liberados por la muerte del personaje ");
 
-}
-
-//Seniales
-bool validarSenial(bool *murioPersonaje){
-	if(muertePorSenial){
-		return (*murioPersonaje = true);
-	}
-	else
-		return (*murioPersonaje = false);
 }
 
 void morirSenial() {
