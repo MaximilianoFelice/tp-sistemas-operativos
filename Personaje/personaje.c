@@ -191,14 +191,13 @@ void *jugar(void *args) {
 
 	//Recupero la informacion del nivel en el que juega el personaje
 
-	//bool terminoPlanNiveles = false;
-
 	personajeIndividual_t personajePorNivel;
 
 	personajePorNivel.posX=0;
 	personajePorNivel.posY=0;
 	personajePorNivel.nivelQueJuego = (nivel_t *) args;
 
+	//bool terminoPlanNiveles = false;
 	bool finalice = false;
 	bool murioPersonaje = false;
 
@@ -251,14 +250,10 @@ void *jugar(void *args) {
 
 			solicitarRecurso(personajePorNivel.socketPlataforma, recurso);
 
-			/* todo  Si las vidas son mayores a 0, significa que termino su plan de objetivos */
-			/*if (personaje.vidas > 0)
-				terminoPlanNiveles = true;*/
-
 		} //Fin de for de objetivos
 
 
-		if(muertePorSenial || finalice)
+		if(muertePorSenial || finalice) //fixme ver como adaptarlo mejor para sacarle las banderas
 			break;
 
 	} //Fin del while(vidas>0)
