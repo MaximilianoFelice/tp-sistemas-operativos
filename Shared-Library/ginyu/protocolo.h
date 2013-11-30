@@ -52,6 +52,7 @@ typedef enum {
 	PL_SOLICITUD_RECURSO,
 	PL_RECURSO_INEXISTENTE,		// AVISO
 	PL_RECURSO_OTORGADO,		// AVISO
+	PL_DESCONEXION_PERSONAJE,
 	/* Mensajes del nivel */
 	N_HANDSHAKE,
 	N_PERSONAJE_AGREGADO,		//Se conecta un nuevo personaje correctamente

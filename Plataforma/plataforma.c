@@ -694,13 +694,24 @@ void desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConex
 	log_info(logger, "Se detecta desconexion...");
 	/*UNDER CONSTRUCTION*/
 
+	if (iSocketConexion == (*pPersonajeActual)->socket) {
+		log_info(logger, "Se desconecto el personaje %c", (*pPersonajeActual)->simbolo);
+		/* Acá hay que liberar recursos, y asignarselos a los que estan en la listas de bloqueados */
+		tPaquete pkgDesconexionPers;
+		serializarSimbolo(PL_DESCONEXION_PERSONAJE, (*pPersonajeActual)->simbolo, &pkgDesconexionPers);
+		enviarPaquete(pNivel->socket, &pkgDesconexionPers, logger, "Se envia desconexion del personaje actual al nivel");
+		free(*pPersonajeActual);
+		*pPersonajeActual = NULL;
+	}
+
 	pPersonaje = sacarPersonajeDeListas(pNivel, iSocketConexion);
 	if (pPersonaje != NULL) {
 		log_info(logger, "Se desconecto el personaje %c", pPersonaje->simbolo);
-
-		if (pPersonaje->simbolo == (*pPersonajeActual)->simbolo) {
-			*pPersonajeActual = NULL;
-		}
+		/* Acá hay que liberar recursos, y asignarselos a los que estan en la listas de bloqueados */
+		tPaquete pkgDesconexionPers;
+		serializarSimbolo(PL_DESCONEXION_PERSONAJE, pPersonaje->simbolo, &pkgDesconexionPers);
+		enviarPaquete(pNivel->socket, &pkgDesconexionPers, logger, "Se envia desconexion del personaje al nivel");
+		free(pPersonaje);
 	}
 }
 
