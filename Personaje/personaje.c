@@ -543,6 +543,9 @@ void handshake_plataforma(personajeIndividual_t* personajePorNivel){
 			break;
 		}
 
+		default:
+			break;
+
 	}
 }
 
