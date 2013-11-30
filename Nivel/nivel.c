@@ -227,6 +227,11 @@ int main(int argc, char* argv[]) {
 						pthread_mutex_lock(&semItems);
 						MoverPersonaje(list_items,symbol, posX, posY);
 						pthread_mutex_unlock(&semItems);
+						pthread_mutex_lock(&semMSJ);
+						paquete->type=N_CONFIRMACION_MOV;
+						paquete->length=0;
+						enviarPaquete(sockete,paquete,logger,"notificando a plataforma personaje movido correctamente");
+						pthread_mutex_unlock(&semMSJ);
 					}
 				break;
 				case PL_POS_RECURSO:
