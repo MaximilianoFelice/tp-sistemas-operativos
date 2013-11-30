@@ -21,7 +21,6 @@ bool hay_personajes;
  * Funciones privadas
  */
 
-int seleccionarJugador(tPersonaje* pPersonaje, tNivel* nivel);
 tPersonaje* desbloquearPersonaje(t_list* lBloqueados, tSimbolo recurso);
 
 /*
@@ -44,7 +43,7 @@ void crearHiloPlanificador(pthread_t *pPlanificador, tNivel *nivelNuevo, t_list 
  * Funciones privadas planificador
  */
 
-int seleccionarJugador(tPersonaje* pPersonaje, tNivel* nivel);
+int seleccionarJugador(tPersonaje* pPersonaje, tNivel* nivel, int iEnviarTurno);
 tPersonaje* planificacionSRDF(t_queue* cListos, int iTamanioCola);
 void solicitudRecursoPersonaje(int iSocketConexion, char *sPayload, tNivel *pNivel, tPersonaje **pPersonajeActual, t_log *logger);
 void movimientoPersonaje(int iSocketConexion, char* sPayload, tNivel *pNivel, tPersonaje* pPersonaje, t_log* logger);
@@ -52,6 +51,7 @@ void posicionRecursoPersonaje(int iSocketConexion, char* sPayload, int socketNiv
 int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNivel, t_log* logger);
 void muertePorEnemigoPersonaje(char* sPayload, tNivel *pNivel, tPersonaje* pPersonaje, t_log* logger);
 void recepcionRecurso(tNivel *pNivel, char *sPayload, t_log *logger);
+void enviarTurno(tPersonaje *pPersonaje);
 
 /*
  * PLATAFORMA
@@ -362,6 +362,7 @@ void *planificador(void * pvNivel) {
     // Armo el nivel que planifico con los parametros que recibe el hilo
     tNivel* pNivel;
     pNivel = (tNivel*) pvNivel;
+    int iEnviarTurno;
 
     int socketNivel = pNivel->socket; //TODO FIXME XXX
     //Para multiplexar
@@ -373,21 +374,23 @@ void *planificador(void * pvNivel) {
     char* sPayload;
 
     pPersonajeActual = NULL;
+    iEnviarTurno	 = 0;
     // Ciclo donde se multiplexa para escuchar personajes que se conectan
     while (1) {
         wait_personajes(&pNivel->hay_personajes);
         //si no hay personaje, se saca de la cola y se lo pone a jugar enviandole mensaje para jugar
-        seleccionarJugador(pPersonajeActual, pNivel);
+        seleccionarJugador(pPersonajeActual, pNivel, iEnviarTurno);
 
         iSocketConexion = multiplexar(&pNivel->masterfds, &readfds, &pNivel->maxSock, &tipoMensaje, &sPayload, logger);
 
         if (iSocketConexion != -1) {
             pthread_mutex_lock(&semNivel);
-
+            iEnviarTurno = 0;
             switch (tipoMensaje) {
             case(P_POS_RECURSO):
             	log_debug(logger, "El socket del nivel es %d", socketNivel);
                 posicionRecursoPersonaje(iSocketConexion, sPayload, socketNivel, logger);
+                iEnviarTurno = 1;
                 break;
 
             case(P_MOVIMIENTO):
@@ -420,9 +423,11 @@ void *planificador(void * pvNivel) {
 
             case(N_ENTREGA_RECURSO):
 				recepcionRecurso(pNivel, sPayload, logger);
+            	iEnviarTurno = 1;
             	break;
 
             default:
+            	iEnviarTurno = 0;
                 break;
             }
 
@@ -434,7 +439,7 @@ void *planificador(void * pvNivel) {
     pthread_exit(NULL);
 }
 
-int seleccionarJugador(tPersonaje* pPersonaje, tNivel* nivel) {
+int seleccionarJugador(tPersonaje* pPersonaje, tNivel* nivel, int iEnviarTurno) {
     int iTamanioCola;
     // Me fijo si puede seguir jugando
     if (pPersonaje != NULL) {
@@ -443,6 +448,9 @@ int seleccionarJugador(tPersonaje* pPersonaje, tNivel* nivel) {
         	log_debug(logger, "es un RR");
             if (pPersonaje->valorAlgoritmo < nivel->quantum) {
                 // Puede seguir jugando
+            	if (iEnviarTurno == 1) {
+            		enviarTurno(pPersonaje);
+            	}
                 return (EXIT_SUCCESS);
             } else {
                 // Termina su quantum vuelve a la cola
@@ -453,6 +461,9 @@ int seleccionarJugador(tPersonaje* pPersonaje, tNivel* nivel) {
         case SRDF:
             if (pPersonaje->valorAlgoritmo > 0) {
                 // Puede seguir jugando
+            	if (iEnviarTurno == 1) {
+					enviarTurno(pPersonaje);
+				}
                 return (EXIT_SUCCESS);
             } else if (pPersonaje->valorAlgoritmo == 0) {
                 // Llego al recurso, se bloquea
@@ -483,12 +494,16 @@ int seleccionarJugador(tPersonaje* pPersonaje, tNivel* nivel) {
         }
     }
 
-    tPaquete pkgProximoTurno;
-    pkgProximoTurno.type = PL_OTORGA_TURNO;
-    pkgProximoTurno.length = 0;
-    enviarPaquete(pPersonaje->socket, &pkgProximoTurno, logger, "Se otorga turno");
+    enviarTurno(pPersonaje);
 
     return EXIT_SUCCESS;
+}
+
+void enviarTurno(tPersonaje *pPersonaje) {
+	tPaquete pkgProximoTurno;
+	pkgProximoTurno.type = PL_OTORGA_TURNO;
+	pkgProximoTurno.length = 0;
+	enviarPaquete(pPersonaje->socket, &pkgProximoTurno, logger, "Se otorga turno al personaje");
 }
 
 tPersonaje* planificacionSRDF(t_queue* cListos, int iTamanioCola) {
