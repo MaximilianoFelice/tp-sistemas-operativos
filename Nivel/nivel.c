@@ -140,7 +140,6 @@ int main(int argc, char* argv[]) {
 					actualizarInfoNivel(argv[1]);
 					//ENVIANDO A PLATAFORMA NOTIFICACION DE ALGORITMO ASIGNADO
 					tInfoNivel infoDeNivel;
-					tipoDeMensaje=N_ACTUALIZACION_CRITERIOS;
 					infoDeNivel.algoritmo=algoritmo;
 					infoDeNivel.quantum=quantum;
 					infoDeNivel.delay=retardo;
