@@ -43,7 +43,7 @@ void crearHiloPlanificador(pthread_t *pPlanificador, tNivel *nivelNuevo, t_list 
  * Funciones privadas planificador
  */
 
-int seleccionarJugador(tPersonaje* pPersonaje, tNivel* nivel, int iEnviarTurno);
+int seleccionarJugador(tPersonaje** pPersonaje, tNivel* nivel, int iEnviarTurno);
 tPersonaje* planificacionSRDF(t_queue* cListos, int iTamanioCola);
 void solicitudRecursoPersonaje(int iSocketConexion, char *sPayload, tNivel *pNivel, tPersonaje **pPersonajeActual, t_log *logger);
 void movimientoPersonaje(int iSocketConexion, char* sPayload, tNivel *pNivel, tPersonaje* pPersonaje, t_log* logger);
@@ -379,7 +379,7 @@ void *planificador(void * pvNivel) {
     while (1) {
         wait_personajes(&pNivel->hay_personajes);
         //si no hay personaje, se saca de la cola y se lo pone a jugar enviandole mensaje para jugar
-        seleccionarJugador(pPersonajeActual, pNivel, iEnviarTurno);
+        seleccionarJugador(&pPersonajeActual, pNivel, iEnviarTurno);
 
         iSocketConexion = multiplexar(&pNivel->masterfds, &readfds, &pNivel->maxSock, &tipoMensaje, &sPayload, logger);
 
@@ -439,39 +439,43 @@ void *planificador(void * pvNivel) {
     pthread_exit(NULL);
 }
 
-int seleccionarJugador(tPersonaje* pPersonaje, tNivel* nivel, int iEnviarTurno) {
+int seleccionarJugador(tPersonaje** pPersonaje, tNivel* nivel, int iEnviarTurno) {
     int iTamanioCola;
+    log_debug(logger, "ENTRE A SELECCION JUGADOR");
     // Me fijo si puede seguir jugando
-    if (pPersonaje != NULL) {
+    if (*pPersonaje != NULL) {
         switch(nivel->algoritmo) {
         case RR:
         	log_debug(logger, "es un RR");
-            if (pPersonaje->valorAlgoritmo < nivel->quantum) {
+            if ((*pPersonaje)->valorAlgoritmo < nivel->quantum) {
+            	log_debug(logger, "quantum personaje: %d quantum nivel: %d. Enviar Turno: %d", (*pPersonaje)->valorAlgoritmo, nivel->quantum, iEnviarTurno);
                 // Puede seguir jugando
             	if (iEnviarTurno == 1) {
-            		enviarTurno(pPersonaje);
+            		enviarTurno(*pPersonaje);
             	}
                 return (EXIT_SUCCESS);
             } else {
                 // Termina su quantum vuelve a la cola
-                queue_push(nivel->cListos, pPersonaje);
+                queue_push(nivel->cListos, *pPersonaje);
             }
             break;
 
         case SRDF:
-            if (pPersonaje->valorAlgoritmo > 0) {
+            if ((*pPersonaje)->valorAlgoritmo > 0) {
                 // Puede seguir jugando
             	if (iEnviarTurno == 1) {
-					enviarTurno(pPersonaje);
+					enviarTurno(*pPersonaje);
 				}
                 return (EXIT_SUCCESS);
-            } else if (pPersonaje->valorAlgoritmo == 0) {
+            } else if ((*pPersonaje)->valorAlgoritmo == 0) {
                 // Llego al recurso, se bloquea
                 return (EXIT_FAILURE);
             }
             break;
         }
     }
+
+    log_debug(logger, "ERA NULL");
     // Busco al proximo personaje para darle turno
     iTamanioCola = queue_size(nivel->cListos);
 
@@ -480,21 +484,22 @@ int seleccionarJugador(tPersonaje* pPersonaje, tNivel* nivel, int iEnviarTurno) 
         pthread_exit(NULL);
 
     } else if (iTamanioCola == 1) {
-        pPersonaje = queue_pop(nivel->cListos);
+        *pPersonaje = queue_pop(nivel->cListos);
 
     } else if (iTamanioCola > 1) {
 
         switch(nivel->algoritmo) {
         case RR:
-            pPersonaje = queue_pop(nivel->cListos);
+            *pPersonaje = queue_pop(nivel->cListos);
+            (*pPersonaje)->valorAlgoritmo = 0;
             break;
         case SRDF:
-            pPersonaje = planificacionSRDF(nivel->cListos, iTamanioCola);
+            *pPersonaje = planificacionSRDF(nivel->cListos, iTamanioCola);
             break;
         }
     }
 
-    enviarTurno(pPersonaje);
+    enviarTurno(*pPersonaje);
 
     return EXIT_SUCCESS;
 }
