@@ -52,6 +52,7 @@ int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNi
 void muertePorEnemigoPersonaje(char* sPayload, tNivel *pNivel, tPersonaje* pPersonaje, t_log* logger);
 void recepcionRecurso(tNivel *pNivel, char *sPayload, t_log *logger);
 void enviarTurno(tPersonaje *pPersonaje);
+void confirmarMovimiento(tPersonaje *pPersonajeActual, t_log *logger);
 
 /*
  * PLATAFORMA
@@ -392,6 +393,9 @@ void *planificador(void * pvNivel) {
             pthread_mutex_lock(&semNivel);
             iEnviarTurno = 0;
             switch (tipoMensaje) {
+
+            /* Mensajes que puede mandar el personaje */
+
             case(P_POS_RECURSO):
                 posicionRecursoPersonaje(iSocketConexion, sPayload, pNivel->socket, logger);
                 iEnviarTurno = 1;
@@ -417,6 +421,8 @@ void *planificador(void * pvNivel) {
                 solicitudRecursoPersonaje(iSocketConexion, sPayload, pNivel, &pPersonajeActual, logger);
                 break;
 
+			/* Mensajes que puede mandar el nivel */
+
             case(N_ACTUALIZACION_CRITERIOS):
                 actualizacionCriteriosNivel(iSocketConexion, sPayload, pNivel, logger);
                 break;
@@ -429,6 +435,11 @@ void *planificador(void * pvNivel) {
 				recepcionRecurso(pNivel, sPayload, logger);
             	iEnviarTurno = 1;
             	break;
+
+            case(N_CONFIRMACION_MOV):
+				confirmarMovimiento(pPersonajeActual, logger);
+				iEnviarTurno = 1;
+				break;
 
             default:
             	iEnviarTurno = 0;
@@ -626,6 +637,14 @@ void solicitudRecursoPersonaje(int iSocketConexion, char *sPayload, tNivel *pNiv
     free(sPayload);
 
     enviarPaquete(pNivel->socket, &pkgSolicituRecurso, logger, "Solicitud de recurso");
+}
+
+
+void confirmarMovimiento(tPersonaje *pPersonajeActual, t_log *logger) {
+	tPaquete pkgConfirmacionMov;
+	pkgConfirmacionMov.type    = PL_CONFIRMACION_MOV;
+	pkgConfirmacionMov.length  = 0;
+	enviarPaquete(pPersonajeActual->socket, &pkgConfirmacionMov, logger, "Se envia confirmacion de movimiento al personaje");
 }
 
 
