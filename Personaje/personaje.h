@@ -56,7 +56,7 @@ typedef struct PersonajeGlobal{
 
 typedef struct PersonajeIndividual{
 	int socketPlataforma;
-	int recursoActual; //objetivo actual
+	tSimbolo recursoActual; //objetivo actual
 	int posX;
 	int posY;
 	int posRecursoX;
@@ -84,6 +84,8 @@ void manejarDesconexiones(personajeIndividual_t* personajePorNivel, bool murioPe
 bool personajeEstaMuerto(bool murioPersonaje);
 
 bool conseguiRecurso(personajeIndividual_t personajePorNivel);
+
+void solicitarRecurso(int socketPlataforma, char * recurso);
 
 void moverAlPersonaje(personajeIndividual_t* personajePorNivel);
 

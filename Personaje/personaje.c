@@ -224,6 +224,9 @@ void *jugar(void *args) {
 
 			murioPersonaje = false;
 
+			//Espera que el planificador le de el turno para pedir la posicion del recurso
+			recibirMensajeTurno(personajePorNivel.socketPlataforma);
+
 			//agarra un recurso de la lista de objetivos del nivel
 			char* recurso = (char*) list_get_data(personajePorNivel.nivelQueJuego->Objetivos, personajePorNivel.recursoActual);
 			pedirPosicionRecurso(&personajePorNivel, recurso);
@@ -233,17 +236,20 @@ void *jugar(void *args) {
 				/* El thread se va a mover, y no quiere que otro thread se mueva y pueda perder vidas */
 				pthread_mutex_lock(&semMovement);
 
-				//Espera que el planificador le de el turno
+				//Espera que el planificador le de el turno para moverse
 				recibirMensajeTurno(personajePorNivel.socketPlataforma);
-
-				log_info(logger, "Habemus turno");
 
 				//El personaje se mueve
 				moverAlPersonaje(&personajePorNivel);
 
 				pthread_mutex_unlock(&semMovement);
 
-			}  // Termina el plan de objetivos o muere.
+			}
+
+			//Espera que el planificador le de el turno para solicitar el recurso
+			recibirMensajeTurno(personajePorNivel.socketPlataforma);
+
+			solicitarRecurso(personajePorNivel.socketPlataforma, recurso);
 
 			/* todo  Si las vidas son mayores a 0, significa que termino su plan de objetivos */
 			/*if (personaje.vidas > 0)
@@ -340,6 +346,39 @@ void moverAlPersonaje(personajeIndividual_t* personajePorNivel){
 	pkgFinTurno.type   = P_FIN_TURNO;
 	pkgFinTurno.length = 0;
 	enviarPaquete(personajePorNivel->socketPlataforma, &pkgFinTurno, logger, "Fin de turno del personaje");
+
+}
+
+void solicitarRecurso(int socketPlataforma, char * recurso){
+
+	tMensaje tipoMensaje;
+	tPregPosicion recursoSolicitado;
+	recursoSolicitado.simbolo=personaje.simbolo;
+	recursoSolicitado.recurso=*recurso;
+
+	tPaquete pkgSolicitudRecurso;
+	serializarPregPosicion(P_SOLICITUD_RECURSO, recursoSolicitado, &pkgSolicitudRecurso);
+
+	enviarPaquete(socketPlataforma, &pkgSolicitudRecurso, logger, "El personaje le envia la solicitud del recurso a la plataforma");
+
+	char* sPayload;
+	recibirPaquete(socketPlataforma, &tipoMensaje, &sPayload, logger, "El personaje recibe respuesta de la solicitud del recurso a la plataforma");
+
+	switch(tipoMensaje){
+		case PL_RECURSO_OTORGADO:{
+			log_info(logger, "El personaje recibe el recurso");
+			break;
+		}
+		case PL_RECURSO_INEXISTENTE:{
+			log_error(logger, "El recurso pedido por el personaje no existe.");
+			break;
+		}
+		default: {
+			log_error(logger, "Llego un mensaje (tipoMensaje: %d) cuando debia llegar PL_SOLICITUD_RECURSO", tipoMensaje);
+			exit(EXIT_FAILURE);
+			break;
+		}
+	}
 
 }
 
