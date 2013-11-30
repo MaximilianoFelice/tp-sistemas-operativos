@@ -274,7 +274,7 @@ void *jugar(void *args) {
 
 	if (personaje.vidas<=0) {
 		char *exit_return;
-		exit_return = strdup("se ha quedado sin vidas y murio :'(");
+		exit_return = strdup("se ha quedado sin vidas y murio");
 		pthread_exit((void *)exit_return);
 	}
 	if (muertePorSenial) {
@@ -381,17 +381,17 @@ void calcularYEnviarMovimiento(personajeIndividual_t personajePorNivel){
 	tMensaje tipoMensaje;
 	tMovimientoPers movimientoAEnviar;
 	movimientoAEnviar.simbolo=personaje.simbolo;
-	movimientoAEnviar.direccion=calculaMovimiento(personajePorNivel);
-	log_debug(logger, "Apunto de enviar movimiento");
+	log_debug(logger, "Se calcula el movimiento a realizar...");
+	movimientoAEnviar.direccion = calculaMovimiento(personajePorNivel);
+	log_debug(logger, "Movimiento calculado");
 
 	tPaquete pkgMovimiento;
-	//serializarMovimientoPers(tMensaje tipoMensaje, tMovimientoPers movimientoPers, tPaquete* pPaquete)
 	serializarMovimientoPers(P_MOVIMIENTO, movimientoAEnviar, &pkgMovimiento);
 
 	enviarPaquete(personajePorNivel.socketPlataforma, &pkgMovimiento, logger, "Envio pedido de movimiento del personaje");
 
 	char* sPayload;
-	recibirPaquete(personajePorNivel.socketPlataforma, &tipoMensaje, &sPayload, logger, "Recibo confirmacion del movimiento");
+	recibirPaquete(personajePorNivel.socketPlataforma, &tipoMensaje, &sPayload, logger, "Se espera confirmacion del movimiento");
 
 	switch(tipoMensaje){
 		case PL_MUERTO_POR_ENEMIGO:{
@@ -420,9 +420,11 @@ void calcularYEnviarMovimiento(personajeIndividual_t personajePorNivel){
 void recibirMensajeTurno(int socketPlataforma){
 	tMensaje tipoMensaje;
 	char* sPayload;
-	recibirPaquete(socketPlataforma, &tipoMensaje, &sPayload, logger, "Se le otorgo un turno al personaje");
+	recibirPaquete(socketPlataforma, &tipoMensaje, &sPayload, logger, "Se recibe mensaje");
 
-	if (tipoMensaje != PL_OTORGA_TURNO){
+	if (tipoMensaje == PL_OTORGA_TURNO) {
+		log_info(logger, "Se recibe turno");
+	} else {
 		log_error(logger, "Llego un mensaje (tipoMensaje: %d) cuando debia llegar PL_OTORGA_TURNO", tipoMensaje);
 		exit(EXIT_FAILURE);
 	}
