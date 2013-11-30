@@ -35,12 +35,12 @@
 #include <math.h>
 
 //Posicion inicial del personaje.
-#define INI_X 0
-#define INI_Y 0
+#define INI_X 10
+#define INI_Y 10
 
 typedef struct {
 	_Bool bloqueado;
-	char simbolo;
+	tSimbolo simbolo;
 	t_list* recursos;
 } pers_t;
 
@@ -56,24 +56,6 @@ typedef struct {
 	enemigo_t enemy;
 } threadEnemy_t;
 
-
-/*
-typedef enum movimientos_x{
-	izquierda=102,
-	derecha=103,
-} enum_mov_x;
-
-typedef enum movimientos_y{
-	arriba=100,
-	abajo=101,
-} enum_mov_y;
-
-typedef struct {
-	enum_mov_x type_mov_x;
-	enum_mov_y type_mov_y;
-	bool in_x;
-	bool in_y;
-} mov_t;*/
 typedef struct{
 	int cantidadInstancias;
 	char simbolo;
@@ -85,19 +67,12 @@ void cerrarForzado(int sig);
 //Enemigos
 void *enemigo(void * args);
 void *deteccionInterbloqueo (void *parametro);
-//_Bool personajeMuerto(t_list *list_personajes, char name);
-//void KillPersonaje(t_list *list_personajes, char name);
-//void moverme(int *victimaX, int *victimaY, int *posX, int *posY, mov_t *movimiento);
-//void validarPosSobreRecurso(t_list *list_items, mov_t movimiento, int *posX,int *posY);
-//void matar(enemigo_t *enemigo, pers_t *pjVictima, int indice, char*ip_plataforma, int puertoPlan);
 void actualizaPosicion(int *contMovimiento, int *posX, int *posY);
-//bool hayAlgunEnemigoArriba(int posPerX, int posPerY);
-//pers_t* hayAlgunEnemigoArribaDeAlgunPersonaje();
+
 //Nivel
-void levantarArchivoConf2(char* argumento);
-bool existePersonaje(tSimbolo simbolo);
-void actualizarInfoNivel(char* argumento);
+
 void levantarArchivoConf(char*);
+void actualizarInfoNivel(char* argumento);
 void liberarRecsPersonaje(char);
 //void liberarRecursos(pers_t *personajeAux, int index_l_personajes);
 static void personaje_destroyer(pers_t *personaje);
