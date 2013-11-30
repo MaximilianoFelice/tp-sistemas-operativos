@@ -48,7 +48,6 @@ typedef struct {
 	tAlgoritmo algoritmo;
 	int quantum;
 	int delay;
-	bool hay_personajes;
 	int maxSock;
 } tNivel;
 
@@ -71,11 +70,12 @@ void marcarPersonajeComoReady(t_list *ready, int sock);
 void delegarConexion(fd_set *conjuntoDestino, fd_set *conjuntoOrigen, int iSocket, int *maxSock);
 void inicializarConexion(fd_set *master_planif, int *maxSock, int *sock);
 void imprimirConexiones(fd_set *master_planif, int maxSock, char* host);
-void signal_personajes(bool *hay_personajes);
-void wait_personajes(bool *hay_personajes);
+void signal_personajes();
+void wait_personajes(bool *primerIntento);
 
 //Busquedas
 int existeNivel(t_list * lNiveles, char* sLevelName);
+tNivel *getNivel(char *nom_nivel);
 
 
 //Constructores y destroyers
