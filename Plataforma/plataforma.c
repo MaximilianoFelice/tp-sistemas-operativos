@@ -485,6 +485,13 @@ int seleccionarJugador(tPersonaje** pPersonaje, tNivel* nivel, int iEnviarTurno)
 
     } else if (iTamanioCola == 1) {
         *pPersonaje = queue_pop(nivel->cListos);
+        switch(nivel->algoritmo) {
+		case RR:
+			(*pPersonaje)->valorAlgoritmo = 0;
+			break;
+		case SRDF:
+			break;
+		}
 
     } else if (iTamanioCola > 1) {
 
