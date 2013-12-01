@@ -65,6 +65,7 @@ typedef struct PersonajeIndividual{
 
 } personajeIndividual_t;
 
+
 void notificarFinPlanNiveles(int socketOrquestador);
 
 void destruirArchivoConfiguracion(t_config *configPersonaje);
@@ -79,15 +80,15 @@ void *jugar(void *args);
 
 void desconectarPersonaje(personajeIndividual_t* personajePorNivel);
 
-void manejarDesconexiones(personajeIndividual_t* personajePorNivel, bool murioPersonaje);//, bool* finalice);
+void manejarDesconexiones(personajeIndividual_t* personajePorNivel, bool murioPersonaje);//, bool* finalice)
 
 bool personajeEstaMuerto(bool murioPersonaje);
 
 bool conseguiRecurso(personajeIndividual_t personajePorNivel);
 
-void solicitarRecurso(int socketPlataforma, char * recurso);
-
 void moverAlPersonaje(personajeIndividual_t* personajePorNivel);
+
+void solicitarRecurso(int socketPlataforma, char * recurso);
 
 void calcularYEnviarMovimiento(personajeIndividual_t personajePorNivel);
 
@@ -97,37 +98,28 @@ void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurs
 
 void reintentarSolicitudRecurso(personajeIndividual_t* personajePorNivel, tPaquete* pkgHandshake, char* recurso);
 
-bool estaMuerto(tMensaje tipoMensaje, bool *murioPj);
-
 void handshake_plataforma(personajeIndividual_t* personajePorNivel);
 
 void reintentarHandshake(int socketPlataforma, tPaquete* pkgHandshake);
 
 void cerrarConexiones(int * socketPlataforma);
 
-void devolverRecursosPorFinNivel(int socketPlataforma);
-
-void devolverRecursosPorMuerte(int socketPlataforma);
-
-bool validarSenial(bool *murioPersonaje);
-
-void reiniciarJuego();
-
-void matarHilosYDesconectar();
-
-
-
-void muertoPorSenial();
-
-void morirSenial();
-
-void aumentarVidas();
-
-void restarVida();
+//TODO te descomente esto porque despues usabas esta funcion en otro lado y tiraba error
+//void devolverRecursosPorFinNivel(int socketPlataforma);
 
 int calculaMovimiento(personajeIndividual_t personajePorNivel);
 
 void actualizaPosicion(tDirMovimiento* movimiento, personajeIndividual_t *personajePorNivel);
+
+void sig_aumentar_vidas();
+
+void restarVida();
+
+void muertoPorSenial();
+
+void matarHilosYDesconectar();
+
+void reiniciarJuego();
 
 
 

@@ -26,13 +26,6 @@ t_dictionary *listaPersonajePorNiveles; //diccionario
 int cantidadNiveles;
 
 
-void sig_aumentar_vidas(){
-	pthread_mutex_lock(&semModificadorDeVidas);
-	personaje.vidas++;
-	pthread_mutex_unlock(&semModificadorDeVidas);
-}
-
-
 int main(int argc, char*argv[]) {
 
 	pthread_mutex_init(&semMovement, NULL);
@@ -270,13 +263,13 @@ void *jugar(void *args) {
 		cerrarConexiones(&personajePorNivel.socketPlataforma);
 	}*/
 
-	//fixme me parece redundante
+	/*//fixme me parece redundante
 	if (personaje.vidas<=0) {
 		char *exit_return;
 		exit_return = strdup("se ha quedado sin vidas y murio");
 		pthread_exit((void *)exit_return);
 	}
-
+*/
 	/*if (muertePorSenial) {
 		char *exit_return;
 		exit_return = strdup("ha terminado por senial SIGINT");
@@ -299,15 +292,11 @@ void desconectarPersonaje(personajeIndividual_t* personajePorNivel){
 void manejarDesconexiones(personajeIndividual_t* personajePorNivel, bool murioPersonaje){//, bool* finalice){
 	if (!murioPersonaje) {
 		//*finalice = true;
-		devolverRecursosPorFinNivel(personajePorNivel->socketPlataforma);
+		//devolverRecursosPorFinNivel(personajePorNivel->socketPlataforma);
+		log_info(logger, "El personaje ha completado el nivel.");
 		desconectarPersonaje(personajePorNivel);
+		log_debug(logger, "El personaje se desconecto de la plataforma");
 
-	}
-
-	//fixme, me parece q este if es redundante porque ya se hace en el restarvidas()
-	if(personaje.vidas <= 0){
-		devolverRecursosPorMuerte(personajePorNivel->socketPlataforma);
-		desconectarPersonaje(personajePorNivel);
 	}
 
 }
@@ -602,9 +591,10 @@ void reintentarHandshake(int socketPlataforma, tPaquete* pkgHandshake){
 
 void cerrarConexiones(int * socketPlataforma){
 	close(*socketPlataforma);
-	log_debug(logger, "Cierro conexion con la plataforma");
+	log_debug(logger, "La conexion con la plataforma ha sido cerrada.");
 }
 
+/*
 //TODO te descomente esto porque despues usabas esta funcion en otro lado y tiraba error
 void devolverRecursosPorFinNivel(int socketPlataforma) {
 	tPaquete pkgDevolverRecursos;
@@ -623,9 +613,9 @@ void devolverRecursosPorFinNivel(int socketPlataforma) {
 
 	log_trace(logger, "Los recursos fueron liberados por conclusion del nivel");
 
-}
+}*/
 
-//TODO te descomente esto porque despues usabas esta funcion en otro lado y tiraba error
+/*
 void devolverRecursosPorMuerte(int socketPlataforma){
 	tPaquete pkgDevolverRecursos;
 	pkgDevolverRecursos.type   = P_DESCONECTARSE_MUERTE;
@@ -645,7 +635,7 @@ void devolverRecursosPorMuerte(int socketPlataforma){
 	log_trace(logger, "Los recursos fueron liberados por la muerte del personaje ");
 
 }
-
+*/
 
 int calculaMovimiento(personajeIndividual_t personajePorNivel){
 
@@ -697,6 +687,13 @@ void actualizaPosicion(tDirMovimiento* movimiento, personajeIndividual_t *person
 
 }
 
+void sig_aumentar_vidas(){
+	pthread_mutex_lock(&semModificadorDeVidas);
+	personaje.vidas++;
+	pthread_mutex_unlock(&semModificadorDeVidas);
+	log_debug(logger, "Se le ha agregado una vida por senal.");
+}
+
 void restarVida(){
 
 	pthread_mutex_lock(&semModificadorDeVidas);
@@ -706,6 +703,7 @@ void restarVida(){
 
 	pthread_mutex_unlock(&semModificadorDeVidas);
 
+	log_debug(logger, "Se le ha restado una vida.");
 }
 
 void muertoPorSenial(){
