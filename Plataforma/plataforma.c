@@ -37,8 +37,7 @@ int executeKoopa(char *koopaPath, char *scriptPath);
 int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOrquestador, t_list *lPlanificadores);
 int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char* sPayload);
 bool avisoConexionANivel(int sockNivel,char *sPayload, tSimbolo simbolo);
-void sendPersonajeRepetido(int socketPersonaje);
-void sendNivelRepetido(int sockPersonaje);
+void sendConnectionFail(int sockPersonaje, tMensaje typeMsj, char *msjInfo);
 void crearHiloPlanificador(pthread_t *pPlanificador, tNivel *nivelNuevo, t_list *lPlanificadores);
 
 
@@ -263,12 +262,15 @@ int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char*
 			// Le contesto el handshake
 			enviarPaquete(iSocketComunicacion, &pkgHandshake, logger, "Handshake de la plataforma al personaje");
 		} else {
-			sendPersonajeRepetido(iSocketComunicacion); //TODO que el personaje maneje este mensaje
+			log_error(logger, "El personaje ya esta en ese nivel");
+			sendConnectionFail(iSocketComunicacion, PL_PERSONAJE_REPETIDO,"El personaje ya esta jugando ese nivel");
+			//TODO que el personaje maneje este mensaje
 			return EXIT_FAILURE;
 		}
 
 	} else {
-		sendNivelRepetido(iSocketComunicacion);
+		log_error(logger, "El nivel solicitado no se encuentra conectado a la plataforma");
+		sendConnectionFail(iSocketComunicacion, PL_NIVEL_INEXISTENTE, "No se encontro el nivel pedido");
 		return EXIT_FAILURE;
 	}
 
@@ -277,20 +279,11 @@ int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char*
 	return EXIT_SUCCESS;
 }
 
-void sendNivelRepetido(int sockPersonaje){
-	log_error(logger, "El nivel solicitado no se encuentra conectado a la plataforma");
-	tPaquete pkgNivelInexistente;
-	pkgNivelInexistente.type   = PL_NIVEL_INEXISTENTE;
-	pkgNivelInexistente.length = 0;
-	enviarPaquete(sockPersonaje, &pkgNivelInexistente, logger, "No se encontro el nivel pedido");
-}
-
-void sendPersonajeRepetido(int socketPersonaje){
-	log_error(logger, "El personaje ya esta en ese nivel"); //TODO que el personaje trate este mensaje
+void sendConnectionFail(int sockPersonaje, tMensaje typeMsj, char *msjInfo){
 	tPaquete pkgPersonajeRepetido;
-	pkgPersonajeRepetido.type   = PL_PERSONAJE_REPETIDO;
+	pkgPersonajeRepetido.type   = typeMsj;
 	pkgPersonajeRepetido.length = 0;
-	enviarPaquete(socketPersonaje, &pkgPersonajeRepetido, logger, "El personaje ya esta jugando ese nivel");
+	enviarPaquete(sockPersonaje, &pkgPersonajeRepetido, logger, msjInfo);
 }
 
 bool avisoConexionANivel(int sockNivel,char *sPayload, tSimbolo simbolo){
