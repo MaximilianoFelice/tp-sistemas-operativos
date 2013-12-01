@@ -52,7 +52,7 @@ void posicionRecursoPersonaje(int iSocketConexion, char* sPayload, int socketNiv
 int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNivel, t_log* logger);
 void muertePorEnemigoPersonaje(char* sPayload, tNivel *pNivel, tPersonaje* pPersonaje, t_log* logger);
 void recepcionRecurso(tNivel *pNivel, char *sPayload, t_log *logger);
-void enviarTurno(tPersonaje *pPersonaje);
+void enviarTurno(tPersonaje *pPersonaje, int delay);
 void confirmarMovimiento(tPersonaje *pPersonajeActual, t_log *logger);
 int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexion, char *sPayload);
 
@@ -369,7 +369,7 @@ void *planificador(void * pvNivel) {
 
     bool primerIntento = true;
     pPersonajeActual = NULL;
-    iEnviarTurno	 = 0;
+    iEnviarTurno	 = 1; //Lo inicializo en 1 para que de el primer turno
 
     // Ciclo donde se multiplexa para escuchar personajes que se conectan
     while (1) {
@@ -394,6 +394,7 @@ void *planificador(void * pvNivel) {
 
             case(P_MOVIMIENTO):
                 movimientoPersonaje(iSocketConexion, sPayload, pNivel, pPersonajeActual, logger);
+            	iEnviarTurno = 0;
                 break;
 
             case(P_SIN_VIDAS):
@@ -429,7 +430,11 @@ void *planificador(void * pvNivel) {
 
             case(N_CONFIRMACION_MOV):
 				confirmarMovimiento(pPersonajeActual, logger);
-				iEnviarTurno = 1;
+				iEnviarTurno = 0;
+				break;
+
+            case(P_FIN_TURNO):
+            	iEnviarTurno = 1;
 				break;
 
             case(DESCONEXION):
@@ -449,7 +454,6 @@ void *planificador(void * pvNivel) {
 
     pthread_exit(NULL);
 }
-
 int seleccionarJugador(tPersonaje** pPersonaje, tNivel* nivel, int iEnviarTurno) {
     int iTamanioCola;
     // Me fijo si puede seguir jugando
@@ -460,11 +464,12 @@ int seleccionarJugador(tPersonaje** pPersonaje, tNivel* nivel, int iEnviarTurno)
             	log_debug(logger, "\n Quantum personaje: %d \n Quantum nivel: %d. \n Enviar Turno: %d.", (*pPersonaje)->valorAlgoritmo, nivel->quantum, iEnviarTurno);
                 // Puede seguir jugando
             	if (iEnviarTurno == 1) {
-            		enviarTurno(*pPersonaje);
+            		enviarTurno(*pPersonaje, nivel->delay);
             	}
                 return (EXIT_SUCCESS);
             } else {
                 // Termina su quantum vuelve a la cola
+            	log_debug(logger, "------>Lo devuelvo a la cola de listos");
                 queue_push(nivel->cListos, *pPersonaje);
             }
             break;
@@ -473,7 +478,7 @@ int seleccionarJugador(tPersonaje** pPersonaje, tNivel* nivel, int iEnviarTurno)
             if ((*pPersonaje)->valorAlgoritmo > 0) {
                 // Puede seguir jugando
             	if (iEnviarTurno == 1) {
-					enviarTurno(*pPersonaje);
+					enviarTurno(*pPersonaje, nivel->delay);
 				}
                 return (EXIT_SUCCESS);
             } else if ((*pPersonaje)->valorAlgoritmo == 0) {
@@ -492,6 +497,7 @@ int seleccionarJugador(tPersonaje** pPersonaje, tNivel* nivel, int iEnviarTurno)
         pthread_exit(NULL);
 
     } else if (iTamanioCola == 1) {
+    	log_debug(logger, "------>Saco personaje de la cola de listos");
         *pPersonaje = queue_pop(nivel->cListos);
         switch(nivel->algoritmo) {
 		case RR:
@@ -514,18 +520,39 @@ int seleccionarJugador(tPersonaje** pPersonaje, tNivel* nivel, int iEnviarTurno)
         }
     }
 
-    enviarTurno(*pPersonaje);
+    /*
+     * Le agrego esta validacion porque cuando el personaje esta esperando la confirmacion del movimiento &&
+     * Ademas termina su quantum, entonces le manda:
+     * 1°) mensaje de turno
+     * 2°) mensaje de confirmacion de movimiento
+     * 3°) otro mensaje de turno
+     *
+     * Osea el personaje rompe nomás solo con la 1°) pero el planificador le sigue mandando mensajes y despues
+     * rompe también porque le manda a un proceso que ya se murió.
+     *
+     * Ademas por este motivo inicialice la variable iEnviarTurno=1 porque sinó, no le mandaba el primer turno.
+     * También modifique esa variable poniendola en 0 en el case P_MOVIMIENTO y en 0 en N_CONFIRMACION_MOV
+     * Y agregué un case P_FIN_TURNO en donde setea la variable en 1 cuando el personaje ya se movio y termino
+     *
+     *
+     * OBSERVACION: si en el personaje.c cuando le llegaba mal el mensaje en lugar de hacer un exit(EXIT_FAILURE)
+     * le saco ese exit(), funciona bien y no hace falta agregar nada de t0d0 esto que escribi
+     * pero no es la idea pero nos puede servir como "tip" en el futuro :P jaja
+     *
+     */
+    log_trace(logger, "---->Al final de la funcion seleccionarJugador() ");
+    if(iEnviarTurno == 1)
+    	enviarTurno(*pPersonaje, nivel->delay);
 
     return EXIT_SUCCESS;
 }
-
-void enviarTurno(tPersonaje *pPersonaje) {
+void enviarTurno(tPersonaje *pPersonaje, int delay) {
 	tPaquete pkgProximoTurno;
 	pkgProximoTurno.type = PL_OTORGA_TURNO;
 	pkgProximoTurno.length = 0;
+	usleep(delay);
 	enviarPaquete(pPersonaje->socket, &pkgProximoTurno, logger, "Se otorga turno al personaje");
 }
-
 tPersonaje* planificacionSRDF(t_queue* cListos, int iTamanioCola) {
     int iNroPersonaje;
     int iDistanciaFaltanteMinima = 4000;
@@ -547,7 +574,6 @@ tPersonaje* planificacionSRDF(t_queue* cListos, int iTamanioCola) {
 
     return pPersonaje;
 }
-
 void posicionRecursoPersonaje(int iSocketConexion, char* sPayload, int socketNivel, t_log* logger) {
     tMensaje tipoMensaje;
     tPaquete pkgPosRecurso;
@@ -568,13 +594,11 @@ void posicionRecursoPersonaje(int iSocketConexion, char* sPayload, int socketNiv
     } else {
         pkgPosRecurso.type    = NO_SE_OBTIENE_RESPUESTA;
         pkgPosRecurso.length  = 0;
-
         enviarPaquete(iSocketConexion, &pkgPosRecurso, logger, "WARN: No se obtiene respuesta esperada del nivel");
     }
 
     free(sPayload);
 }
-
 void movimientoPersonaje(int iSocketConexion, char* sPayload, tNivel *pNivel, tPersonaje* pPersonaje, t_log* logger) {
     tPaquete pkgMovimientoPers;
     tMovimientoPers *movPers = deserializarMovimientoPers(sPayload);
@@ -591,7 +615,6 @@ void movimientoPersonaje(int iSocketConexion, char* sPayload, tNivel *pNivel, tP
 	free(sPayload);
 	free(movPers);
 }
-
 void muertePorEnemigoPersonaje(char* sPayload, tNivel *pNivel, tPersonaje* pPersonaje, t_log* logger) {
 	tPaquete pkgMuertePers;
 	pkgMuertePers.type    = PL_MUERTO_POR_ENEMIGO;
@@ -601,7 +624,6 @@ void muertePorEnemigoPersonaje(char* sPayload, tNivel *pNivel, tPersonaje* pPers
 
 	enviarPaquete(pPersonaje->socket, &pkgMuertePers, logger, "Envio mensaje de muerte por personaje");
 }
-
 void solicitudRecursoPersonaje(int iSocketConexion, char *sPayload, tNivel *pNivel, tPersonaje **pPersonaje, t_log *logger) {
     tPaquete pkgSolicituRecurso;
     pkgSolicituRecurso.type    = PL_SOLICITUD_RECURSO;
@@ -636,6 +658,7 @@ void confirmarMovimiento(tPersonaje *pPersonajeActual, t_log *logger) {
 	tPaquete pkgConfirmacionMov;
 	pkgConfirmacionMov.type    = PL_CONFIRMACION_MOV;
 	pkgConfirmacionMov.length  = 0;
+	log_trace(logger, "Personaje %c con socket %d >>> Confirmacion movimiento", pPersonajeActual->simbolo, pPersonajeActual->socket);
 	enviarPaquete(pPersonajeActual->socket, &pkgConfirmacionMov, logger, "Se envia confirmacion de movimiento al personaje");
 }
 

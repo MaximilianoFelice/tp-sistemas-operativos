@@ -224,7 +224,7 @@ signed int multiplexar(fd_set *master, fd_set *temp, int *maxSock, tMensaje* tip
 					log_trace(logger, "Fin de conexion de %d.", iSocket);
 
 				} else {
-					log_error(logger, "multiplexar :: recv: %s", strerror(errno));
+					log_error(logger, "multiplexar :: recv in %d: %s", iSocket, strerror(errno));
 				}
 				//--Cierra la conexión y lo saca de la lista
 				close(iSocket);
