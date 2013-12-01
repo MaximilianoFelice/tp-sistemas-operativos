@@ -80,7 +80,10 @@ int main(int argc, char*argv[]) {
 
 	//Cuando terminaron todos los niveles. Manda msj al orquestador de que ya termino todos sus niveles
 	int socketOrquestador = connectToServer(ip_plataforma, atoi(puerto_orq), logger);
-	notificarFinPlanNiveles(socketOrquestador);
+
+	if (personaje.vidas>0)//Termino el plan de niveles correctamente
+		notificarFinPlanNiveles(socketOrquestador);
+
 	cerrarConexiones(&socketOrquestador);
 
 	if(join_return != NULL)
@@ -102,15 +105,18 @@ int main(int argc, char*argv[]) {
 
 
 void notificarFinPlanNiveles(int socketOrquestador){
+
 	tPaquete pkgDevolverRecursos;
 	pkgDevolverRecursos.type   = P_FIN_PLAN_NIVELES;
 	pkgDevolverRecursos.length = 0;
-	enviarPaquete(socketOrquestador, &pkgDevolverRecursos, logger, "Se notifica a la plataforma la finalizacion del plan de niveles del personaje");
+	enviarPaquete(socketOrquestador, &pkgDevolverRecursos, logger, "Se notifica a la plataforma la finalizacion del plan de niveles del personaje correctamente");
 
 }
 
 void destruirArchivoConfiguracion(t_config *configPersonaje){
+
 	config_destroy(configPersonaje);
+
 }
 
 void cargarArchivoConfiguracion(char* archivoConfiguracion){
@@ -554,7 +560,7 @@ void handshake_plataforma(personajeIndividual_t* personajePorNivel){
 			break;
 		}
 		case PL_NIVEL_INEXISTENTE:{
-			log_info(logger, "Se esta tratando de conectar un personaje que ya esta conectado con la plataforma");
+			log_info(logger, "El nivel requerido por el personaje no existe.");
 			reintentarHandshake(personajePorNivel->socketPlataforma, &pkgHandshake);
 			break;
 		}
