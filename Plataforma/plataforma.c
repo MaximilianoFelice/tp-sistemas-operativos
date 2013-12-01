@@ -697,7 +697,7 @@ int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexi
 		*pPersonajeActual = NULL;
 		return EXIT_SUCCESS;
 	}
-	log_debug(logger, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+
 	pPersonaje = sacarPersonajeDeListas(pNivel, iSocketConexion);
 	if (pPersonaje != NULL) {
 		log_info(logger, "Se desconecto el personaje %c", pPersonaje->simbolo);
@@ -706,7 +706,6 @@ int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexi
 		serializarSimbolo(PL_DESCONEXION_PERSONAJE, pPersonaje->simbolo, &pkgDesconexionPers);
 		enviarPaquete(pNivel->socket, &pkgDesconexionPers, logger, "Se envia desconexion del personaje al nivel");
 		free(pPersonaje);
-		log_debug(logger, "Se saco al personaje del juego");
 		return EXIT_SUCCESS;
 	}
 	else{
