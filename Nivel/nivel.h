@@ -70,6 +70,7 @@ void *deteccionInterbloqueo (void *parametro);
 void actualizaPosicion(int *contMovimiento, int *posX, int *posY);
 
 //Nivel
+void *tirando2personajes (void* sinUso);
 
 void levantarArchivoConf(char*);
 void actualizarInfoNivel(char* argumento);
