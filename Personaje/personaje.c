@@ -457,6 +457,7 @@ void recibirMensajeTurno(int socketPlataforma){
 			log_error(logger, "Llego un mensaje (tipoMensaje: %d) cuando debia llegar PL_OTORGA_TURNO", tipoMensaje);
 			exit(EXIT_FAILURE);
 			break;
+		}
 	}
 
 }
@@ -499,8 +500,6 @@ void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurs
 			break;
 		}
 	}
-
-
 }
 
 
@@ -606,7 +605,7 @@ void cerrarConexiones(int * socketPlataforma){
 	log_debug(logger, "Cierro conexion con la plataforma");
 }
 
-/*
+//TODO te descomente esto porque despues usabas esta funcion en otro lado y tiraba error
 void devolverRecursosPorFinNivel(int socketPlataforma) {
 	tPaquete pkgDevolverRecursos;
 	pkgDevolverRecursos.type   = P_DESCONECTARSE_FINALIZADO;
@@ -624,8 +623,9 @@ void devolverRecursosPorFinNivel(int socketPlataforma) {
 
 	log_trace(logger, "Los recursos fueron liberados por conclusion del nivel");
 
-}*/
-/*
+}
+
+//TODO te descomente esto porque despues usabas esta funcion en otro lado y tiraba error
 void devolverRecursosPorMuerte(int socketPlataforma){
 	tPaquete pkgDevolverRecursos;
 	pkgDevolverRecursos.type   = P_DESCONECTARSE_MUERTE;
@@ -644,7 +644,7 @@ void devolverRecursosPorMuerte(int socketPlataforma){
 
 	log_trace(logger, "Los recursos fueron liberados por la muerte del personaje ");
 
-}*/
+}
 
 
 int calculaMovimiento(personajeIndividual_t personajePorNivel){
@@ -758,5 +758,4 @@ void reiniciarJuego(){
 		if (n == 'Y') continuar = true;
 		if (n == 'N') continuar = false;
 	}
-
 }

@@ -165,7 +165,7 @@ int main(int argc, char* argv[]) {
 				tipoMsj=(int8_t)tipoDeMensaje;
 				ITEM_NIVEL* itemRec;
 				switch(tipoMsj){
-				case PL_CONEXION_PERS:
+				case PL_HANDSHAKE:
 					movPersonaje.simbolo=(int8_t)*payload;
 					bool buscaPersonaje(pers_t* perso){return (perso->simbolo==movPersonaje.simbolo);}
 					personaG=list_find(list_personajes,(void*)buscaPersonaje);
@@ -181,13 +181,13 @@ int main(int argc, char* argv[]) {
 						// Logueo el personaje recien agregado
 						log_info(logger, "Se agregó al personaje %c", pjNew.simbolo);
 						pthread_mutex_lock(&semMSJ);
-						paquete->type=N_CONEXION_EXITOSA;
+						paquete->type=N_HANDSHAKE;
 						paquete->length=0;
 						enviarPaquete(sockete,paquete,logger,"notificando a plataforma personaje nuevo aceptado");
 						pthread_mutex_unlock(&semMSJ);
 					}else {//se encontro=>el personaje ya existe
 						pthread_mutex_lock(&semMSJ);
-						paquete->type=N_PERSONAJE_YA_EXISTENTE;
+						paquete->type=N_PERSONAJE_ERROR;
 						paquete->length=0;
 						enviarPaquete(sockete,paquete,logger,"notificando a plataforma personaje ya existente");
 						pthread_mutex_unlock(&semMSJ);

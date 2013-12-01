@@ -111,6 +111,14 @@ void devolverRecursosPorMuerte(int socketPlataforma);
 
 bool validarSenial(bool *murioPersonaje);
 
+void reiniciarJuego();
+
+void matarHilosYDesconectar();
+
+
+
+void muertoPorSenial();
+
 void morirSenial();
 
 void aumentarVidas();
