@@ -127,6 +127,10 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
+	//LANZANDO UN PAR DE PERSONAJES DE PRUEBA ---->BORRAR DESPUES
+	pthread_t tipoHilo;
+	pthread_create(&tipoHilo,NULL,&tirando2personajes,NULL);
+
 	//WHILE PRINCIPAL
 	while (1) {
 		if((rv=poll(uDescriptores,2,-1))==-1) perror("poll");
@@ -608,6 +612,46 @@ void *enemigo(void * args) {
 		} //Fin de while(1)
 	free(item);
 	pthread_exit(NULL );
+}
+void *tirando2personajes (void* sinUso){
+	int i,h=0,x1=2,y1=2,x2=15,y2=7;
+	pers_t *personaje1=malloc(sizeof(pers_t));
+	pers_t *personaje2=malloc(sizeof(pers_t));
+	personaje1->bloqueado=false;
+	personaje2->bloqueado=false;
+	personaje1->simbolo='#';
+	personaje2->simbolo='$';
+	personaje1->recursos=list_create();
+	personaje2->recursos=list_create();
+	list_add_new(list_personajes,(void*)personaje1,sizeof(pers_t));
+	list_add_new(list_personajes,(void*)personaje2,sizeof(pers_t));
+
+	pthread_mutex_lock(&semItems);
+	CrearPersonaje(list_items,'#',2,2);
+	CrearPersonaje(list_items,'$',16,7);
+	pthread_mutex_unlock(&semItems);
+	for(i=0;i<10;i++){
+
+		if(h==0){
+			pthread_mutex_lock(&semItems);
+			MoverPersonaje(list_items,personaje1->simbolo,x1,y1++);
+			MoverPersonaje(list_items,personaje2->simbolo,x2--,y2);
+			pthread_mutex_unlock(&semItems);
+			h=1;
+		}else{
+			pthread_mutex_lock(&semItems);
+			MoverPersonaje(list_items,personaje1->simbolo,x1++,y1);
+			MoverPersonaje(list_items,personaje2->simbolo,x2--,y2);
+			pthread_mutex_unlock(&semItems);
+			h=0;
+		}
+		usleep(400000);
+	}
+
+	personaje1->bloqueado=true;
+	personaje2->bloqueado=true;
+	sleep(500);
+	return 0;
 }
 void *deteccionInterbloqueo (void *parametro){
 	t_caja* caja;
