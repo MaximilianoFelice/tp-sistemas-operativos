@@ -55,7 +55,7 @@ void muertePorEnemigoPersonaje(char* sPayload, tNivel *pNivel, tPersonaje* pPers
 void recepcionRecurso(tNivel *pNivel, char *sPayload, t_log *logger);
 void enviarTurno(tPersonaje *pPersonaje);
 void confirmarMovimiento(tPersonaje *pPersonajeActual, t_log *logger);
-void desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexion, char *sPayload);
+int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexion, char *sPayload);
 
 /*
  * PLATAFORMA
@@ -682,7 +682,7 @@ void recepcionRecurso(tNivel *pNivel, char *sPayload, t_log *logger) {
 
 }
 
-void desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexion, char *sPayload) {
+int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexion, char *sPayload) {
 	tPersonaje *pPersonaje;
 	log_info(logger, "Se detecta desconexion...");
 	/*UNDER CONSTRUCTION*/
@@ -695,10 +695,10 @@ void desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConex
 		enviarPaquete(pNivel->socket, &pkgDesconexionPers, logger, "Se envia desconexion del personaje actual al nivel");
 		free(*pPersonajeActual);
 		*pPersonajeActual = NULL;
+		return EXIT_SUCCESS;
 	}
-
+	log_debug(logger, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
 	pPersonaje = sacarPersonajeDeListas(pNivel, iSocketConexion);
-	log_info(logger, "Se desconecto el personaje %c", pPersonaje->simbolo);
 	if (pPersonaje != NULL) {
 		log_info(logger, "Se desconecto el personaje %c", pPersonaje->simbolo);
 		/* Acá hay que liberar recursos, y asignarselos a los que estan en la listas de bloqueados */
@@ -706,11 +706,14 @@ void desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConex
 		serializarSimbolo(PL_DESCONEXION_PERSONAJE, pPersonaje->simbolo, &pkgDesconexionPers);
 		enviarPaquete(pNivel->socket, &pkgDesconexionPers, logger, "Se envia desconexion del personaje al nivel");
 		free(pPersonaje);
+		log_debug(logger, "Se saco al personaje del juego");
+		return EXIT_SUCCESS;
 	}
 	else{
 		log_error(logger, "ERROR: no se encontró el personaje que salio en socket %d", iSocketConexion);
 		exit(EXIT_FAILURE);
 	}
+	return EXIT_FAILURE;
 }
 
 /*
@@ -763,8 +766,10 @@ tPersonaje *sacarPersonajeDeListas(tNivel *pNivel, int iSocket) {
 	int iIndicePersonaje;
 
 	iIndicePersonaje = existePersonaje(pNivel->cListos->elements, iSocket);
+	log_debug(logger, "iIndicePersonaje = %d", iIndicePersonaje);
 
 	if (iIndicePersonaje != -1) {
+
 		return (list_remove(pNivel->cListos->elements, iIndicePersonaje)); // Y sacamos al personaje de la lista de bloqueados
 	}
 
