@@ -25,6 +25,7 @@ typedef struct {
 	char    payload[MAX_BUFFER];
 } __attribute__ ((__packed__)) tPaquete;
 
+
 /*
  * Formato del tipo del paquete:
  * 		[emisor]_[mensaje]
@@ -143,9 +144,6 @@ typedef char* tPersonajesDeadlock; // un array con todos los simbolos de los per
 
 int serializarHandshakePers(tMensaje tipoMensaje, tHandshakePers handshakePersonaje, tPaquete* pPaquete);
 tHandshakePers* deserializarHandshakePers(char * payload);
-
-int serializarHandshakeNivel(tMensaje tipoMensaje, tHandshakeNivel simbolo, tPaquete* pPaquete);
-tHandshakeNivel* deserializarHandshakeNivel(char * payload);
 
 int serializarInfoNivel(tMensaje tipoMensaje, tInfoNivel infoNivel, tPaquete* pPaquete);
 tInfoNivel* deserializarInfoNivel(char * payload);

@@ -102,7 +102,7 @@ int recibirPaquete(int socketReceptor, tMensaje* tipoMensaje, char** psPayload, 
 		return -1;	// ERROR
 	}
 
-	log_debug(pLogger, "Se recibe header de %d bytes y tipo de mensaje %d", bytesRecibidosHeader, header.type); //TODO borrar esta linea
+	//log_debug(pLogger, "Se recibe header de %d bytes y tipo de mensaje %d", bytesRecibidosHeader, header.type); //TODO borrar esta linea
 
 	*tipoMensaje = (tMensaje) header.type;
 
@@ -166,7 +166,7 @@ signed int getConnection(fd_set *setSockets, int *maxSock, int sockListener, tMe
 					log_error(logger, "getConnection :: accept: %s", strerror(errno));
 
 				} else {
-					log_trace(logger, "getConnection :: Nueva conexion socket: %d", iNewSocket);
+					log_trace(logger, "Nueva conexion socket: %d", iNewSocket);
 					//--Agrega el nuevo listener
 					FD_SET(iNewSocket, setSockets);
 
@@ -221,7 +221,7 @@ signed int multiplexar(fd_set *master, fd_set *temp, int *maxSock, tMensaje* tip
 			if ((nBytes = recibirPaquete(iSocket, tipoMensaje, buffer, logger, "Se recibe Mensaje")) <= 0) {
 				//--Si cerró la conexión o hubo error
 				if (nBytes == 0) {
-					log_trace(logger, "multiplexar :: Fin de conexion de %d.", iSocket);
+					log_trace(logger, "Fin de conexion de %d.", iSocket);
 
 				} else {
 					log_error(logger, "multiplexar :: recv: %s", strerror(errno));

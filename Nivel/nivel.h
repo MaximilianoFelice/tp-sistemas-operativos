@@ -35,8 +35,8 @@
 #include <math.h>
 
 //Posicion inicial del personaje.
-#define INI_X 10
-#define INI_Y 10
+#define INI_X 0
+#define INI_Y 0
 
 typedef struct {
 	_Bool bloqueado;

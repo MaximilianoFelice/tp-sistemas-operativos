@@ -117,27 +117,6 @@ tPregPosicion * deserializarPregPosicion(char * payload) {
 	return pPregPosicion;
 }
 
-int serializarHandshakeNivel(tMensaje tipoMensaje, tHandshakeNivel simbolo, tPaquete* pPaquete) {
-
-	pPaquete->type = tipoMensaje;
-	pPaquete->length = sizeof(simbolo);
-	memcpy(pPaquete->payload, &simbolo, pPaquete->length);
-
-	return EXIT_SUCCESS;
-}
-
-tHandshakeNivel* deserializarHandshakeNivel(char * payload) {
-
-	tHandshakeNivel *handshakeNivel = malloc(sizeof(tHandshakeNivel));
-	int tmp_size = 0;
-
-	tmp_size = sizeof(tSimbolo);
-	memcpy(&handshakeNivel->simbolo, payload, tmp_size);
-
-	return handshakeNivel;
-}
-
-
 int serializarRtaPosicion(tMensaje tipoMensaje, tRtaPosicion rtaPosicion, tPaquete* pPaquete) {
 
 	int offset   = 0;
@@ -174,33 +153,43 @@ tRtaPosicion * deserializarRtaPosicion(char * payload) {
 }
 
 
-int serializarMovimiento(tMensaje tipoMensaje, tDirMovimiento dirMovimiento, tPaquete* pPaquete) {
+//int serializarMovimiento(tMensaje tipoMensaje, tDirMovimiento dirMovimiento, tPaquete* pPaquete) {
+//
+//	pPaquete->type = tipoMensaje;
+//
+//	pPaquete->length = sizeof(dirMovimiento);
+//	memcpy(pPaquete->payload, &dirMovimiento, pPaquete->length);
+//
+//	return EXIT_SUCCESS;
+//}
+//
+//
+//tDirMovimiento* deserializarMovimiento(char * payload) {
+//
+//	tDirMovimiento *pDirMovimiento = malloc(sizeof(tDirMovimiento));
+//	int tmp_size = 0;
+//
+//	tmp_size = sizeof(int8_t);
+//	memcpy(pDirMovimiento, payload, tmp_size);
+//
+//	return pDirMovimiento;
+//}
 
-	pPaquete->type = tipoMensaje;
 
-	pPaquete->length = sizeof(dirMovimiento);
-	memcpy(pPaquete->payload, &dirMovimiento, pPaquete->length);
-
-	return EXIT_SUCCESS;
-}
-
-tDirMovimiento* deserializarMovimiento(char * payload) {
-
-	tDirMovimiento *pDirMovimiento = malloc(sizeof(tDirMovimiento));
-	int tmp_size = 0;
-
-	tmp_size = sizeof(int8_t);
-	memcpy(&pDirMovimiento, payload, tmp_size);
-
-	return pDirMovimiento;
-}
 
 int serializarMovimientoPers(tMensaje tipoMensaje, tMovimientoPers movimientoPers, tPaquete* pPaquete){
 
+	int tmp_size = 0, offset = 0;
 	pPaquete->type = tipoMensaje;
 
-	pPaquete->length = sizeof(movimientoPers);
-	memcpy(pPaquete->payload, &movimientoPers, pPaquete->length);
+	tmp_size = sizeof(movimientoPers.simbolo);
+	memcpy(pPaquete->payload, &movimientoPers.simbolo, tmp_size);
+
+	offset   = tmp_size;
+	tmp_size = sizeof(movimientoPers.direccion);
+	memcpy(pPaquete->payload + offset, &movimientoPers.direccion, tmp_size);
+
+	pPaquete->length = offset + tmp_size;
 
 	return EXIT_SUCCESS;
 
@@ -209,14 +198,17 @@ int serializarMovimientoPers(tMensaje tipoMensaje, tMovimientoPers movimientoPer
 tMovimientoPers* deserializarMovimientoPers(char * payload){
 
 	tMovimientoPers *movimientoPers = malloc(sizeof(tMovimientoPers));
-	int tmp_size = 0;
+	int tmp_size = 0, offset = 0;
 
-	tmp_size = sizeof(int8_t);
-	memcpy(&movimientoPers, payload, tmp_size);
+	tmp_size = sizeof(movimientoPers->simbolo);
+	memcpy(&movimientoPers->simbolo, payload, tmp_size);
+
+	offset   = tmp_size;
+	tmp_size = sizeof(movimientoPers->direccion);
+	memcpy(&movimientoPers->direccion, payload + offset, tmp_size);
 
 	return movimientoPers;
 }
-
 
 int serializarEstado(tMensaje tipoMensaje, tEstado estadoPersonaje, tPaquete* pPaquete) {
 
@@ -234,7 +226,7 @@ tEstado* deserializarEstado(char * payload) {
 	int tmp_size = 0;
 
 	tmp_size = sizeof(int8_t);
-	memcpy(&pEstadoPersonaje, payload, tmp_size);
+	memcpy(pEstadoPersonaje, payload, tmp_size);
 
 	return pEstadoPersonaje;
 }
@@ -252,11 +244,12 @@ int serializarSimbolo(tMensaje tipoMensaje, tSimbolo simbolo, tPaquete* pPaquete
 
 tSimbolo* deserializarSimbolo(char * payload) {
 
-	tSimbolo *pSimbolo = (tSimbolo*)malloc(sizeof(tSimbolo));
+	tSimbolo *pSimbolo = malloc(sizeof(tSimbolo));
 	int tmp_size = 0;
 
 	tmp_size = sizeof(tSimbolo);
-	memcpy(&pSimbolo, payload, tmp_size);
+	memcpy(pSimbolo, payload, tmp_size);
 
 	return pSimbolo;
 }
+
