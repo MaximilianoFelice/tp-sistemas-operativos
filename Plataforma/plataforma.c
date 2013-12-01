@@ -166,6 +166,7 @@ void *orquestador(void *vPuerto) {
 				break;
 
 			case P_HANDSHAKE:
+				log_debug(logger, "Holaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 				conexionPersonaje(iSocketComunicacion, &setSocketsOrquestador, sPayload);
 				break;
 
@@ -255,11 +256,7 @@ int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char*
 			agregarPersonaje(pNivelPedido->cListos, pHandshakePers->simbolo, iSocketComunicacion);
 			delegarConexion(&pNivelPedido->masterfds, socketsOrquestador, iSocketComunicacion, &pNivelPedido->maxSock);
 
-			log_debug(logger, "ORQUESTADOR: socket del nivel: %d", pNivelPedido->socket);
-
 			signal_personajes();
-
-			log_debug(logger, "ORQUESTADOR-2: socket del nivel: %d", pNivelPedido->socket);
 
 			tPaquete pkgHandshake;
 			pkgHandshake.type   = PL_HANDSHAKE;
@@ -303,14 +300,14 @@ bool avisoConexionANivel(int sockNivel,char *sPayload, tSimbolo simbolo){
 	tHandshakeNivel handshakeNivel;
 	tPaquete *paquete = malloc(sizeof(tPaquete));
 	handshakeNivel.simbolo = simbolo;
-	serializarHandshakeNivel(PL_HANDSHAKE, handshakeNivel, paquete);
+	serializarHandshakeNivel(PL_CONEXION_PERS, handshakeNivel, paquete);
 
 	enviarPaquete(sockNivel, paquete,logger,"Envio al nivel el nuevo personaje que se conecto");
 	recibirPaquete(sockNivel, &tipoMensaje, &sPayload, logger, "Recibo confirmacion del nivel");
 	free(paquete);
-	if(tipoMensaje == N_PERSONAJE_AGREGADO){
+	if(tipoMensaje == N_CONEXION_EXITOSA){
 		return true;
-	} else if(tipoMensaje == N_PERSONAJE_ERROR){
+	} else if(tipoMensaje == N_PERSONAJE_YA_EXISTENTE){
 		return false;
 	}
 	return false;

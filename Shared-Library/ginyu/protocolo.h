@@ -38,6 +38,7 @@ typedef struct {
 typedef enum {
 	/* Mensajes de la plataforma */
 	PL_HANDSHAKE,
+	PL_CONEXION_PERS,
 	PL_PERSONAJE_REPETIDO,
 	PL_POS_RECURSO,
 	PL_OTORGA_TURNO,			// Plataforma le manda al personaje
@@ -55,8 +56,8 @@ typedef enum {
 	PL_DESCONEXION_PERSONAJE,
 	/* Mensajes del nivel */
 	N_HANDSHAKE,
-	N_PERSONAJE_AGREGADO,		//Se conecta un nuevo personaje correctamente
-	N_PERSONAJE_ERROR,			//El personaje ya existia
+	N_CONEXION_EXITOSA,			//Se conecta un nuevo personaje correctamente
+	N_PERSONAJE_YA_EXISTENTE, 	//El personaje ya existia
 	N_CONFIRMACION_ELIMINACION,	// AVISO
 	N_MUERTO_POR_ENEMIGO, 		// tSimbolo
 	N_PERSONAJES_DEADLOCK, 		// tSimbolo (el personaje que ya se murio)
