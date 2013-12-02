@@ -285,15 +285,11 @@ void *jugar(void *args) {
 
 	char * exit_return = strdup("ha finalizado su plan de niveles correctamente");
 	pthread_exit((void *)exit_return);
-
-
 }
 
 void desconectarPersonaje(personajeIndividual_t* personajePorNivel){
-
 	cerrarConexiones(&personajePorNivel->socketPlataforma);
 	personajePorNivel->socketPlataforma=0; // NOTA: esto es para la desconexion de todos los personajes cuando se reinicia el juego
-
 }
 
 void manejarDesconexiones(personajeIndividual_t* personajePorNivel, bool murioPersonaje){//, bool* finalice){
@@ -303,9 +299,7 @@ void manejarDesconexiones(personajeIndividual_t* personajePorNivel, bool murioPe
 		log_info(logger, "El personaje ha completado el nivel.");
 		desconectarPersonaje(personajePorNivel);
 		log_debug(logger, "El personaje se desconecto de la plataforma");
-
 	}
-
 }
 
 bool personajeEstaMuerto(bool murioPersonaje){
@@ -393,39 +387,34 @@ tDirMovimiento calcularYEnviarMovimiento(personajeIndividual_t *personajePorNive
 	movimientoAEnviar.direccion = movimientoRealizado = calculaMovimiento(*personajePorNivel);
 	log_debug(logger, "Movimiento calculado: personaje %c en (%d, %d)", personaje.simbolo, personajePorNivel->posX, personajePorNivel->posY);
 
-	if(conseguiRecurso(*personajePorNivel)){
-		solicitarRecurso(personajePorNivel->socketPlataforma, &(personajePorNivel->recursoActual));
-	} else {
+	tPaquete pkgMovimiento;
+	serializarMovimientoPers(P_MOVIMIENTO, movimientoAEnviar, &pkgMovimiento);
 
-		tPaquete pkgMovimiento;
-		serializarMovimientoPers(P_MOVIMIENTO, movimientoAEnviar, &pkgMovimiento);
+	log_debug(logger, "Se envia paquete con el pedido de movimiento");
+	enviarPaquete(personajePorNivel->socketPlataforma, &pkgMovimiento, logger, "Envio pedido de movimiento del personaje");
 
-		log_debug(logger, "Se envia paquete con el pedido de movimiento");
-		enviarPaquete(personajePorNivel->socketPlataforma, &pkgMovimiento, logger, "Envio pedido de movimiento del personaje");
+	char* sPayload;
+	recibirPaquete(personajePorNivel->socketPlataforma, &tipoMensaje, &sPayload, logger, "Se espera confirmacion del movimiento");
 
-		char* sPayload;
-		recibirPaquete(personajePorNivel->socketPlataforma, &tipoMensaje, &sPayload, logger, "Se espera confirmacion del movimiento");
-
-		switch(tipoMensaje){
-			case PL_MUERTO_POR_ENEMIGO:{
-				log_info(logger, "El personaje se murio por enemigos");
-				restarVida();
-				break;
-			}
-			case PL_MUERTO_POR_DEADLOCK:{
-				log_info(logger, "El personaje se murio por deadlock");
-				restarVida();
-				break;
-			}
-			case PL_CONFIRMACION_MOV:{
-				log_info(logger, "Movimiento confirmado");
-				break;
-			}
-			default: {
-				log_error(logger, "Llego un mensaje (tipoMensaje: %d) cuando debia llegar PL_CONFIRMACION_MOV", tipoMensaje);
-				exit(EXIT_FAILURE);
-				break;
-			}
+	switch(tipoMensaje){
+		case PL_MUERTO_POR_ENEMIGO:{
+			log_info(logger, "El personaje se murio por enemigos");
+			restarVida();
+			break;
+		}
+		case PL_MUERTO_POR_DEADLOCK:{
+			log_info(logger, "El personaje se murio por deadlock");
+			restarVida();
+			break;
+		}
+		case PL_CONFIRMACION_MOV:{
+			log_info(logger, "Movimiento confirmado");
+			break;
+		}
+		default: {
+			log_error(logger, "Llego un mensaje (tipoMensaje: %d) cuando debia llegar PL_CONFIRMACION_MOV", tipoMensaje);
+			exit(EXIT_FAILURE);
+			break;
 		}
 	}
 
