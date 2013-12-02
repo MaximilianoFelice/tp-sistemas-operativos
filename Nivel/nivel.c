@@ -128,8 +128,8 @@ int main(int argc, char* argv[]) {
 	}
 
 //	//LANZANDO UN PAR DE PERSONAJES DE PRUEBA ---->BORRAR DESPUES
-//	pthread_t tipoHilo;
-//	pthread_create(&tipoHilo,NULL,&tirando2personajes,NULL);
+	pthread_t tipoHilo;
+	pthread_create(&tipoHilo,NULL,&tirando2personajes,NULL);
 
 	//WHILE PRINCIPAL
 	while (1) {
@@ -303,6 +303,8 @@ int main(int argc, char* argv[]) {
 						// Logueo el bloqueo del personaje/
 						log_info(logger,"El personaje %c se bloqueo por el recurso %c",posConsultada->simbolo,posConsultada->recurso);
 						//se bloquea esperando que le den el recurso
+						void bloquearPers(pers_t *personaje){if (personaje->simbolo==personaG->simbolo)personaje->bloqueado=true;}
+						list_iterate(list_personajes,(void*)bloquearPers);
 						personaG->bloqueado=true;
 						/*pthread_mutex_lock(&semMSJ);
 						paquete->type=N_??????????? ;------->FALTA DEFINIR QUE LE MANDO
@@ -645,6 +647,8 @@ void *tirando2personajes (void* sinUso){
 		}
 		usleep(400000);
 	}
+	void esUn2(pers_t *personaje){if (personaje->simbolo==personaje1->simbolo||personaje->simbolo==personaje2->simbolo)personaje->bloqueado=true;}
+	list_iterate(list_personajes,(void*)esUn2);
 
 	personaje1->bloqueado=true;
 	personaje2->bloqueado=true;
