@@ -574,6 +574,7 @@ tPersonaje* planificacionSRDF(t_queue* cListos, int iTamanioCola) {
 
     return pPersonaje;
 }
+
 void posicionRecursoPersonaje(int iSocketConexion, char* sPayload, int socketNivel, t_log* logger) {
     tMensaje tipoMensaje;
     tPaquete pkgPosRecurso;
@@ -599,6 +600,7 @@ void posicionRecursoPersonaje(int iSocketConexion, char* sPayload, int socketNiv
 
     free(sPayload);
 }
+
 void movimientoPersonaje(int iSocketConexion, char* sPayload, tNivel *pNivel, tPersonaje* pPersonaje, t_log* logger) {
     tPaquete pkgMovimientoPers;
     tMovimientoPers *movPers = deserializarMovimientoPers(sPayload);
@@ -615,6 +617,7 @@ void movimientoPersonaje(int iSocketConexion, char* sPayload, tNivel *pNivel, tP
 	free(sPayload);
 	free(movPers);
 }
+
 void muertePorEnemigoPersonaje(char* sPayload, tNivel *pNivel, tPersonaje* pPersonaje, t_log* logger) {
 	tPaquete pkgMuertePers;
 	pkgMuertePers.type    = PL_MUERTO_POR_ENEMIGO;
@@ -624,6 +627,7 @@ void muertePorEnemigoPersonaje(char* sPayload, tNivel *pNivel, tPersonaje* pPers
 
 	enviarPaquete(pPersonaje->socket, &pkgMuertePers, logger, "Envio mensaje de muerte por personaje");
 }
+
 void solicitudRecursoPersonaje(int iSocketConexion, char *sPayload, tNivel *pNivel, tPersonaje **pPersonaje, t_log *logger) {
     tPaquete pkgSolicituRecurso;
     pkgSolicituRecurso.type    = PL_SOLICITUD_RECURSO;
@@ -640,12 +644,14 @@ void solicitudRecursoPersonaje(int iSocketConexion, char *sPayload, tNivel *pNiv
     	(*pPersonaje)->valorAlgoritmo = 0;
     }
 
-    tPersonajeBloqueado *pPersonajeBloqueado;
-    pPersonajeBloqueado = (tPersonajeBloqueado*) malloc(sizeof(tPersonajeBloqueado));
-    pPersonajeBloqueado->pPersonaje = *pPersonaje;
-    pPersonajeBloqueado->recursoEsperado = *pSimbolo;
+    //tPersonajeBloqueado *pPersonajeBloqueado;
+    tPersonajeBloqueado pPersonajeBloqueado;
+    //TODO: Este malloc no va, la memoria ya esta asignada en el pPersonaje
+    //pPersonajeBloqueado = (tPersonajeBloqueado*) malloc(sizeof(tPersonajeBloqueado));
+    pPersonajeBloqueado.pPersonaje = *pPersonaje;
+    pPersonajeBloqueado.recursoEsperado = *pSimbolo;
 
-    list_add(pNivel->lBloqueados, pPersonajeBloqueado);
+    list_add(pNivel->lBloqueados, &pPersonajeBloqueado);
 
     *pPersonaje = NULL;
     free(pSimbolo);
