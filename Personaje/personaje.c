@@ -78,13 +78,13 @@ int main(int argc, char*argv[]) {
 		}
 	}
 
-	//Cuando terminaron todos los niveles. Manda msj al orquestador de que ya termino todos sus niveles
-	int socketOrquestador = connectToServer(ip_plataforma, atoi(puerto_orq), logger);
-
 	if (personaje.vidas>0)//Termino el plan de niveles correctamente
+	{
+		//Cuando terminaron todos los niveles. Manda msj al orquestador de que ya termino todos sus niveles
+		int socketOrquestador = connectToServer(ip_plataforma, atoi(puerto_orq), logger);
 		notificarFinPlanNiveles(socketOrquestador);
-
-	cerrarConexiones(&socketOrquestador);
+		cerrarConexiones(&socketOrquestador);
+	}
 
 	if(join_return != NULL)
 		log_debug(logger, "El personaje %c %s", personaje.simbolo, join_return);
