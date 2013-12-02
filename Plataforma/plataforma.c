@@ -23,7 +23,7 @@ bool hay_personajes;
 tPersonaje* desbloquearPersonaje(t_list* lBloqueados, tSimbolo recurso);
 int existePersonaje(t_list *pListaPersonajes, int iSocket);
 tPersonaje *sacarPersonajeDeListas(tNivel *pNivel, int iSocket);
-
+char *getRecursosNoAsignados(t_list *recursos);
 
 /*
  * Funciones privadas plataforma
@@ -55,9 +55,8 @@ void recepcionRecurso(tNivel *pNivel, char *sPayload, t_log *logger);
 void enviarTurno(tPersonaje *pPersonaje, int delay);
 void confirmarMovimiento(tPersonaje *pPersonajeActual, t_log *logger);
 int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexion, char *sPayload);
-void liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel);
-tPersonajeBloqueado *createPersonajeBlock(tPersonaje *personaje, tSimbolo recurso);
-tPersonaje *removePersonajeOfBlock(t_list *block, int indicePersonaje);
+char *liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel);
+
 
 /*
  * PLATAFORMA
@@ -703,7 +702,7 @@ int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexi
 
 	if (iSocketConexion == (*pPersonajeActual)->socket) {
 		log_info(logger, "Se desconecto el personaje %c", (*pPersonajeActual)->simbolo);
-		liberarRecursos(*pPersonajeActual, pNivel);
+		liberarRecursos(*pPersonajeActual, pNivel); //TODO armar un mensaje para pasarle esto al nivel
 		tPaquete pkgDesconexionPers;
 		serializarSimbolo(PL_DESCONEXION_PERSONAJE, (*pPersonajeActual)->simbolo, &pkgDesconexionPers);
 		enviarPaquete(pNivel->socket, &pkgDesconexionPers, logger, "Se envia desconexion del personaje actual al nivel");
@@ -715,7 +714,7 @@ int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexi
 	pPersonaje = sacarPersonajeDeListas(pNivel, iSocketConexion);
 	if (pPersonaje != NULL) {
 		log_info(logger, "Se desconecto el personaje %c", pPersonaje->simbolo);
-		liberarRecursos(pPersonaje, pNivel);
+		liberarRecursos(pPersonaje, pNivel); //TODO armar un mensaje para pasarle esto al nivel
 		tPaquete pkgDesconexionPers;
 		serializarSimbolo(PL_DESCONEXION_PERSONAJE, pPersonaje->simbolo, &pkgDesconexionPers);
 		enviarPaquete(pNivel->socket, &pkgDesconexionPers, logger, "Se envia desconexion del personaje al nivel");
@@ -733,15 +732,14 @@ int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexi
 /*
  * Se liberan los recursos que poseia el personaje en el nivel y en caso de que un personaje estaba bloqueado por uno de estos, se libera
  * */
-void liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel) {
+char *liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel) {
 	int iCantidadBloqueados = list_size(pNivel->lBloqueados);
 	int iCantidadRecursos	= list_size(pPersMuerto->recursos);
 
 	if ((iCantidadBloqueados == 0) || (iCantidadRecursos == 0)) {
 		/* No hay nada que liberar */
 		log_info(logger, "No se liberan recursos con la muerte de %c", pPersMuerto->simbolo);
-		return;
-
+		return getRecursosNoAsignados(pPersMuerto->recursos);
 	} else {
 
 		int iIndexBloqueados, iIndexRecursos;
@@ -777,11 +775,30 @@ void liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel) {
 				}
 			}
 		}
-
-		list_destroy(pPersMuerto->recursos);
-
-		return;
+		return getRecursosNoAsignados(pPersMuerto->recursos);
 	}
+}
+
+/*
+ * Recibe una lista de recursos de un personaje muerto y retorna un puntero a string con esos recursos; y libera memoria de la lista
+ */
+char *getRecursosNoAsignados(t_list *recursos){
+
+	int cantRecursosNoAsignados = list_size(recursos);
+	int i;
+	tSimbolo *pRecurso;
+	if(cantRecursosNoAsignados != 0){
+		//Aloco memoria en un string para mandarle al nivel con los recursos no asignados a nadie
+		char *recursosNoAsignados = malloc(cantRecursosNoAsignados*sizeof(char));
+
+		for(i = 0; i < cantRecursosNoAsignados; i++){
+			pRecurso = (tSimbolo*) list_get(recursos, i);
+			recursosNoAsignados[i] = (char)*pRecurso;
+		}
+		list_destroy_and_destroy_elements(recursos, free);
+		return recursosNoAsignados;
+	}
+	return NULL;
 }
 
 /*
@@ -1008,7 +1025,7 @@ tNivel *getNivel(char *nom_nivel){
 }
 
 /*
- * Crea estructura de personaje bloqueado y alocando memoria
+ * Crea estructura de personaje bloqueado y alocando memoria y returna un puntero al personaje creado
  */
 tPersonajeBloqueado *createPersonajeBlock(tPersonaje *personaje, tSimbolo recurso){
 	 tPersonajeBloqueado *pPersonajeBloqueado = malloc(sizeof(tPersonajeBloqueado));
@@ -1018,7 +1035,7 @@ tPersonajeBloqueado *createPersonajeBlock(tPersonaje *personaje, tSimbolo recurs
 }
 
 /*
- * Retorna el personaje de la lista de bloqueados y libera memoria
+ * Retorna un puntero a un personaje de la lista de bloqueados y libera memoria
  */
 tPersonaje *removePersonajeOfBlock(t_list *block, int indicePersonaje){
 	tPersonaje *personaje;
