@@ -197,8 +197,6 @@ void *jugar(void *args) {
 	personajePorNivel.posY=0;
 	personajePorNivel.nivelQueJuego = (nivel_t *) args;
 
-	//bool terminoPlanNiveles = false;
-	//bool finalice = false;
 	bool murioPersonaje = false;
 
 	personajePorNivel.socketPlataforma= connectToServer(ip_plataforma, atoi(puerto_orq), logger);
@@ -207,21 +205,14 @@ void *jugar(void *args) {
 
 	handshake_plataforma(&personajePorNivel);
 
-	//Setea los flags del inicio
-	//finalice = false;
-	//murioPersonaje = false; fixme
+	bool finalizoPlanNivel = false;
 
-	while (personaje.vidas  > 0) {
-
-		//murioPersonaje = false;
-		//finalice = false; // si sigue jugando y tiene vidas no finalizo =>finalice=false
+	while ((personaje.vidas  > 0) & (!finalizoPlanNivel)) {
 
 		log_info(logger, "Vidas de %c: %d", personaje.simbolo, personaje.vidas);
 
 		// Por cada objetivo del nivel, fixme, revisar si hace falta q controle si esta o no muerto
 		for (personajePorNivel.recursoActual=0; (personajePorNivel.recursoActual < list_size(personajePorNivel.nivelQueJuego->Objetivos)) && (!personajeEstaMuerto(murioPersonaje)); personajePorNivel.recursoActual++) {
-
-		//	murioPersonaje = false;
 
 			//Espera que el planificador le de el turno para pedir la posicion del recurso
 			recibirMensajeTurno(personajePorNivel.socketPlataforma);
@@ -253,35 +244,11 @@ void *jugar(void *args) {
 
 		} //Fin de for de objetivos
 
-
-		//if(muertePorSenial )//|| finalice) //fixme ver como adaptarlo mejor para sacarle las banderas
-		//	break;
+		finalizoPlanNivel = true;
 
 	}
 
-	manejarDesconexiones(&personajePorNivel, murioPersonaje);//, &finalice);
-
-	/*if(murioPersonaje){
-		restarVida();
-		if (personaje.vidas<=0) {
-			devolverRecursosPorMuerte(personajePorNivel.socketPlataforma);
-		}
-		log_info(logger, "Me han matado :/");
-		cerrarConexiones(&personajePorNivel.socketPlataforma);
-	}*/
-
-	/*//fixme me parece redundante
-	if (personaje.vidas<=0) {
-		char *exit_return;
-		exit_return = strdup("se ha quedado sin vidas y murio");
-		pthread_exit((void *)exit_return);
-	}
-*/
-	/*if (muertePorSenial) {
-		char *exit_return;
-		exit_return = strdup("ha terminado por senial SIGINT");
-		pthread_exit((void *)exit_return);
-	}*/
+	manejarDesconexiones(&personajePorNivel, murioPersonaje);
 
 	char * exit_return = strdup("ha finalizado su plan de niveles correctamente");
 	pthread_exit((void *)exit_return);
@@ -294,7 +261,6 @@ void desconectarPersonaje(personajeIndividual_t* personajePorNivel){
 
 void manejarDesconexiones(personajeIndividual_t* personajePorNivel, bool murioPersonaje){//, bool* finalice){
 	if (!murioPersonaje) {
-		//*finalice = true;
 		//devolverRecursosPorFinNivel(personajePorNivel->socketPlataforma);
 		log_info(logger, "El personaje ha completado el nivel.");
 		desconectarPersonaje(personajePorNivel);
@@ -526,15 +492,7 @@ void reintentarSolicitudRecurso(personajeIndividual_t* personajePorNivel, tPaque
 	}
 }
 
-/*
-bool estaMuerto(tMensaje tipoMensaje, bool *murioPj){
-	if(tipoMensaje == PL_MUERTO_POR_DEADLOCK)
-		return (*murioPj = true);
-	if(tipoMensaje == PL_MUERTO_POR_ENEMIGO)
-		return (*murioPj = true);
-	return (*murioPj =false);
-}
-*/
+
 void handshake_plataforma(personajeIndividual_t* personajePorNivel){
 	tMensaje tipoMensaje;
 	tHandshakePers handshakePers;
@@ -595,49 +553,6 @@ void cerrarConexiones(int * socketPlataforma){
 	close(*socketPlataforma);
 	log_debug(logger, "La conexion con la plataforma ha sido cerrada.");
 }
-
-/*
-//TODO te descomente esto porque despues usabas esta funcion en otro lado y tiraba error
-void devolverRecursosPorFinNivel(int socketPlataforma) {
-	tPaquete pkgDevolverRecursos;
-	pkgDevolverRecursos.type   = P_DESCONECTARSE_FINALIZADO;
-	pkgDevolverRecursos.length = 0;
-	enviarPaquete(socketPlataforma, &pkgDevolverRecursos, logger, "Se liberan los recursos del personaje por terminar el nivel");
-
-	tMensaje tipoMensaje;
-	char* sPayload;
-	recibirPaquete(socketPlataforma, &tipoMensaje, &sPayload, logger, "Recibo confirmacion de salida y liberacion de recursos");
-
-	if (tipoMensaje != PL_CONFIRMACION_ELIMINACION) {
-		log_error(logger, "Tipo de mensaje incorrecto, se esperaba PL_CONFIRMACION_ELIMINACION y llego %d", tipoMensaje);
-		exit(EXIT_FAILURE);
-	}
-
-	log_trace(logger, "Los recursos fueron liberados por conclusion del nivel");
-
-}*/
-
-/*
-void devolverRecursosPorMuerte(int socketPlataforma){
-	tPaquete pkgDevolverRecursos;
-	pkgDevolverRecursos.type   = P_DESCONECTARSE_MUERTE;
-	pkgDevolverRecursos.length = 0;
-	enviarPaquete(socketPlataforma, &pkgDevolverRecursos, logger, "Se liberan los recursos del personaje por muerte del personaje");
-
-	tMensaje tipoMensaje;
-	char* sPayload;
-	recibirPaquete(socketPlataforma, &tipoMensaje, &sPayload, logger, "Recibo confirmacion de salida y liberacion de recursos por muerte del personaje");
-
-
-	if (tipoMensaje != PL_CONFIRMACION_ELIMINACION) {
-		log_error(logger, "Tipo de mensaje incorrecto, se esperaba PL_CONFIRMACION_ELIMINACION y llego %d", tipoMensaje);
-		exit(EXIT_FAILURE);
-	}
-
-	log_trace(logger, "Los recursos fueron liberados por la muerte del personaje ");
-
-}
-*/
 
 int calculaMovimiento(personajeIndividual_t personajePorNivel){
 
@@ -710,7 +625,7 @@ void muertoPorSenial(){
 	personaje.vidas=0;
 
 	log_info(logger, "El personaje ha muerto por la senal kill");
-	//todo vemos si le avisamo q nos desconectamos o no
+
 	matarHilosYDesconectar();
 
 	pthread_mutex_unlock(&semModificadorDeVidas);
