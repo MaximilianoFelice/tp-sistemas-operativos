@@ -75,6 +75,7 @@ void wait_personajes(bool *primerIntento);
 //Busquedas
 int existeNivel(t_list * lNiveles, char* sLevelName);
 tNivel *getNivel(char *nom_nivel);
+int existPersonajeBlock(t_list *block, tSimbolo recurso);
 
 
 //Constructores y destroyers

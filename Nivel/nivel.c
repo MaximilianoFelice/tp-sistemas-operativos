@@ -127,9 +127,9 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
-	//LANZANDO UN PAR DE PERSONAJES DE PRUEBA ---->BORRAR DESPUES
-	pthread_t tipoHilo;
-	pthread_create(&tipoHilo,NULL,&tirando2personajes,NULL);
+//	//LANZANDO UN PAR DE PERSONAJES DE PRUEBA ---->BORRAR DESPUES
+//	pthread_t tipoHilo;
+//	pthread_create(&tipoHilo,NULL,&tirando2personajes,NULL);
 
 	//WHILE PRINCIPAL
 	while (1) {
@@ -282,8 +282,7 @@ int main(int argc, char* argv[]) {
 					}
 				break;
 				case PL_SOLICITUD_RECURSO:
-					posConsultada->recurso=(tSimbolo)*(payload+sizeof(tSimbolo));
-					posConsultada->simbolo=(tSimbolo)*payload;//VER SIEMPRE EN QUE ORDEN LO SERIALIZA
+					posConsultada = deserializarPregPosicion(payload);
 					log_debug(logger, "<<< Personaje %c solicita una instancia del recurso %c", (char)posConsultada->simbolo, (char)posConsultada->recurso);
 					// Calculo la cantidad de instancias
 					int cantInstancias = restarInstanciasRecurso(list_items,posConsultada->recurso);
@@ -296,8 +295,7 @@ int main(int argc, char* argv[]) {
 						//si estaba bloqueado se desbloquea
 						personaG->bloqueado=false;
 						pthread_mutex_lock(&semMSJ);
-						paquete->type=N_ENTREGA_RECURSO;
-						paquete->length=0;
+						serializarSimbolo(N_ENTREGA_RECURSO, posConsultada->recurso, paquete);
 						// Envio mensaje donde confirmo la otorgacion del recurso pedido
 						enviarPaquete(sockete,paquete,logger,"enviando confirmacion de otorgamiento de recurso a plataforma");
 						pthread_mutex_unlock(&semMSJ);
