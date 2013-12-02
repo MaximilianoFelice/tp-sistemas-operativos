@@ -129,8 +129,8 @@ int main(int argc, char* argv[]) {
 	}
 
 //	//LANZANDO UN PAR DE PERSONAJES DE PRUEBA ---->BORRAR DESPUES
-	pthread_t tipoHilo;
-	pthread_create(&tipoHilo,NULL,&tirando2personajes,NULL);
+	//pthread_t tipoHilo;
+	//pthread_create(&tipoHilo,NULL,&tirando2personajes,NULL);
 
 	//WHILE PRINCIPAL
 	while (1) {
