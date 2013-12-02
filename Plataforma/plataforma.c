@@ -565,16 +565,16 @@ void posicionRecursoPersonaje(int iSocketConexion, char* sPayload, int socketNiv
     tMensaje tipoMensaje;
     tPaquete pkgPosRecurso;
     pkgPosRecurso.type   = PL_POS_RECURSO;
-    pkgPosRecurso.length = strlen(sPayload);
-    strcpy(pkgPosRecurso.payload, sPayload);
+    pkgPosRecurso.length = sizeof(tSimbolo) + sizeof(tSimbolo);
+    memcpy(pkgPosRecurso.payload, sPayload, pkgPosRecurso.length);
 
     enviarPaquete(socketNivel, &pkgPosRecurso, logger, "Solicitud al NIVEL la posicion de recurso");
     recibirPaquete(socketNivel, &tipoMensaje, &sPayload, logger, "Recibo del NIVEL posicion del recurso");
 
     if (tipoMensaje == N_POS_RECURSO) {
         pkgPosRecurso.type    = PL_POS_RECURSO;
-        pkgPosRecurso.length  = strlen(sPayload);
-        strcpy(pkgPosRecurso.payload, sPayload);
+        pkgPosRecurso.length  = sizeof(int8_t) + sizeof(int8_t);
+        memcpy(pkgPosRecurso.payload, sPayload, pkgPosRecurso.length);
 
         enviarPaquete(iSocketConexion, &pkgPosRecurso, logger, "Envio de posicion de recurso al personaje");
 
@@ -617,8 +617,8 @@ void muertePorEnemigoPersonaje(char* sPayload, tNivel *pNivel, tPersonaje* pPers
 void solicitudRecursoPersonaje(int iSocketConexion, char *sPayload, tNivel *pNivel, tPersonaje **pPersonaje, t_log *logger) {
     tPaquete pkgSolicituRecurso;
     pkgSolicituRecurso.type    = PL_SOLICITUD_RECURSO;
-    pkgSolicituRecurso.length  = strlen(sPayload);
-    strcpy(pkgSolicituRecurso.payload, sPayload);
+    pkgSolicituRecurso.length  = sizeof(tSimbolo) + sizeof(tSimbolo);
+    memcpy(pkgSolicituRecurso.payload, sPayload, pkgSolicituRecurso.length);
 
     tSimbolo *recurso;
     recurso = deserializarSimbolo(sPayload);
