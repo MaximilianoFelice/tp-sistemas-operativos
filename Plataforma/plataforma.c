@@ -498,8 +498,7 @@ int seleccionarJugador(tPersonaje** pPersonaje, tNivel* nivel, bool iEnviarTurno
 
     if ((iTamanioColaListos == (iTamanioListaBlock == iTamanioListaMuertos)) == 0) {
     	log_debug(logger, "No deberia estar aqui");
-        pthread_exit(NULL);
-
+    	return EXIT_SUCCESS;
     } else if (iTamanioColaListos == 1) {
     	//log_debug(logger, "------>Saco personaje de la cola de listos");
         *pPersonaje = queue_pop(nivel->cListos);
@@ -701,8 +700,8 @@ int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexi
 	/*UNDER CONSTRUCTION*/
 
 	if (iSocketConexion == (*pPersonajeActual)->socket) {
-		log_info(logger, "Se desconecto el personaje %c", (*pPersonajeActual)->simbolo);
 		liberarRecursos(*pPersonajeActual, pNivel); //TODO armar un mensaje para pasarle esto al nivel
+		log_info(logger, "Se desconecto el personaje %c", (*pPersonajeActual)->simbolo);
 		tPaquete pkgDesconexionPers;
 		serializarSimbolo(PL_DESCONEXION_PERSONAJE, (*pPersonajeActual)->simbolo, &pkgDesconexionPers);
 		enviarPaquete(pNivel->socket, &pkgDesconexionPers, logger, "Se envia desconexion del personaje actual al nivel");
@@ -713,8 +712,8 @@ int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexi
 
 	pPersonaje = sacarPersonajeDeListas(pNivel, iSocketConexion);
 	if (pPersonaje != NULL) {
-		log_info(logger, "Se desconecto el personaje %c", pPersonaje->simbolo);
 		liberarRecursos(pPersonaje, pNivel); //TODO armar un mensaje para pasarle esto al nivel
+		log_info(logger, "Se desconecto el personaje %c", pPersonaje->simbolo);
 		tPaquete pkgDesconexionPers;
 		serializarSimbolo(PL_DESCONEXION_PERSONAJE, pPersonaje->simbolo, &pkgDesconexionPers);
 		enviarPaquete(pNivel->socket, &pkgDesconexionPers, logger, "Se envia desconexion del personaje al nivel");
@@ -729,6 +728,16 @@ int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexi
 	return EXIT_FAILURE;
 }
 
+
+int quienSeDesconecto(tNivel *nivel, int iSocketConexion, int socketPersActual){
+
+
+
+
+
+	return -1;
+}
+
 /*
  * Se liberan los recursos que poseia el personaje en el nivel y en caso de que un personaje estaba bloqueado por uno de estos, se libera
  * */
@@ -738,7 +747,8 @@ char *liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel) {
 
 	if ((iCantidadBloqueados == 0) || (iCantidadRecursos == 0)) {
 		/* No hay nada que liberar */
-		log_info(logger, "No se liberan recursos con la muerte de %c", pPersMuerto->simbolo);
+		log_debug(logger, "Personaje %c -> Cantidad de recursos asignados = %d", pPersMuerto->simbolo, list_size(pPersMuerto->recursos));
+		log_info(logger, "No se reasignarán recursos con la muerte de %c", pPersMuerto->simbolo);
 		return getRecursosNoAsignados(pPersMuerto->recursos);
 	} else {
 
@@ -813,7 +823,6 @@ int existeNivel(t_list * lNiveles, char* sLevelName) {
 
 		for (iNivelLoop = 0; iNivelLoop < iCantNiveles; iNivelLoop++) {
 			pNivelGuardado = (tNivel *)list_get(listaNiveles, iNivelLoop);
-
 			if (string_equals_ignore_case(pNivelGuardado->nombre, sLevelName)) {
 				return iNivelLoop;
 			}
@@ -1011,17 +1020,6 @@ void wait_personajes(bool *primerIntento) {
 		pthread_mutex_unlock(&semNivel);
 	}
 	*primerIntento = false;
-}
-
-tNivel *getNivel(char *nom_nivel){
-	int i;
-	int size_niveles = list_size(listaNiveles);
-	for(i = 0; 0 < size_niveles; i++){
-		tNivel *nivel = list_get(listaNiveles, i);
-		if(string_equals_ignore_case(nivel->nombre, nom_nivel))
-			return nivel;
-	}
-	return NULL;
 }
 
 /*

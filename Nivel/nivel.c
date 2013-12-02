@@ -312,7 +312,7 @@ int main(int argc, char* argv[]) {
 					personajeMuerto = deserializarSimbolo(payload);
 					log_debug(logger, "El personaje %c se desconecto", *personajeMuerto);
 					pthread_mutex_lock(&semItems);
-					liberarRecsPersonaje((char) *personajeMuerto);
+					liberarRecsPersonaje2((char) *personajeMuerto);
 					pthread_mutex_unlock(&semItems);
 				break;
 				} //Fin del switch
@@ -731,6 +731,25 @@ void *deteccionInterbloqueo (void *parametro){
 	}
 	return 0;
 }
+
+void liberarRecsPersonaje2(char id){
+	pers_t *persDesconexion;
+
+	bool buscarPersonaje(pers_t* perso){return(perso->simbolo==id);}
+	//eliminar al personaje de list_personajes y devolverlo para desasignar sus recursos:
+	persDesconexion=list_find(list_personajes,(void*)buscarPersonaje);
+	list_remove_by_condition(list_personajes,(void*)buscarPersonaje);
+	log_debug(logger, "Pase el list_remove del personaje %c", persDesconexion->simbolo);
+	int i;
+	for(i=0; i<list_size(persDesconexion->recursos); i++){
+		tSimbolo *recurso = list_get(persDesconexion->recursos, i);
+		sumarInstanciasRecurso(list_items, *recurso);
+	}
+	list_destroy_and_destroy_elements(persDesconexion->recursos, free);
+	BorrarItem(list_items, id);
+	personaje_destroyer(persDesconexion);
+}
+
 void liberarRecsPersonaje(char id){
 	pers_t* personaje;
 

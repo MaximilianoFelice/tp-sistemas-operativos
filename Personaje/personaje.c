@@ -247,7 +247,6 @@ void *jugar(void *args) {
 		finalizoPlanNivel = true;
 
 	}
-
 	manejarDesconexiones(&personajePorNivel, murioPersonaje);
 
 	char * exit_return = strdup("ha finalizado su plan de niveles correctamente");
