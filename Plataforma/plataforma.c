@@ -55,6 +55,7 @@ void recepcionRecurso(tNivel *pNivel, char *sPayload, t_log *logger);
 void enviarTurno(tPersonaje *pPersonaje, int delay);
 void confirmarMovimiento(tPersonaje *pPersonajeActual, t_log *logger);
 int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexion, char *sPayload);
+void liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel);
 
 /*
  * PLATAFORMA
@@ -711,7 +712,7 @@ int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexi
 
 	if (iSocketConexion == (*pPersonajeActual)->socket) {
 		log_info(logger, "Se desconecto el personaje %c", (*pPersonajeActual)->simbolo);
-		/* Acá hay que liberar recursos, y asignarselos a los que estan en la listas de bloqueados */
+		liberarRecursos(*pPersonajeActual, pNivel);
 		tPaquete pkgDesconexionPers;
 		serializarSimbolo(PL_DESCONEXION_PERSONAJE, (*pPersonajeActual)->simbolo, &pkgDesconexionPers);
 		enviarPaquete(pNivel->socket, &pkgDesconexionPers, logger, "Se envia desconexion del personaje actual al nivel");
@@ -723,18 +724,71 @@ int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexi
 	pPersonaje = sacarPersonajeDeListas(pNivel, iSocketConexion);
 	if (pPersonaje != NULL) {
 		log_info(logger, "Se desconecto el personaje %c", pPersonaje->simbolo);
-		/* Acá hay que liberar recursos, y asignarselos a los que estan en la listas de bloqueados */
+		liberarRecursos(pPersonaje, pNivel);
 		tPaquete pkgDesconexionPers;
 		serializarSimbolo(PL_DESCONEXION_PERSONAJE, pPersonaje->simbolo, &pkgDesconexionPers);
 		enviarPaquete(pNivel->socket, &pkgDesconexionPers, logger, "Se envia desconexion del personaje al nivel");
 		free(pPersonaje);
 		return EXIT_SUCCESS;
-	}
-	else{
+
+	} else {
 		log_error(logger, "ERROR: no se encontró el personaje que salio en socket %d", iSocketConexion);
-		exit(EXIT_FAILURE);
+		return EXIT_FAILURE;
 	}
+
 	return EXIT_FAILURE;
+}
+
+/* Se liberan los recursos que poseia el personaje en el nivel y en caso de que un personaje estaba bloqueado por uno de estos, se libera*/
+void liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel) {
+	int iCantidadBloqueados = list_size(pNivel->lBloqueados);
+	int iCantidadRecursos	= list_size(pPersMuerto->recursos);
+
+	if ((iCantidadBloqueados == 0) || (iCantidadRecursos == 0)) {
+		/* No hay nada que liberar */
+		log_info(logger, "No se liberan recursos con la muerte de %c", pPersMuerto->simbolo);
+		return;
+
+	} else {
+
+		int iIndexBloqueados, iIndexRecursos;
+		tPersonajeBloqueado *pPersonajeBloqueado;
+		tPersonaje *pPersonajeLiberado;
+		tSimbolo *pRecurso;
+
+		/* Respetando el orden en que se bloquearon voy viendo si se libero el recurso que esperaban */
+		for (iIndexBloqueados = 0; iIndexBloqueados < iCantidadBloqueados; iIndexBloqueados++) {
+			pPersonajeBloqueado = (tPersonajeBloqueado *)list_get(pNivel->lBloqueados, iIndexBloqueados);
+
+			for (iIndexRecursos = 0; iIndexRecursos < iCantidadRecursos; iIndexRecursos++) {
+				pRecurso = (tSimbolo *)list_get(pPersMuerto->recursos, iIndexRecursos);
+
+				if (pPersonajeBloqueado->recursoEsperado == *pRecurso) {
+					pPersonajeBloqueado = (tPersonajeBloqueado *)list_remove(pNivel->lBloqueados, iIndexBloqueados);
+					/* Como saco un personaje de la lista, actualizo la iteracion de los bloqueados */
+					iIndexBloqueados--;
+					iCantidadBloqueados--;
+					pPersonajeLiberado = pPersonajeBloqueado->pPersonaje;
+					free(pPersonajeBloqueado);
+
+					pRecurso = (tSimbolo *)list_remove(pPersMuerto->recursos, iIndexRecursos);
+					/* Como saco un recurso de la lista, actualizo la iteracion de los recursos */
+					iIndexRecursos--;
+					iCantidadRecursos--;
+
+					log_info(logger, "Por la muerte de %c se desbloquea %c que estaba esperando por el recurso %c",
+							pPersMuerto->simbolo, pPersonajeLiberado->simbolo, *pRecurso);
+
+					list_add(pPersonajeLiberado->recursos, pRecurso);
+					queue_push(pNivel->cListos, pPersonajeLiberado);
+				}
+			}
+		}
+
+		list_destroy(pPersMuerto->recursos);
+
+		return;
+	}
 }
 
 /*
