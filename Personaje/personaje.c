@@ -181,6 +181,7 @@ void obtenerIpYPuerto(char *dirADividir, char * ip,  char * puerto){
 	puerto_orq 	   = strtok(NULL, ":"); // Separar puerto
 
 }
+
 static void nivel_destroyer(nivel_t*nivel) {
 	free(nivel->nomNivel);
 	free(nivel);
@@ -306,6 +307,7 @@ void manejarDesconexiones(personajeIndividual_t* personajePorNivel, bool murioPe
 	}
 
 }
+
 bool personajeEstaMuerto(bool murioPersonaje){
 	//si esta muerto por alguna señal o porque se quedo sin vidas
 	return (murioPersonaje || personaje.vidas<=0);
@@ -318,11 +320,10 @@ bool conseguiRecurso(personajeIndividual_t personajePorNivel){
 void moverAlPersonaje(personajeIndividual_t* personajePorNivel){
 	tDirMovimiento  mov;
 
-	calcularYEnviarMovimiento(*personajePorNivel);
-
+	mov = calcularYEnviarMovimiento(personajePorNivel);
 	//Actualizo mi posición y de acuerdo a eso armo mensaje de TURNO
-	actualizaPosicion(&mov, personajePorNivel);
 
+	actualizaPosicion(&mov, &personajePorNivel);
 
 	log_debug(logger, "Le aviso a la plataforma que conclui mi turno");
 	tPaquete pkgFinTurno;
@@ -332,7 +333,7 @@ void moverAlPersonaje(personajeIndividual_t* personajePorNivel){
 
 }
 
-void solicitarRecurso(int socketPlataforma, char * recurso){
+void solicitarRecurso(int socketPlataforma, char *recurso){
 
 	tMensaje tipoMensaje;
 	tPregPosicion recursoSolicitado;
@@ -381,46 +382,54 @@ void solicitarRecurso(int socketPlataforma, char * recurso){
 
 }
 
-void calcularYEnviarMovimiento(personajeIndividual_t personajePorNivel){
+tDirMovimiento calcularYEnviarMovimiento(personajeIndividual_t *personajePorNivel){
 	tMensaje tipoMensaje;
 	tMovimientoPers movimientoAEnviar;
+	tDirMovimiento movimientoRealizado;
 
 	movimientoAEnviar.simbolo=personaje.simbolo;
 
 	log_debug(logger, "Se calcula el movimiento a realizar.");
-	movimientoAEnviar.direccion = calculaMovimiento(personajePorNivel);
-	log_debug(logger, "Movimiento calculado");
+	movimientoAEnviar.direccion = movimientoRealizado = calculaMovimiento(*personajePorNivel);
+	log_debug(logger, "Movimiento calculado: personaje %c en (%d, %d)", personaje.simbolo, personajePorNivel->posX, personajePorNivel->posY);
 
-	tPaquete pkgMovimiento;
-	serializarMovimientoPers(P_MOVIMIENTO, movimientoAEnviar, &pkgMovimiento);
+	if(conseguiRecurso(*personajePorNivel)){
+		solicitarRecurso(personajePorNivel->socketPlataforma, &(personajePorNivel->recursoActual));
+	} else {
 
-	log_debug(logger, "Se envia paquete con el pedido de movimiento");
-	enviarPaquete(personajePorNivel.socketPlataforma, &pkgMovimiento, logger, "Envio pedido de movimiento del personaje");
+		tPaquete pkgMovimiento;
+		serializarMovimientoPers(P_MOVIMIENTO, movimientoAEnviar, &pkgMovimiento);
 
-	char* sPayload;
-	recibirPaquete(personajePorNivel.socketPlataforma, &tipoMensaje, &sPayload, logger, "Se espera confirmacion del movimiento");
+		log_debug(logger, "Se envia paquete con el pedido de movimiento");
+		enviarPaquete(personajePorNivel->socketPlataforma, &pkgMovimiento, logger, "Envio pedido de movimiento del personaje");
 
-	switch(tipoMensaje){
-		case PL_MUERTO_POR_ENEMIGO:{
-			log_info(logger, "El personaje se murio por enemigos");
-			restarVida();
-			break;
-		}
-		case PL_MUERTO_POR_DEADLOCK:{
-			log_info(logger, "El personaje se murio por deadlock");
-			restarVida();
-			break;
-		}
-		case PL_CONFIRMACION_MOV:{
-			log_info(logger, "Movimiento confirmado");
-			break;
-		}
-		default: {
-			log_error(logger, "Llego un mensaje (tipoMensaje: %d) cuando debia llegar PL_CONFIRMACION_MOV", tipoMensaje);
-			exit(EXIT_FAILURE);
-			break;
+		char* sPayload;
+		recibirPaquete(personajePorNivel->socketPlataforma, &tipoMensaje, &sPayload, logger, "Se espera confirmacion del movimiento");
+
+		switch(tipoMensaje){
+			case PL_MUERTO_POR_ENEMIGO:{
+				log_info(logger, "El personaje se murio por enemigos");
+				restarVida();
+				break;
+			}
+			case PL_MUERTO_POR_DEADLOCK:{
+				log_info(logger, "El personaje se murio por deadlock");
+				restarVida();
+				break;
+			}
+			case PL_CONFIRMACION_MOV:{
+				log_info(logger, "Movimiento confirmado");
+				break;
+			}
+			default: {
+				log_error(logger, "Llego un mensaje (tipoMensaje: %d) cuando debia llegar PL_CONFIRMACION_MOV", tipoMensaje);
+				exit(EXIT_FAILURE);
+				break;
+			}
 		}
 	}
+
+	return movimientoRealizado;
 
 }
 
@@ -456,7 +465,6 @@ void recibirMensajeTurno(int socketPlataforma){
 	}
 
 }
-
 
 void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurso){
 
@@ -496,7 +504,6 @@ void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurs
 		}
 	}
 }
-
 
 void reintentarSolicitudRecurso(personajeIndividual_t* personajePorNivel, tPaquete* pkgHandshake, char* recurso){
 
@@ -651,17 +658,13 @@ int calculaMovimiento(personajeIndividual_t personajePorNivel){
 	while (1) {
 		r = rand() % 2;
 		if (r) {
-
 			//Sobre el eje x
-
 			if (r && personajePorNivel.posX < personajePorNivel.posRecursoX)
 				return derecha;
 			else if (personajePorNivel.posX > personajePorNivel.posRecursoX)
 				return izquierda;
 		} else {
-
 			// Sobre el eje y
-
 			if (personajePorNivel.posY < personajePorNivel.posRecursoY)
 				return abajo;
 			else if (personajePorNivel.posY > personajePorNivel.posRecursoY)
@@ -672,24 +675,24 @@ int calculaMovimiento(personajeIndividual_t personajePorNivel){
 	return -700;
 }
 
-
-void actualizaPosicion(tDirMovimiento* movimiento, personajeIndividual_t *personajePorNivel) {
+void actualizaPosicion(tDirMovimiento* movimiento, personajeIndividual_t **personajePorNivel) {
 	// Actualiza las variables posicion del personaje a partir del movimiento que recibe por parametro.
 	// El eje Y es alreves, por eso para ir para arriba hay que restar en el eje y.
 	switch (*movimiento) {
 		case arriba:
-			(personajePorNivel->posY)--;
+			((*personajePorNivel)->posY)--;
 			break;
 		case abajo:
-			(personajePorNivel->posY)++;
+			((*personajePorNivel)->posY)++;
 			break;
 		case derecha:
-			(personajePorNivel->posX)++;
+			((*personajePorNivel)->posX)++;
 			break;
 		case izquierda:
-			(personajePorNivel->posY)--;
+			((*personajePorNivel)->posY)--;
 			break;
 	}
+	//log_debug(logger, "P = (%d, %d) - R = (%d, %d)", (*personajePorNivel)->posX, (*personajePorNivel)->posY, (*personajePorNivel)->posRecursoX, (*personajePorNivel)->posRecursoY);
 
 }
 

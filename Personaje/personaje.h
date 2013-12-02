@@ -90,7 +90,7 @@ void moverAlPersonaje(personajeIndividual_t* personajePorNivel);
 
 void solicitarRecurso(int socketPlataforma, char * recurso);
 
-void calcularYEnviarMovimiento(personajeIndividual_t personajePorNivel);
+tDirMovimiento calcularYEnviarMovimiento(personajeIndividual_t *personajePorNivel);
 
 void recibirMensajeTurno(int socketPlataforma);
 
@@ -109,7 +109,7 @@ void cerrarConexiones(int * socketPlataforma);
 
 int calculaMovimiento(personajeIndividual_t personajePorNivel);
 
-void actualizaPosicion(tDirMovimiento* movimiento, personajeIndividual_t *personajePorNivel);
+void actualizaPosicion(tDirMovimiento* movimiento, personajeIndividual_t **personajePorNivel);
 
 void sig_aumentar_vidas();
 
