@@ -253,3 +253,44 @@ tSimbolo* deserializarSimbolo(char * payload) {
 	return pSimbolo;
 }
 
+int serializarDesconexionPers(tMensaje tipoMensaje, tDesconexionPers descPers, tPaquete* pPaquete) {
+	int offset   = 0;
+	int tmp_size = 0;
+
+	pPaquete->type = tipoMensaje;
+
+	tmp_size = sizeof(tSimbolo);
+	memcpy(pPaquete->payload, &descPers.simbolo, tmp_size);
+
+	offset   = tmp_size;
+	tmp_size = sizeof(int8_t);
+	memcpy(pPaquete->payload + offset, &descPers.lenghtRecursos, tmp_size);
+
+	offset  += tmp_size;
+	tmp_size = descPers.lenghtRecursos*sizeof(int8_t);
+	memcpy(pPaquete->payload + offset, &descPers.recursos, tmp_size);
+
+	pPaquete->length = offset + tmp_size;
+
+	return EXIT_SUCCESS;
+}
+
+tDesconexionPers * deserializarDesconexionPers(char * payload) {
+	tDesconexionPers *descPers = malloc(strlen(payload)*sizeof(char));
+	int offset   = 0;
+	int tmp_size = 0;
+
+	tmp_size = sizeof(int8_t);
+	memcpy(&descPers->simbolo, payload, tmp_size);
+
+	offset   = tmp_size;
+	tmp_size = sizeof(int8_t);
+	memcpy(&descPers->lenghtRecursos, payload + offset, tmp_size);
+
+	offset  += tmp_size;
+	tmp_size = descPers->lenghtRecursos*sizeof(int8_t);
+	memcpy(&descPers->recursos, payload + offset, tmp_size);
+
+	return descPers;
+}
+

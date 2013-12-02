@@ -87,6 +87,8 @@ typedef enum {
 
 typedef int8_t tSimbolo;
 
+typedef int8_t *tRecursos;
+
 typedef enum {
 	arriba,
 	abajo,
@@ -140,6 +142,13 @@ typedef struct {
 	tDirMovimiento direccion;
 } tMovimientoPers;
 
+typedef struct {
+	tSimbolo simbolo;
+	int8_t lenghtRecursos;
+	tRecursos recursos;
+} tDesconexionPers;
+
+
 typedef char* tPersonajesDeadlock; // un array con todos los simbolos de los personajes que se bloquearon
 
 int serializarHandshakePers(tMensaje tipoMensaje, tHandshakePers handshakePersonaje, tPaquete* pPaquete);
@@ -168,5 +177,8 @@ tEstado* deserializarEstado(char * payload);
 
 int serializarSimbolo(tMensaje tipoMensaje, tSimbolo simbolo, tPaquete* pPaquete);
 tSimbolo* deserializarSimbolo(char * payload);
+
+int serializarDesconexionPers(tMensaje tipoMensaje, tDesconexionPers descPers, tPaquete* pPaquete);
+tDesconexionPers * deserializarDesconexionPers(char * payload);
 
 #endif /* PROTOCOLO_H_ */

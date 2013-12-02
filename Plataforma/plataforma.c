@@ -700,8 +700,8 @@ int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexi
 	/*UNDER CONSTRUCTION*/
 
 	if (iSocketConexion == (*pPersonajeActual)->socket) {
-		liberarRecursos(*pPersonajeActual, pNivel); //TODO armar un mensaje para pasarle esto al nivel
 		log_info(logger, "Se desconecto el personaje %c", (*pPersonajeActual)->simbolo);
+		liberarRecursos(*pPersonajeActual, pNivel);
 		tPaquete pkgDesconexionPers;
 		serializarSimbolo(PL_DESCONEXION_PERSONAJE, (*pPersonajeActual)->simbolo, &pkgDesconexionPers);
 		enviarPaquete(pNivel->socket, &pkgDesconexionPers, logger, "Se envia desconexion del personaje actual al nivel");
