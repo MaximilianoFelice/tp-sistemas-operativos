@@ -528,7 +528,10 @@ void *enemigo(void * args) {
 			}
 			actualizaPosicion(&contMovimiento, &(enemigo->posX),&(enemigo->posY));
 			void esUnRecurso(ITEM_NIVEL *ite){
-				if ((ite->item_type==RECURSO_ITEM_TYPE)&&((ite->posx==enemigo->posX)&&(ite->posy==enemigo->posY))) enemigo->posX--;
+				if ((ite->item_type==RECURSO_ITEM_TYPE)&&((ite->posx==enemigo->posX)&&(ite->posy==enemigo->posY))){
+					if(ultimoMov=='a'||ultimoMov=='b')enemigo->posY++;
+					else enemigo->posX--;
+				}
 			}
 			list_iterate(list_items,(void*)esUnRecurso);
 		} else { //ELEGIR O PERSEGUIR A LA VICTIMA
