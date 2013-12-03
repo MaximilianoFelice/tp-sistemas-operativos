@@ -394,6 +394,7 @@ void levantarArchivoConf(char* argumento){
 	port_orq 	   = atoi(dirYpuerto[1]);//strtok(NULL, ":");
 	cantRecursos   = list_size(list_items);
 	config_destroy(configNivel);
+	free(dirYpuerto);
 }
 void actualizarInfoNivel(char* argumento){
 	extern tAlgoritmo algoritmo;
