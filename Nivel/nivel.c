@@ -288,16 +288,16 @@ int main(int argc, char* argv[]) {
 					int cantInstancias = restarInstanciasRecurso(list_items,posConsultada->recurso);
 					if (cantInstancias >= 0) {
 						log_info(logger, "Al personaje %c se le dio el recurso %c",posConsultada->simbolo,posConsultada->recurso);
-
 						bool buscarPersonaje(pers_t* personaje){return (personaje->simbolo==posConsultada->simbolo);}
 						personaG=list_find(list_personajes,(void*)buscarPersonaje);
 						//Agrego el recurso a la lista de recursos del personaje y lo desbloquea si estaba bloqueado
-						void agregaRecurso(pers_t *personaje){
+						void agregaRecursoYdesboquea(pers_t *personaje){
 							if(personaje->simbolo==personaG->simbolo){
 								personaje->bloqueado=false;
 								list_add_new(personaje->recursos,&(posConsultada->recurso),sizeof(tSimbolo));
 							}
 						}
+						list_iterate(list_personajes,(void*) agregaRecursoYdesboquea);
 						pthread_mutex_lock(&semMSJ);
 						serializarSimbolo(N_ENTREGA_RECURSO, posConsultada->recurso, paquete);
 						// Envio mensaje donde confirmo la otorgacion del recurso pedido
@@ -306,10 +306,15 @@ int main(int argc, char* argv[]) {
 					} else {
 						// Logueo el bloqueo del personaje/
 						log_info(logger,"El personaje %c se bloqueo por el recurso %c",posConsultada->simbolo,posConsultada->recurso);
-						//se bloquea esperando que le den el recurso
-						void bloquearPers(pers_t *personaje){if (personaje->simbolo==personaG->simbolo)personaje->bloqueado=true;}
-						list_iterate(list_personajes,(void*)bloquearPers);
-						personaG->bloqueado=true;
+						//Agrego el recurso a la lista de recursos del personaje y lo bloqueo
+						void agregaRecursoYbloquea(pers_t *personaje){
+							if(personaje->simbolo==personaG->simbolo){
+								personaje->bloqueado=true;
+								list_add_new(personaje->recursos,&(posConsultada->recurso),sizeof(tSimbolo));
+							}
+						}
+						list_iterate(list_personajes,(void*)agregaRecursoYbloquea);
+
 						/*pthread_mutex_lock(&semMSJ);
 						paquete->type=N_??????????? ;------->FALTA DEFINIR QUE LE MANDO
 						paquete->length=0;
