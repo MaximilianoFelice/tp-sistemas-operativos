@@ -77,13 +77,18 @@ int main(int argc, char*argv[]) {
 		}
 	}
 
-	if (personaje.vidas>0)//Termino el plan de niveles correctamente
-	{
-		//Cuando terminaron todos los niveles. Manda msj al orquestador de que ya termino todos sus niveles
-		int socketOrquestador = connectToServer(ip_plataforma, atoi(puerto_orq), logger);
-		notificarFinPlanNiveles(socketOrquestador);
-		cerrarConexiones(&socketOrquestador);
-	}
+	//ACLARACION:
+	//No se vuelve a conectar. Le avisa al planificador y este delega la conexion al orquestador
+	//en un mail de Siciliani de "fe de erratas" aclaraba esta situacion. El enunciado esta mal.
+	//Cuando termina su plan de niveles el planificador delega la conexion al orquestador.
+	//El personaje no se vuelve a conectar
+//	if (personaje.vidas>0)//Termino el plan de niveles correctamente
+//	{
+//		//Cuando terminaron todos los niveles. Manda msj al orquestador de que ya termino todos sus niveles
+//		int socketOrquestador = connectToServer(ip_plataforma, atoi(puerto_orq), logger);
+//		notificarFinPlanNiveles(socketOrquestador);
+//		cerrarConexiones(&socketOrquestador);
+//	}
 
 	if(join_return != NULL)
 		log_debug(logger, "El personaje %c %s", personaje.simbolo, join_return);
@@ -283,11 +288,12 @@ void moverAlPersonaje(personajeIndividual_t* personajePorNivel){
 
 	actualizaPosicion(&mov, &personajePorNivel);
 
-	log_debug(logger, "Le aviso a la plataforma que conclui mi turno");
-	tPaquete pkgFinTurno;
-	pkgFinTurno.type   = P_FIN_TURNO;
-	pkgFinTurno.length = 0;
-	enviarPaquete(personajePorNivel->socketPlataforma, &pkgFinTurno, logger, "Fin de turno del personaje");
+	//Te lo saco porque este mensaje ya no es necesario. NO BORRAR POR LAS DUDAS, dejalo comentado mejor
+	//	log_debug(logger, "Le aviso a la plataforma que conclui mi turno");
+//	tPaquete pkgFinTurno;
+//	pkgFinTurno.type   = P_FIN_TURNO;
+//	pkgFinTurno.length = 0;
+//	enviarPaquete(personajePorNivel->socketPlataforma, &pkgFinTurno, logger, "Fin de turno del personaje");
 
 }
 
@@ -332,7 +338,8 @@ void solicitarRecurso(int socketPlataforma, char *recurso){
 			break;
 		}
 		default: {
-			log_error(logger, "Llego un mensaje (tipoMensaje: %d) cuando debia llegar PL_SOLICITUD_RECURSO", tipoMensaje);
+			log_error(logger, "Llego un mensaje (tipoMensaje: %s) cuando debia llegar PL_SOLICITUD_RECURSO", enumToString(tipoMensaje));
+			sleep(400000000);
 			exit(EXIT_FAILURE);
 			break;
 		}
@@ -376,7 +383,8 @@ tDirMovimiento calcularYEnviarMovimiento(personajeIndividual_t *personajePorNive
 			break;
 		}
 		default: {
-			log_error(logger, "Llego un mensaje (tipoMensaje: %d) cuando debia llegar PL_CONFIRMACION_MOV", tipoMensaje);
+			log_error(logger, "Llego un mensaje (tipoMensaje: %s) cuando debia llegar PL_CONFIRMACION_MOV", enumToString(tipoMensaje));
+			sleep(4000000);
 			exit(EXIT_FAILURE);
 			break;
 		}
@@ -389,7 +397,7 @@ tDirMovimiento calcularYEnviarMovimiento(personajeIndividual_t *personajePorNive
 void recibirMensajeTurno(int socketPlataforma){
 	tMensaje tipoMensaje;
 	char* sPayload;
-	recibirPaquete(socketPlataforma, &tipoMensaje, &sPayload, logger, "Se recibe mensaje");
+	recibirPaquete(socketPlataforma, &tipoMensaje, &sPayload, logger, "Espero turno");
 
 	switch (tipoMensaje){
 		case PL_OTORGA_TURNO: {
@@ -411,7 +419,8 @@ void recibirMensajeTurno(int socketPlataforma){
 			break;
 		}
 		default: {
-			log_error(logger, "Llego un mensaje (tipoMensaje: %d) cuando debia llegar PL_OTORGA_TURNO", tipoMensaje);
+			log_error(logger, "Llego un mensaje (tipoMensaje: %s) cuando debia llegar PL_OTORGA_TURNO", enumToString(tipoMensaje));
+			sleep(40000000);
 			exit(EXIT_FAILURE);
 			break;
 		}
@@ -451,7 +460,8 @@ void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurs
 			break;
 		}
 		default:{
-			log_error(logger, "Llego un mensaje (tipoMensaje: %d) cuando debia llegar PL_POS_RECURSO", tipoMensaje);
+			log_error(logger, "Llego un mensaje (tipoMensaje: %s) cuando debia llegar PL_POS_RECURSO", enumToString(tipoMensaje));
+			sleep(4);
 			exit(EXIT_FAILURE);
 			break;
 		}
@@ -520,7 +530,6 @@ void handshake_plataforma(personajeIndividual_t* personajePorNivel){
 			log_error(logger, "Se esta tratando de conectar un personaje que ya esta conectado con la plataforma");
 			break;
 		}
-
 		default:
 			break;
 

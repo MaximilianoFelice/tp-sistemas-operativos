@@ -242,8 +242,11 @@ int main(int argc, char* argv[]) {
 						MoverPersonaje(list_items,symbol, posX, posY);
 						pthread_mutex_unlock(&semItems);
 						pthread_mutex_lock(&semMSJ);
-						paquete->type=N_CONFIRMACION_MOV;
-						paquete->length=0;
+						//Cesar te puse este serializarSimbolo porque tuve un problema en planificador y necesitaba el simbolo
+						//Si bien ya lo solucione a ese problema en la plataforma, igual dejalo por las dudas hasta que
+						//ande bien bien por las dudas... De ultima no jode mandarle info de mas, antes no le mandabas nada
+						//Era solo una confirmacion.. TODO
+						serializarSimbolo(N_CONFIRMACION_MOV, (tSimbolo)symbol, paquete);
 						enviarPaquete(sockete,paquete,logger,"notificando a plataforma personaje movido correctamente");
 						pthread_mutex_unlock(&semMSJ);
 					}
@@ -530,56 +533,56 @@ void *enemigo(void * args) {
 				}
 			}else{//ya teiene una victima asignada=>busco la victimaAsignada en la lista de items y la coloco en persVictima
 				//Haciendo la busqueda a manopla por que lo de arriba tira en valgrind que se accede a un byte no reservado
-				int j=0;
-				for(i=0;i<list_size(list_personajes);i++){
-					persVictima=list_get(list_personajes,i);
-					if((char)persVictima->simbolo==victimaAsignada) j=i;
-				}
-				persVictima=list_get(list_personajes,j);
-				if(persVictima->bloqueado==true){//ver si el personaje que estaba persiguiendo se bloqueo en un recurso=>habra que elegir otra victima
-					victimaAsignada='0';
-				}else{
-					//ITEM_NIVEL* item=malloc(sizeof(ITEM_NIVEL));
-					/*bool esElPersonaje(ITEM_NIVEL* personaje){
-						return(personaje->id==victimaAsignada);
-					}
-					item=list_find(list_items,(void*)esElPersonaje);*/
-					//cambie de la manera de arriba a esta por lo mismo de antes
-					j=0;
-					for(i=0;i<list_size(list_items);i++){
-						item=list_get(list_items,i);
-						if(item->id==victimaAsignada) j=i;
-					}
-					item=list_get(list_items,j);
-
-					if(enemigo->posY==item->posy){
-						if(enemigo->posX<item->posx){contMovimiento=1;}
-						if(enemigo->posX>item->posx){contMovimiento=3;}
-						if(enemigo->posX==item->posx){//se esta en la misma posicion que la victima =>matarla
-							//un semaforo para que no mande mensaje al mismo tiempo que otros enemigos o el while principal
-							//otro semaforo para que no desasigne y se esten evaluando otros
-							log_debug(logger, "El personaje %c esta muerto",paquete->type);
-							pthread_mutex_lock(&semMSJ);
-							paquete->type=N_MUERTO_POR_ENEMIGO;
-							memcpy(paquete->payload,&(item->id),sizeof(char));
-							paquete->length=sizeof(char);
-							enviarPaquete(sockete,paquete,logger,"enviando notificacion de muerte de personaje a plataforma");
-							pthread_mutex_unlock(&semMSJ);
-							pthread_mutex_lock(&semItems);
-							liberarRecsPersonaje(item->id);
-							pthread_mutex_unlock(&semItems);
-							victimaAsignada='0';
-						}
-					}else{ //acercarse por fila
-						if(enemigo->posY<item->posy) contMovimiento=4;
-						if(enemigo->posY>item->posy) contMovimiento=2;
-				    }
-				}
-				actualizaPosicion(&contMovimiento, &(enemigo->posX),&(enemigo->posY));
-				void esUnRec(ITEM_NIVEL *iten){
-					if ((iten->item_type==RECURSO_ITEM_TYPE)&&((iten->posx==enemigo->posX)&&(iten->posy==enemigo->posY))) enemigo->posX--;
-				}
-				list_iterate(list_items,(void*)esUnRec);
+//				int j=0;
+//				for(i=0;i<list_size(list_personajes);i++){
+//					persVictima=list_get(list_personajes,i);
+//					if((char)persVictima->simbolo==victimaAsignada) j=i;
+//				}
+//				persVictima=list_get(list_personajes,j);
+//				if(persVictima->bloqueado==true){//ver si el personaje que estaba persiguiendo se bloqueo en un recurso=>habra que elegir otra victima
+//					victimaAsignada='0';
+//				}else{
+//					//ITEM_NIVEL* item=malloc(sizeof(ITEM_NIVEL));
+//					/*bool esElPersonaje(ITEM_NIVEL* personaje){
+//						return(personaje->id==victimaAsignada);
+//					}
+//					item=list_find(list_items,(void*)esElPersonaje);*/
+//					//cambie de la manera de arriba a esta por lo mismo de antes
+//					j=0;
+//					for(i=0;i<list_size(list_items);i++){
+//						item=list_get(list_items,i);
+//						if(item->id==victimaAsignada) j=i;
+//					}
+//					item=list_get(list_items,j);
+//
+//					if(enemigo->posY==item->posy){
+//						if(enemigo->posX<item->posx){contMovimiento=1;}
+//						if(enemigo->posX>item->posx){contMovimiento=3;}
+//						if(enemigo->posX==item->posx){//se esta en la misma posicion que la victima =>matarla
+//							//un semaforo para que no mande mensaje al mismo tiempo que otros enemigos o el while principal
+//							//otro semaforo para que no desasigne y se esten evaluando otros
+//							log_debug(logger, "El personaje %c esta muerto",paquete->type);
+//							pthread_mutex_lock(&semMSJ);
+//							paquete->type=N_MUERTO_POR_ENEMIGO;
+//							memcpy(paquete->payload,&(item->id),sizeof(char));
+//							paquete->length=sizeof(char);
+//							enviarPaquete(sockete,paquete,logger,"enviando notificacion de muerte de personaje a plataforma");
+//							pthread_mutex_unlock(&semMSJ);
+//							pthread_mutex_lock(&semItems);
+//							liberarRecsPersonaje(item->id);
+//							pthread_mutex_unlock(&semItems);
+//							victimaAsignada='0';
+//						}
+//					}else{ //acercarse por fila
+//						if(enemigo->posY<item->posy) contMovimiento=4;
+//						if(enemigo->posY>item->posy) contMovimiento=2;
+//				    }
+//				}
+//				actualizaPosicion(&contMovimiento, &(enemigo->posX),&(enemigo->posY));
+//				void esUnRec(ITEM_NIVEL *iten){
+//					if ((iten->item_type==RECURSO_ITEM_TYPE)&&((iten->posx==enemigo->posX)&&(iten->posy==enemigo->posY))) enemigo->posX--;
+//				}
+//				list_iterate(list_items,(void*)esUnRec);
 			}
 		}
 		pthread_mutex_lock(&semItems);

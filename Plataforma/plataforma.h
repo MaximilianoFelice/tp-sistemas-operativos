@@ -56,6 +56,11 @@ typedef struct {
 	tSimbolo   recursoEsperado;
 } tPersonajeBloqueado;
 
+typedef enum {
+	byName,
+	bySocket
+} tBusquedaPersonaje;
+
 //Hilos
 void *orquestador(void *) ;
 void *planificador(void *);
@@ -64,9 +69,8 @@ void desbloquearPersonajes(t_list* block, t_list *ready, tPersonaje *pjLevantado
 void imprimirLista(tNivel *pNivel, tPersonaje *pPersonaje);
 void marcarPersonajeComoReady(t_list *ready, int sock);
 
-
 //Delegar conexiones
-void delegarConexion(fd_set *conjuntoDestino, fd_set *conjuntoOrigen, int iSocket, int *maxSock);
+void delegarConexion(fd_set *conjuntoDestino, fd_set *conjuntoOrigen, int iSocketADelegar, int *maxSockDestino);
 void inicializarConexion(fd_set *master_planif, int *maxSock, int *sock);
 void imprimirConexiones(fd_set *master_planif, int maxSock, char* host);
 void signal_personajes();
@@ -76,7 +80,7 @@ void wait_personajes(bool *primerIntento);
 int existeNivel(t_list * lNiveles, char* sLevelName);
 tNivel *getNivel(char *nom_nivel);
 int existPersonajeBlock(t_list *block, tSimbolo recurso);
-
+int existePersonaje(t_list *pListaPersonajes, int valor, tBusquedaPersonaje criterio);
 
 //Constructores y destroyers
 void agregarPersonaje(t_queue *cPersonajes, tSimbolo simbolo, int socket);
