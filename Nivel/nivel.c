@@ -132,6 +132,11 @@ int main(int argc, char* argv[]) {
 	//pthread_t tipoHilo;
 	//pthread_create(&tipoHilo,NULL,&tirando2personajes,NULL);
 
+
+	//LANZANDO EL HILO DETECTOR DE INTERBLOQUEO
+	//pthread_t hiloInterbloqueo;
+	//pthread_create(&hiloInterbloqueo,NULL,&deteccionInterbloqueo,NULL);
+
 	//WHILE PRINCIPAL
 	while (1) {
 		if((rv=poll(uDescriptores,2,-1))==-1) perror("poll");
