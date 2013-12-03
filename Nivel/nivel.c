@@ -134,8 +134,8 @@ int main(int argc, char* argv[]) {
 
 
 	//LANZANDO EL HILO DETECTOR DE INTERBLOQUEO
-	//pthread_t hiloInterbloqueo;
-	//pthread_create(&hiloInterbloqueo,NULL,&deteccionInterbloqueo,NULL);
+	pthread_t hiloInterbloqueo;
+	pthread_create(&hiloInterbloqueo,NULL,&deteccionInterbloqueo,NULL);
 
 	//WHILE PRINCIPAL
 	while (1) {
@@ -663,87 +663,88 @@ void *deteccionInterbloqueo (void *parametro){
 	dormir.tv_nsec=(long)((timeCheck%1000)*1000000);
 
 	while(1){
-		pthread_mutex_lock (&semItems);//nadie mueve un pelo hasta que no se evalue el interbloqueo
-		int cantPersonajes=list_size(list_personajes);
-		int matAsignacion[cantPersonajes][cantRecursos];
-		int matSolicitud[cantPersonajes][cantRecursos];
-		//int recDisponibles[cantRecursos];
-		int vecSatisfechos[cantPersonajes];
-		t_caja vecCajas[cantRecursos];//fijarse como hacer t_caja* vecCajas[]=malloc(sizeof(t_caja)*cantRecursos); por que no me deja
-		int indice=0,cantPersonajesSatisfechos=0;
-
-		//inicializando matrices
-		for(i=0;i<cantRecursos;i++){
-			for(j=0;j<cantPersonajes;j++){
-				matAsignacion[i][j]=0;
-				matSolicitud[i][j]=0;
-				//recDisponibles[j]=0;
-			}
-			vecSatisfechos[i]=-1;
-		}
-		//llenando las matrices con la info
-		for(i=0;i<list_size(list_items);i++){
-			item=list_get(list_items,i);
-			if(item->item_type==RECURSO_ITEM_TYPE){
-				vecCajas[indice].simbolo=item->id;
-				vecCajas[indice].cantidadInstancias=item->quantity;
-				indice++;
-			}
-		}
 		personajesBloqueados=list_create();
 		bool estaBloqueado(pers_t* persoj){return (persoj->bloqueado==true);}
 		personajesBloqueados=list_filter(list_personajes,(void*)estaBloqueado);
-		for(i=0;i<list_size(personajesBloqueados);i++){
-			personaje=list_get(personajesBloqueados,i);
-			for(j=0;j<list_size(personaje->recursos);j++){
-				caja=list_get(personaje->recursos,j);
-				for(k=0;k<cantRecursos;k++){
-					if(vecCajas[k].simbolo==caja->simbolo){
-						if(j==list_size(personaje->recursos)-1){
-							matSolicitud[i][k]+=1;
-						}else{
-							matAsignacion[i][k]+=1;
+		if(list_size(personajesBloqueados)==0){
+			pthread_mutex_lock (&semItems);//nadie mueve un pelo hasta que no se evalue el interbloqueo
+			int cantPersonajes=list_size(list_personajes);
+			int matAsignacion[cantPersonajes][cantRecursos];
+			int matSolicitud[cantPersonajes][cantRecursos];
+			//int recDisponibles[cantRecursos];
+			int vecSatisfechos[cantPersonajes];
+			t_caja vecCajas[cantRecursos];//fijarse como hacer t_caja* vecCajas[]=malloc(sizeof(t_caja)*cantRecursos); por que no me deja
+			int indice=0,cantPersonajesSatisfechos=0;
+
+			//inicializando matrices
+			for(i=0;i<cantRecursos;i++){
+				for(j=0;j<cantPersonajes;j++){
+					matAsignacion[i][j]=0;
+					matSolicitud[i][j]=0;
+					//recDisponibles[j]=0;
+				}
+				vecSatisfechos[i]=-1;
+			}
+			//llenando las matrices con la info
+			for(i=0;i<list_size(list_items);i++){
+				item=list_get(list_items,i);
+				if(item->item_type==RECURSO_ITEM_TYPE){
+					vecCajas[indice].simbolo=item->id;
+					vecCajas[indice].cantidadInstancias=item->quantity;
+					indice++;
+				}
+			}
+			for(i=0;i<list_size(personajesBloqueados);i++){
+				personaje=list_get(personajesBloqueados,i);
+				for(j=0;j<list_size(personaje->recursos);j++){
+					caja=list_get(personaje->recursos,j);
+					for(k=0;k<cantRecursos;k++){
+						if(vecCajas[k].simbolo==caja->simbolo){
+							if(j==list_size(personaje->recursos)-1){
+								matSolicitud[i][k]+=1;
+							}else{
+								matAsignacion[i][k]+=1;
+							}
 						}
 					}
 				}
 			}
-		}
-		//detectando el interbloqueo
-		for(i=0;i<list_size(personajesBloqueados);i++){
-			fila=0;
-			for(j=0;j<cantRecursos;j++){ if((matSolicitud[i][j]-vecCajas[j].cantidadInstancias)<=0) fila++;}//recDisponibles[j])<=0) fila++;}
-			if((fila==cantRecursos)&&(vecSatisfechos[i]!=0)){ //los recursos disponibles satisfacen algun proceso
-				vecSatisfechos[i]=0;
-				for(j=0;j<cantRecursos;j++){
-					vecCajas[j].cantidadInstancias +=matAsignacion[i][j];//recDisponibles[j] += matAsignacion[i][j];
-				}
-				cantPersonajesSatisfechos++;
-				i=-1;//para volver a recorrer la matriz con los recursos disponibles actualizados
-			}
-		}
-		if(cantPersonajesSatisfechos==cantPersonajes){
-			//NO HAY INTERBLOQUEO
-		}else{
-			if(recovery==1){
-				//notificar a plataforma, entonces vecSatisfechos contendra -1-->el personaje quedo bloqueado
-				int ofset=0;
-				pthread_mutex_lock(&semMSJ);
-				paquete->type=N_PERSONAJES_DEADLOCK;
-				for(i=0;i<list_size(personajesBloqueados);i++){
-					if(vecSatisfechos[i]!=0){
-						//cargar el simbolo de ese personaje al payload
-						personaje=list_get(personajesBloqueados,i);
-						memcpy(paquete->payload+ofset,&personaje->simbolo,sizeof(tSimbolo));
-						ofset+=sizeof(tSimbolo);
+			//detectando el interbloqueo
+			for(i=0;i<list_size(personajesBloqueados);i++){
+				fila=0;
+				for(j=0;j<cantRecursos;j++){ if((matSolicitud[i][j]-vecCajas[j].cantidadInstancias)<=0) fila++;}//recDisponibles[j])<=0) fila++;}
+				if((fila==cantRecursos)&&(vecSatisfechos[i]!=0)){ //los recursos disponibles satisfacen algun proceso
+					vecSatisfechos[i]=0;
+					for(j=0;j<cantRecursos;j++){
+						vecCajas[j].cantidadInstancias +=matAsignacion[i][j];//recDisponibles[j] += matAsignacion[i][j];
 					}
-				}
-				paquete->length=ofset;
-				enviarPaquete(sockete,paquete,logger,"enviando notificacion de bloqueo de personajes a plataforma");
-
-				pthread_mutex_unlock(&semMSJ);
+				    cantPersonajesSatisfechos++;
+				    i=-1;//para volver a recorrer la matriz con los recursos disponibles actualizados
+			   	}
 			}
+			if(cantPersonajesSatisfechos==cantPersonajes){
+				//NO HAY INTERBLOQUEO
+			}else{
+				if(recovery==1){
+					//notificar a plataforma, entonces vecSatisfechos contendra -1-->el personaje quedo bloqueado
+					int ofset=0;
+					pthread_mutex_lock(&semMSJ);
+					paquete->type=N_PERSONAJES_DEADLOCK;
+					for(i=0;i<list_size(personajesBloqueados);i++){
+						if(vecSatisfechos[i]!=0){
+							//cargar el simbolo de ese personaje al payload
+							personaje=list_get(personajesBloqueados,i);
+							memcpy(paquete->payload+ofset,&personaje->simbolo,sizeof(tSimbolo));
+							ofset+=sizeof(tSimbolo);
+						}
+					}
+					paquete->length=ofset;
+					enviarPaquete(sockete,paquete,logger,"enviando notificacion de bloqueo de personajes a plataforma");
+					pthread_mutex_unlock(&semMSJ);
+				}
+			}
+			pthread_mutex_unlock (&semItems);
 		}
-		pthread_mutex_unlock (&semItems);
 		nanosleep(&dormir,NULL);
 	}
 	return 0;
