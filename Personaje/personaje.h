@@ -66,7 +66,11 @@ typedef struct PersonajeIndividual{
 } personajeIndividual_t;
 
 
-void notificarFinPlanNiveles(int socketOrquestador);
+void desconectarPersonajeFinPlan();
+
+void notificarFinPlanNiveles();
+
+void enviarPaqueteFinPlan(personajeIndividual_t* personajePorNivel);
 
 void destruirArchivoConfiguracion(t_config *configPersonaje);
 
@@ -80,7 +84,7 @@ void *jugar(void *args);
 
 void desconectarPersonaje(personajeIndividual_t* personajePorNivel);
 
-void manejarDesconexiones(personajeIndividual_t* personajePorNivel, bool murioPersonaje);//, bool* finalice)
+void manejarDesconexiones(personajeIndividual_t* personajePorNivel, bool murioPersonaje);
 
 bool personajeEstaMuerto(bool murioPersonaje);
 
@@ -88,7 +92,7 @@ bool conseguiRecurso(personajeIndividual_t personajePorNivel);
 
 void moverAlPersonaje(personajeIndividual_t* personajePorNivel);
 
-void solicitarRecurso(int socketPlataforma, char * recurso);
+void solicitarRecurso(int socketPlataforma, char *recurso);
 
 tDirMovimiento calcularYEnviarMovimiento(personajeIndividual_t *personajePorNivel);
 
@@ -104,9 +108,6 @@ void reintentarHandshake(int socketPlataforma, tPaquete* pkgHandshake);
 
 void cerrarConexiones(int * socketPlataforma);
 
-//TODO te descomente esto porque despues usabas esta funcion en otro lado y tiraba error
-//void devolverRecursosPorFinNivel(int socketPlataforma);
-
 int calculaMovimiento(personajeIndividual_t personajePorNivel);
 
 void actualizaPosicion(tDirMovimiento* movimiento, personajeIndividual_t **personajePorNivel);
@@ -120,8 +121,6 @@ void muertoPorSenial();
 void matarHilosYDesconectar();
 
 void reiniciarJuego();
-
-
 
 
 #endif /* PERSONAJE_H_ */

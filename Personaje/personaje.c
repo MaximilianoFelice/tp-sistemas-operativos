@@ -77,18 +77,11 @@ int main(int argc, char*argv[]) {
 		}
 	}
 
-	//ACLARACION:
-	//No se vuelve a conectar. Le avisa al planificador y este delega la conexion al orquestador
-	//en un mail de Siciliani de "fe de erratas" aclaraba esta situacion. El enunciado esta mal.
-	//Cuando termina su plan de niveles el planificador delega la conexion al orquestador.
-	//El personaje no se vuelve a conectar
-//	if (personaje.vidas>0)//Termino el plan de niveles correctamente
-//	{
-//		//Cuando terminaron todos los niveles. Manda msj al orquestador de que ya termino todos sus niveles
-//		int socketOrquestador = connectToServer(ip_plataforma, atoi(puerto_orq), logger);
-//		notificarFinPlanNiveles(socketOrquestador);
-//		cerrarConexiones(&socketOrquestador);
-//	}
+	if (personaje.vidas>0)//Termino el plan de niveles correctamente
+	{
+		notificarFinPlanNiveles();//Le avisa a cada planificador que se termino correctamente el plan del nivel
+		desconectarPersonajeFinPlan(); //se desconecta de cada planificador que se le paso el socket al orquestador
+	}
 
 	if(join_return != NULL)
 		log_debug(logger, "El personaje %c %s", personaje.simbolo, join_return);
@@ -107,16 +100,31 @@ int main(int argc, char*argv[]) {
 
 }
 
+void desconectarPersonajeFinPlan(){
 
-void notificarFinPlanNiveles(int socketOrquestador){
+    void _desconectarPersonaje(char* key, personajeIndividual_t* personajePorNivel) {
+            desconectarPersonaje(personajePorNivel);
+    }
 
+	dictionary_iterator(listaPersonajePorNiveles, (void*) _desconectarPersonaje);
+}
+
+void notificarFinPlanNiveles(){
+
+    void _enviarPaqueteFinPlan(char* key, personajeIndividual_t* personajePorNivel) {
+    	enviarPaqueteFinPlan(personajePorNivel);
+    }
+
+	dictionary_iterator(listaPersonajePorNiveles, (void*)_enviarPaqueteFinPlan);
+
+}
+void enviarPaqueteFinPlan(personajeIndividual_t* personajePorNivel){
 	tPaquete pkgDevolverRecursos;
 	pkgDevolverRecursos.type   = P_FIN_PLAN_NIVELES;
 	pkgDevolverRecursos.length = 0;
-	enviarPaquete(socketOrquestador, &pkgDevolverRecursos, logger, "Se notifica a la plataforma la finalizacion del plan de niveles del personaje correctamente");
 
+	enviarPaquete(personajePorNivel->socketPlataforma, &pkgDevolverRecursos, logger, "Se notifica a la plataforma la finalizacion del plan de niveles del personaje correctamente");
 }
-
 void destruirArchivoConfiguracion(t_config *configPersonaje){
 
 	config_destroy(configPersonaje);
@@ -251,9 +259,9 @@ void *jugar(void *args) {
 		finalizoPlanNivel = true;
 
 	}
-	manejarDesconexiones(&personajePorNivel, murioPersonaje);
+	//manejarDesconexiones(&personajePorNivel, murioPersonaje);
 
-	char * exit_return = strdup("ha finalizado su plan de niveles correctamente");
+	char * exit_return = strdup("ha finalizado su plan de nivel correctamente");
 	pthread_exit((void *)exit_return);
 }
 
@@ -635,6 +643,7 @@ void muertoPorSenial(){
 
 	matarHilosYDesconectar();
 
+	continuar=false;
 	pthread_mutex_unlock(&semModificadorDeVidas);
 
 }
