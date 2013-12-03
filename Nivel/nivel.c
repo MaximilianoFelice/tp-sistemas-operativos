@@ -288,12 +288,16 @@ int main(int argc, char* argv[]) {
 					int cantInstancias = restarInstanciasRecurso(list_items,posConsultada->recurso);
 					if (cantInstancias >= 0) {
 						log_info(logger, "Al personaje %c se le dio el recurso %c",posConsultada->simbolo,posConsultada->recurso);
-						//Agrego el recurso a la lista de recursos del personaje
+
 						bool buscarPersonaje(pers_t* personaje){return (personaje->simbolo==posConsultada->simbolo);}
 						personaG=list_find(list_personajes,(void*)buscarPersonaje);
-						list_add_new(personaG->recursos,&(posConsultada->recurso),sizeof(tSimbolo));
-						//si estaba bloqueado se desbloquea
-						personaG->bloqueado=false;
+						//Agrego el recurso a la lista de recursos del personaje y lo desbloquea si estaba bloqueado
+						void agregaRecurso(pers_t *personaje){
+							if(personaje->simbolo==personaG->simbolo){
+								personaje->bloqueado=false;
+								list_add_new(personaje->recursos,&(posConsultada->recurso),sizeof(tSimbolo));
+							}
+						}
 						pthread_mutex_lock(&semMSJ);
 						serializarSimbolo(N_ENTREGA_RECURSO, posConsultada->recurso, paquete);
 						// Envio mensaje donde confirmo la otorgacion del recurso pedido
