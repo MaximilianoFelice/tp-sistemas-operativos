@@ -179,8 +179,8 @@ int main(int argc, char* argv[]) {
 				case PL_CONEXION_PERS:
 					movPersonaje.simbolo=(int8_t)*payload;
 					bool buscaPersonaje(pers_t* perso){return (perso->simbolo==movPersonaje.simbolo);}
-					//persNew = deserializarSimbolo(payload);
 					personaG=list_find(list_personajes,(void*)buscaPersonaje);
+
 					if(personaG==NULL){
 						pjNew.simbolo  = movPersonaje.simbolo;
 						pjNew.bloqueado  = false;
@@ -281,7 +281,8 @@ int main(int argc, char* argv[]) {
 					}
 				break;
 				case PL_SOLICITUD_RECURSO:
-					posConsultada = deserializarPregPosicion(payload);
+					posConsultada->recurso=(tSimbolo)*(payload+sizeof(tSimbolo));//deserializar me molestaba para rastrear un error
+					posConsultada->simbolo=(tSimbolo)*payload;//VER SIEMPRE EN QUE ORDEN LO SERIALIZA
 					log_debug(logger, "<<< Personaje %c solicita una instancia del recurso %c", (char)posConsultada->simbolo, (char)posConsultada->recurso);
 					// Calculo la cantidad de instancias
 					int cantInstancias = restarInstanciasRecurso(list_items,posConsultada->recurso);
