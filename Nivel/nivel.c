@@ -726,25 +726,20 @@ void *deteccionInterbloqueo (void *parametro){
 		}else{
 			if(recovery==1){
 				//notificar a plataforma, entonces vecSatisfechos contendra -1-->el personaje quedo bloqueado
+				int ofset=0;
 				pthread_mutex_lock(&semMSJ);
 				paquete->type=N_PERSONAJES_DEADLOCK;
-				//memcpy(&paquete.payload,item->id,sizeof(char));
-				paquete->length=sizeof(char);
-				enviarPaquete(sockete,paquete,logger,"enviando notificacion de bloqueo de personajes a plataforma");
-				/*
-				msj.type=NIVEL;
-				msj.detail=INFO;
-				msj.detail2=list_size(personajesBloqueados)-cantPersonajesSatisfechos;
-				enviaMensaje(sockPlanif, &msj, sizeof(msj), logger,	"Enviando aviso de bloqueo");*/
-				/*
-				for(i=0;i<list_size(personajesBloqueados)-cantPersonajesSatisfechos;i++){
-					//ESPERAR CONTESTACION???
-					personaje=list_get(personajesBloqueados,i);
-					if(vecSatisfechos[i]==-1){
-						msj.name=personaje->simbolo;
-						enviaMensaje(sockPlanif, &msj, sizeof(msj), logger,	"Enviando el id del personaje bloqueado");
+				for(i=0;i<list_size(personajesBloqueados);i++){
+					if(vecSatisfechos[i]!=0){
+						//cargar el simbolo de ese personaje al payload
+						personaje=list_get(personajesBloqueados,i);
+						memcpy(paquete->payload+ofset,&personaje->simbolo,sizeof(tSimbolo));
+						ofset+=sizeof(tSimbolo);
 					}
-				}*/
+				}
+				paquete->length=ofset;
+				enviarPaquete(sockete,paquete,logger,"enviando notificacion de bloqueo de personajes a plataforma");
+
 				pthread_mutex_unlock(&semMSJ);
 			}
 		}
