@@ -55,9 +55,10 @@ int main(int argc, char*argv[]) {
 
 	int i;
 	for( i = 0;  i < cantidadNiveles; i ++) {
+		nivel_t *nivelLevantador = (nivel_t *)list_get(personaje.listaNiveles, i);
 		//creo estructura del nivel que va a jugar cada hilo
-		hilosNiv[i].nivel.nomNivel = ((nivel_t*) list_get_data(personaje.listaNiveles,i))->nomNivel;
-		hilosNiv[i].nivel.Objetivos = ((nivel_t*) list_get_data(personaje.listaNiveles,	i))->Objetivos;
+		hilosNiv[i].nivel.nomNivel = nivelLevantador->nomNivel;
+		hilosNiv[i].nivel.Objetivos = nivelLevantador->Objetivos;
 		hilosNiv[i].nivel.num_of_thread = i;
 
 		//Tiro el hilo para jugar de cada nivel
@@ -65,8 +66,6 @@ int main(int argc, char*argv[]) {
 			log_error(logger, "pthread_create: %s", strerror(errno));
 			exit(EXIT_FAILURE);
 		}
-
-		i++;
 	}
 
 	char *join_return;
