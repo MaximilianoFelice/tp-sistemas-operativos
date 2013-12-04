@@ -462,7 +462,7 @@ int seleccionarJugador(tPersonaje** pPersonaje, tNivel* nivel, bool iEnviarTurno
             if ((*pPersonaje)->valorAlgoritmo < nivel->quantum) {
             	log_debug(logger, "----------->Primer if() -> RR: Planificando....");
             	log_debug(logger, "RR: Planificando....");
-            	log_debug(logger, "\n Quantum personaje: %d \n Quantum nivel: %d. \n Enviar Turno: %d.", (*pPersonaje)->valorAlgoritmo, nivel->quantum, iEnviarTurno);
+//            	log_debug(logger, "\n Quantum personaje: %d \n Quantum nivel: %d. \n Enviar Turno: %d.", (*pPersonaje)->valorAlgoritmo, nivel->quantum, iEnviarTurno);
                 // Puede seguir jugando
             	if (iEnviarTurno == true) {
             		enviarTurno(*pPersonaje, nivel->delay);
@@ -500,7 +500,6 @@ int seleccionarJugador(tPersonaje** pPersonaje, tNivel* nivel, bool iEnviarTurno
 
     if (iTamanioColaListos == 0 && iTamanioListaBlock == 0 && iTamanioListaMuertos == 0) {
     	log_debug(logger, "No deberia estar aqui: Size-Ready = %d \n Size-Block = %d", queue_size(nivel->cListos), list_size(nivel->lBloqueados));
-    	//log_debug(logger, "\n Quantum personaje: %d \n Quantum nivel: %d. \n Enviar Turno: %d.", (*pPersonaje)->valorAlgoritmo, nivel->quantum, iEnviarTurno);
     	return EXIT_SUCCESS;
     } else if (iTamanioColaListos == 1) {
     	//Si estan aqui es porque su quantum terminó
@@ -521,13 +520,10 @@ int seleccionarJugador(tPersonaje** pPersonaje, tNivel* nivel, bool iEnviarTurno
     	log_debug(logger, "------>En el segundo(2°) else if");
         switch(nivel->algoritmo) {
         case RR:
+        	log_debug(logger, "Planificando RR");
             *pPersonaje = queue_pop(nivel->cListos);
-            log_debug(logger, "Size-Ready = %d \n Size-Block = %d", queue_size(nivel->cListos), list_size(nivel->lBloqueados));
             (*pPersonaje)->valorAlgoritmo = 0;
-            log_debug(logger, "TRAMPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
-            iEnviarTurno = true; //TODO dudoso PERO sin esta linea NO ANDA.
-            //No esta copado, cambiar que la variable enviarTurno sea modificada afuera y aqui solo la lea
-            //(en realidad no la modifica porque es una copia pero bueno se entiende..masomenos (?) ja)
+            iEnviarTurno = true;
             break;
         case SRDF:
             *pPersonaje = planificacionSRDF(nivel->cListos, iTamanioColaListos);
@@ -536,7 +532,6 @@ int seleccionarJugador(tPersonaje** pPersonaje, tNivel* nivel, bool iEnviarTurno
     }
 
     log_trace(logger, "---->Al final de la funcion seleccionarJugador() ");
-    log_debug(logger, "Size-Ready = %d \n Size-Block = %d", queue_size(nivel->cListos), list_size(nivel->lBloqueados));
     if(iEnviarTurno == true){
     	enviarTurno(*pPersonaje, nivel->delay);
     }
@@ -690,15 +685,6 @@ void movimientoPersonaje(int iSocketConexion, char* sPayload, tNivel *pNivel, tP
 
     enviarPaquete(pNivel->socket, &pkgMovimientoPers, logger, "Envio movimiento del personaje");
 
-    //TODO le aumenta el quantum cuando recibe la confirmacion. Antes no
-//	if (pNivel->algoritmo == RR) {
-//		pPersonaje->valorAlgoritmo++;
-//	} else {
-//		pPersonaje->valorAlgoritmo--;
-//	}
-
-	log_debug(logger, "\t Quantum personaje: %d", pPersonaje->valorAlgoritmo); //TODO sacar
-
 	free(sPayload);
 	free(movPers);
 }
@@ -706,19 +692,7 @@ void movimientoPersonaje(int iSocketConexion, char* sPayload, tNivel *pNivel, tP
 void confirmarMovimiento(tNivel *nivel, tPersonaje *pPersonajeActual, char *payload) {
 	tSimbolo *simboloPersonaje = deserializarSimbolo(payload);
 	int sockPersonaje = pPersonajeActual->socket;
-	//TODO: agregue el if(pPersonajeActual->valorAlgoritmo == 0 && queue_size(nivel->cListos) >0)
-	//TODO: porque a veces pasaba que un personaje terminaba su quantum
-	//TODO: y pasaba al otro personaje pero el anterior no habia recibido la confirmacion de movimiento, e
-	//TODO: entonces agrego esta validacion
-	//TODO: Cambiando de lugar donde le aumenta el quantum no deberia pasar. Lo dejo por las dudas
-//	if(pPersonajeActual->valorAlgoritmo == 0 && queue_size(nivel->cListos) >0)
-//	{
-//		int indexPersonaje = existePersonaje(nivel->cListos->elements, *simboloPersonaje, byName);
-//		tPersonaje *personaje = list_get(nivel->cListos->elements, indexPersonaje);
-//		sockPersonaje = personaje->socket;
-//	}
 
-	//OTRA cosa
 	if (nivel->algoritmo == RR) {
 		pPersonajeActual->valorAlgoritmo++;
 	} else {
@@ -827,7 +801,6 @@ int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexi
 		enviarPaquete(pNivel->socket, &pkgDesconexionPers, logger, "Se envia desconexion del personaje al nivel");
 		free(pPersonaje);
 		return EXIT_SUCCESS;
-
 	} else {
 		log_error(logger, "ERROR: no se encontró el personaje que salio en socket %d", iSocketConexion);
 		return EXIT_FAILURE;
@@ -1002,16 +975,22 @@ void imprimirLista(tNivel *pNivel, tPersonaje *pPersonaje) {
 	char* retorno = malloc(500);
 	int i;
 	tPersonaje *pPersAux;
+	tPersonajeBloqueado * pPersonajeBlock;
 
-	if (queue_is_empty(pNivel->cListos) && (pPersonaje == NULL)) { //Si no hay nadie listo, no se quien esta ejecutando
+	if (queue_is_empty(pNivel->cListos) && (pPersonaje == NULL)) {
 		sprintf(retorno, "Lista de: %s\n\tEjecutando:\n\tListos: \t", pNivel->nombre);
 	} else {
-		sprintf(retorno, "Lista de: %s\n\tEjecutando: %c\n\tListos: \t", pNivel->nombre, pPersonaje->simbolo);
+		if(pPersonaje != NULL){
+			sprintf(retorno, "Lista de: %s\n\tEjecutando: %c\n\tListos: \t", pNivel->nombre, pPersonaje->simbolo);
+		}
+		else{
+			sprintf(retorno, "Lista de: %s\n\tEjecutando:\n\tListos: \t", pNivel->nombre);
+		}
 	}
 
 	int iCantidadListos = queue_size(pNivel->cListos);
 	for (i = 0; i < iCantidadListos; i++) {
-		pPersAux = (tPersonaje *)queue_peek(pNivel->cListos);
+		pPersAux = (tPersonaje *)list_get(pNivel->cListos->elements, i);
 		sprintf(tmp, "%c -> ", pPersAux->simbolo);
 		string_append(&retorno, tmp);
 	}
@@ -1021,8 +1000,8 @@ void imprimirLista(tNivel *pNivel, tPersonaje *pPersonaje) {
 
 	int iCantidadBloqueados = list_size(pNivel->lBloqueados);
 	for (i = 0; i < iCantidadBloqueados; i++) {
-		pPersAux = (tPersonaje *) list_get(pNivel->lBloqueados, i);
-		sprintf(tmp, "%c -> ", pPersAux->simbolo);
+		pPersonajeBlock = (tPersonajeBloqueado *) list_get(pNivel->lBloqueados, i);
+		sprintf(tmp, "%c -> ", pPersonajeBlock->pPersonaje->simbolo);
 		string_append(&retorno, tmp);
 	}
 
