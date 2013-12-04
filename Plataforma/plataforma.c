@@ -221,9 +221,9 @@ int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOr
 	// Validacion de que el nivel me envia informacion correcta
 	if (tipoMensaje == N_DATOS) {
 
-		crearNivel(listaNiveles, pNivelNuevo, iSocketComunicacion, sNombreNivel, pInfoNivel);
-		crearHiloPlanificador(pPlanificador, pNivelNuevo, lPlanificadores);
-		delegarConexion(&pNivelNuevo->masterfds, pSetSocketsOrquestador, iSocketComunicacion, &pNivelNuevo->maxSock);
+		//crearNivel(listaNiveles, pNivelNuevo, iSocketComunicacion, sNombreNivel, pInfoNivel);
+		//crearHiloPlanificador(pPlanificador, pNivelNuevo, lPlanificadores);
+		//delegarConexion(&pNivelNuevo->masterfds, pSetSocketsOrquestador, iSocketComunicacion, &pNivelNuevo->maxSock);
 
 		// Logueo el nuevo hilo recien creado
 		log_debug(logger, "Nuevo planificador del nivel: '%s' y planifica con: %i", pNivelNuevo->nombre, pNivelNuevo->algoritmo);
