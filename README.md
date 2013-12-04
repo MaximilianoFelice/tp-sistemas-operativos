@@ -1,6 +1,4 @@
-# C o no ser
-
-Ser o no ser, esa es la cuestion...
+# C o no ser, esa es la cuestion...
 =====================
 Implementacion del TP de sistemas operativos
 ----------------------------------------------------------
@@ -15,29 +13,29 @@ Los tipos de mensajes, los paquetes a enviar y la implementeacion de la serializ
 
 Ir a la carpeta de cada proceso. Y ejecutar:
 
-#### ./mountplatform 
+#### `./mountplatform`
 
-#### ./mountlevel (archivo de configuracion del nivel)
+#### `./mountlevel (archivo de configuracion del nivel)`
 
-#### ./mountcharacter (archivo de configuracion del personaje) 
+#### `./mountcharacter (archivo de configuracion del personaje)`
 
 ----------------------------------------------------------
 
-### Tambien se puede hacer mas a manopla asi:
+### Con los makefiles de Eclipse, asi:
 
-#### export LD_LIBRARY_PATH=/home/utnso/tp-2013-2c-c-o-no-ser/Shared-Library/Debug/
+Primero: `export LD_LIBRARY_PATH=/home/utnso/tp-2013-2c-c-o-no-ser/Shared-Library/Debug/`
 
 Luego ejecutar, en este orden, los procesos:
 
-#### ./Debug/plataforma plataforma.config -v  
+`./Debug/plataforma plataforma.config -v -ll trace`
 
-#### ./Debug/nivel (archivo de configuracion del nivel) 
+`./Debug/nivel (archivo de configuracion del nivel)`
 
-#### ./Debug/personaje (archivo de configuracion del personaje) -v
+`./Debug/personaje (archivo de configuracion del personaje) -v`
 
 ----------------------------------------------------------
 
-### Usando makefiles:
+### Usando nuestros makefiles:
 
 Primero compilamos la gui (ubicada dentro de la carpeta de nivel), y las shared libraries commons y ginyu, para eso, una vez posicionados en las respectivas carpetas hacen un:
 
