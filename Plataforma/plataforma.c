@@ -225,24 +225,32 @@ int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOr
 		//crearHiloPlanificador(pPlanificador, pNivelNuevo, lPlanificadores);
 		//delegarConexion(&pNivelNuevo->masterfds, pSetSocketsOrquestador, iSocketComunicacion, &pNivelNuevo->maxSock);
 
-		tMensaje tipoMensaje;
 		tSimbolo simboloMsj = '#';
 		tPaquete *paquete = malloc(sizeof(tPaquete));
 		serializarSimbolo(PL_CONEXION_PERS, simboloMsj, paquete);
 		enviarPaquete(iSocketComunicacion, paquete, logger, "Envio al nivel el nuevo personaje que se conecto");
-		recibirPaquete(iSocketComunicacion, &tipoMensaje, &sPayload, logger, "Recibo confirmacion del nivel");
 		simboloMsj = '=';
 		serializarSimbolo(PL_CONEXION_PERS, simboloMsj, paquete);
 		enviarPaquete(iSocketComunicacion, paquete, logger, "Envio al nivel el nuevo personaje que se conecto");
-		recibirPaquete(iSocketComunicacion, &tipoMensaje, &sPayload, logger, "Recibo confirmacion del nivel");
 		simboloMsj = '?';
 		serializarSimbolo(PL_CONEXION_PERS, simboloMsj, paquete);
 		enviarPaquete(iSocketComunicacion, paquete, logger, "Envio al nivel el nuevo personaje que se conecto");
-		recibirPaquete(iSocketComunicacion, &tipoMensaje, &sPayload, logger, "Recibo confirmacion del nivel");
-		sleep(55);
+		sleep(2);
+		tMovimientoPers *movPers=malloc(sizeof(tMovimientoPers)) ;
+		int i;
+		for(i=0;i<20;i++){
+			movPers->simbolo='#';
+			movPers->direccion=abajo;
+			serializarMovimientoPers(PL_MOV_PERSONAJE, *movPers, paquete);
+			enviarPaquete(iSocketComunicacion, paquete, logger, "Envio al nivel el movimiento del personaje");
+			movPers->simbolo='=';
+			movPers->direccion=derecha;
+			serializarMovimientoPers(PL_MOV_PERSONAJE, *movPers, paquete);
+			enviarPaquete(iSocketComunicacion, paquete, logger, "Envio al nivel el movimiento del personaje");
+			usleep(980000);
+		}
 
 		//free(paquete);
-
 		// Logueo el nuevo hilo recien creado
 		log_debug(logger, "Nuevo planificador del nivel: '%s' y planifica con: %i", pNivelNuevo->nombre, pNivelNuevo->algoritmo);
 
