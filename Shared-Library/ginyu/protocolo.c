@@ -167,30 +167,48 @@ tRtaPosicion * deserializarRtaPosicion(char * payload) {
 	return pRtaPosicion;
 }
 
+int serializarRtaPosicion2(tMensaje tipoMensaje, tRtaPosicion2 rtaPosicion, tPaquete* pPaquete) {
 
-//int serializarMovimiento(tMensaje tipoMensaje, tDirMovimiento dirMovimiento, tPaquete* pPaquete) {
-//
-//	pPaquete->type = tipoMensaje;
-//
-//	pPaquete->length = sizeof(dirMovimiento);
-//	memcpy(pPaquete->payload, &dirMovimiento, pPaquete->length);
-//
-//	return EXIT_SUCCESS;
-//}
-//
-//
-//tDirMovimiento* deserializarMovimiento(char * payload) {
-//
-//	tDirMovimiento *pDirMovimiento = malloc(sizeof(tDirMovimiento));
-//	int tmp_size = 0;
-//
-//	tmp_size = sizeof(int8_t);
-//	memcpy(pDirMovimiento, payload, tmp_size);
-//
-//	return pDirMovimiento;
-//}
+	int offset   = 0;
+	int tmp_size = 0;
 
+	pPaquete->type = tipoMensaje;
 
+	tmp_size = sizeof(rtaPosicion.posX);
+	memcpy(pPaquete->payload, &(rtaPosicion.posX), tmp_size);
+
+	offset   = tmp_size;
+	tmp_size = sizeof(rtaPosicion.posY);
+	memcpy(pPaquete->payload + offset, &(rtaPosicion.posY), tmp_size);
+
+	offset  += tmp_size;
+	tmp_size = sizeof(int32_t);
+	memcpy(pPaquete->payload + offset, &rtaPosicion.RD, tmp_size);
+
+	pPaquete->length = offset + tmp_size;
+
+	return EXIT_SUCCESS;
+}
+
+tRtaPosicion2 * deserializarRtaPosicion2(char * payload) {
+
+	tRtaPosicion2 *pRtaPosicion = malloc(sizeof(tRtaPosicion2));
+	int offset   = 0;
+	int tmp_size = 0;
+
+	tmp_size = sizeof(pRtaPosicion->posX);
+	memcpy(&pRtaPosicion->posX, payload, tmp_size);
+
+	offset   = tmp_size;
+	tmp_size = sizeof(pRtaPosicion->posY);
+	memcpy(&pRtaPosicion->posY, payload + offset, tmp_size);
+
+	offset  += tmp_size;
+	tmp_size = sizeof(int32_t);
+	memcpy(&pRtaPosicion->RD, payload + offset, tmp_size);
+
+	return pRtaPosicion;
+}
 
 int serializarMovimientoPers(tMensaje tipoMensaje, tMovimientoPers movimientoPers, tPaquete* pPaquete){
 

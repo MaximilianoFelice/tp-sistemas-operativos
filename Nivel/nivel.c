@@ -169,6 +169,7 @@ int main(int argc, char* argv[]) {
 				int8_t tipoMsj;
 				tPregPosicion* posConsultada=malloc(sizeof(tPregPosicion));
 				tRtaPosicion posRespondida;
+//				tRtaPosicion2 posRta; //No borres lee el comentario del case PL_POS_RECURSO
 				tMovimientoPers movPersonaje;
 				pers_t* personaG=NULL;
 				//tSimbolo *persNew;
@@ -247,11 +248,8 @@ int main(int argc, char* argv[]) {
 						MoverPersonaje(list_items,symbol, posX, posY);
 						pthread_mutex_unlock(&semItems);
 						pthread_mutex_lock(&semMSJ);
-						//Cesar te puse este serializarSimbolo porque tuve un problema en planificador y necesitaba el simbolo
-						//Si bien ya lo solucione a ese problema en la plataforma, igual dejalo por las dudas hasta que
-						//ande bien bien por las dudas... De ultima no jode mandarle info de mas, antes no le mandabas nada
-						//Era solo una confirmacion.. TODO
-						serializarSimbolo(N_CONFIRMACION_MOV, (tSimbolo)symbol, paquete);
+						paquete->type = N_CONFIRMACION_MOV;
+						paquete->length = 0;
 						enviarPaquete(sockete,paquete,logger,"notificando a plataforma personaje movido correctamente");
 						pthread_mutex_unlock(&semMSJ);
 					}
@@ -261,6 +259,22 @@ int main(int argc, char* argv[]) {
 					log_debug(logger, "<<< Personaje %c solicita la posicion del recurso %c", (char)posConsultada->simbolo, (char)posConsultada->recurso);
 					bool buscarRecurso(ITEM_NIVEL *item){return ((item->id==(char)posConsultada->recurso)&&(item->item_type==RECURSO_ITEM_TYPE));}
 					itemRec=list_find(list_items,(void*)buscarRecurso);
+					//Cesar no borres esto lo deje porque capaz necesite este mensaje para la planificacion SRDF
+					//Donde ademas de la posicion del recurso le paso tambien la distancia del personaje al recurso
+					//Ademas usa un tRtaPosicion2 con sus correspondientes serializadores y deserializadores
+//					if(itemRec!=NULL){
+//						posRecX=itemRec->posx;
+//						posRecY=itemRec->posy;
+//						posRta.posX=posRecX;
+//						posRta.posY=posRecY;
+//						int posPerX, posPerY;
+//						getPosPersonaje(list_items, posConsultada->simbolo, &posPerX, &posPerY);
+//						posRta.RD = distancia(posPerX, posPerY, posRecX, posRecY);
+//						pthread_mutex_lock(&semMSJ);
+//						serializarRtaPosicion2(N_POS_RECURSO, posRta, paquete);
+//						enviarPaquete(sockete,paquete,logger,"enviando pos de recurso a plataforma");
+//						pthread_mutex_unlock(&semMSJ);
+//					}
 					if(itemRec!=NULL){
 						posRecX=itemRec->posx;
 						posRecY=itemRec->posy;
@@ -272,7 +286,8 @@ int main(int argc, char* argv[]) {
 						paquete->length=sizeof(tRtaPosicion);
 						enviarPaquete(sockete,paquete,logger,"enviando pos de recurso a plataforma");
 						pthread_mutex_unlock(&semMSJ);
-					}else{
+					}
+					else{
 						pthread_mutex_lock(&semMSJ);
 						paquete->type=N_RECURSO_INEXISTENTE;
 						paquete->length=0;
@@ -767,7 +782,9 @@ void liberarRecsPersonaje2(char id){
 	BorrarItem(list_items, id);
 	personaje_destroyer(persDesconexion);
 }
-
+int distancia(int posXPer, int posYPer, int posX, int posY){
+	 return pow((posXPer-posX),2) + pow((posYPer-posY), 2);
+}
 void liberarRecsPersonaje(char id){
 	pers_t* personaje;
 

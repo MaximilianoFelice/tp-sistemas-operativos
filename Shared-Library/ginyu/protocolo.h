@@ -143,6 +143,12 @@ typedef struct {
 } tRtaPosicion;
 
 typedef struct {
+	int8_t posX;
+	int8_t posY;
+	int32_t RD; //Remaining distance
+} tRtaPosicion2;
+
+typedef struct {
 	tSimbolo simbolo;
 	tDirMovimiento direccion;
 } tMovimientoPers;
@@ -169,6 +175,9 @@ tPregPosicion* deserializarPregPosicion(char * payload);
 
 int serializarRtaPosicion(tMensaje tipoMensaje, tRtaPosicion pRtaPosicion, tPaquete* pPaquete);
 tRtaPosicion* deserializarRtaPosicion(char * payload);
+
+int serializarRtaPosicion2(tMensaje tipoMensaje, tRtaPosicion2 pRtaPosicion, tPaquete* pPaquete);
+tRtaPosicion2* deserializarRtaPosicion2(char * payload);
 
 int serializarRtaPosicion(tMensaje tipoMensaje, tRtaPosicion pRtaPosicion, tPaquete* pPaquete);
 tRtaPosicion* deserializarRtaPosicion(char * payload);

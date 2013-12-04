@@ -232,6 +232,7 @@ void *jugar(void *args) {
 			//agarra un recurso de la lista de objetivos del nivel
 			char* recurso = (char*) list_get(personajePorNivel.nivelQueJuego->Objetivos, personajePorNivel.recursoActual);
 			pedirPosicionRecurso(&personajePorNivel, recurso);
+			log_debug(logger, "Ya tengo la posicion de mi recurso");
 
 			while (!conseguiRecurso(personajePorNivel) && !personajeEstaMuerto(murioPersonaje)) {
 
