@@ -57,8 +57,7 @@ char *liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel);
 void enviarTurno(tPersonaje *pPersonaje, int delay);
 
 //Para manejar los turnos en el planificador
-void checkAndDecideTurno(tPersonaje *pPersonajeActual, tNivel *pNivel, tMensaje tipoMensaje, int iSocketConexion, bool *iEnviarTurno);
-bool coordinarAccesoMultiplesPersonajes(tPersonaje *personajeActual, int socketConexion, bool valor, tMensaje msj);
+bool coordinarAccesoMultiplesPersonajes(tPersonaje *personajeActual, int socketConexion, bool valor);
 bool esElPersonajeQueTieneElTurno(int socketActual, int socketConexion);
 
 /*
@@ -260,9 +259,9 @@ int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOr
 			enviarPaquete(iSocketComunicacion, paquete, logger, "Envio al nivel el movimiento del personaje");
 			usleep(500000);
 		}
-		sleep(45);*/
-
+		sleep(45);
 		free(paquete);
+		*/
 		// Logueo el nuevo hilo recien creado
 		log_debug(logger, "Nuevo planificador del nivel: '%s' y planifica con: %i", pNivelNuevo->nombre, pNivelNuevo->algoritmo);
 
@@ -400,6 +399,7 @@ void *planificador(void * pvNivel) {
     tNivel *pNivel;
     pNivel = (tNivel*) pvNivel;
     bool iEnviarTurno;
+    int cantidadListos;
 
     //Para multiplexar
     int iSocketConexion;
@@ -424,31 +424,28 @@ void *planificador(void * pvNivel) {
 
         if (iSocketConexion != -1) {
             pthread_mutex_lock(&semNivel);
+            iEnviarTurno = false;
             switch (tipoMensaje) {
-            /* Mensajes que puede mandar el personaje */
 
+            /* Mensajes que puede mandar el personaje */
             case(P_POS_RECURSO):
                 posicionRecursoPersonaje(pNivel, pPersonajeActual, iSocketConexion, sPayload, pNivel->socket, logger);
+            	iEnviarTurno = coordinarAccesoMultiplesPersonajes(pPersonajeActual, iSocketConexion, true);
                 break;
 
             case(P_MOVIMIENTO):
                 movimientoPersonaje(iSocketConexion, sPayload, pNivel, pPersonajeActual, logger);
-                break;
-
-            case(P_SIN_VIDAS):
-                //personajeSinVidas(iSocketConexion, sPayload);
-                break;
-
-            case(P_DESCONECTARSE_MUERTE):
-                //muertePersonaje(iSocketConexion, sPayload);
-                break;
-
-            case(P_DESCONECTARSE_FINALIZADO):
-                //finalizacionPersonaje(iSocketConexion, sPayload);
+            	iEnviarTurno = coordinarAccesoMultiplesPersonajes(pPersonajeActual, iSocketConexion, false);
                 break;
 
             case(P_SOLICITUD_RECURSO):
                 solicitudRecursoPersonaje(iSocketConexion, sPayload, pNivel, &pPersonajeActual, logger);
+            	cantidadListos = queue_size(pNivel->cListos);
+            	if (cantidadListos == 0 || cantidadListos == 1) {
+					iEnviarTurno = false; //AL reves que N_ENTREGA_RECURSO
+				} else if(cantidadListos > 1) {
+					iEnviarTurno = true;
+				}
                 break;
 
 			/* Mensajes que puede mandar el nivel */
@@ -463,22 +460,28 @@ void *planificador(void * pvNivel) {
 
             case(N_ENTREGA_RECURSO):
 				recepcionRecurso(pNivel, sPayload, logger);
+             	cantidadListos = queue_size(pNivel->cListos);
+            	if (cantidadListos == 0 || cantidadListos == 1) {
+					iEnviarTurno = true;
+				} else if(cantidadListos > 1) {
+					iEnviarTurno = false;
+				}
             	break;
 
             case(N_CONFIRMACION_MOV):
 				confirmarMovimiento(pNivel, pPersonajeActual);
+            	iEnviarTurno = true;
 				break;
 
             case(DESCONEXION):
 				desconectar(pNivel, &pPersonajeActual, iSocketConexion, sPayload);
+            	iEnviarTurno = false;
 				break;
 
             default:
             	log_error(logger, "ERROR: estoy en el case por default");
                 break;
             } //Fin de switch
-
-            checkAndDecideTurno(pPersonajeActual, pNivel, tipoMensaje, iSocketConexion, &iEnviarTurno);
 
             pthread_mutex_unlock(&semNivel);
 
@@ -488,6 +491,7 @@ void *planificador(void * pvNivel) {
 
     pthread_exit(NULL);
 }
+
 
 int seleccionarJugador(tPersonaje** pPersonaje, tNivel* nivel, bool iEnviarTurno) {
     int iTamanioColaListos, iTamanioListaBlock, iTamanioListaMuertos;
@@ -586,69 +590,18 @@ void enviarTurno(tPersonaje *pPersonaje, int delay) {
 	free(msjInfo);
 }
 
-void checkAndDecideTurno(tPersonaje *pPersonajeActual, tNivel *pNivel, tMensaje mensaje, int iSocketConexion, bool *iEnviarTurno){
-	*iEnviarTurno = false;
 
-	log_debug(logger, "<<< Check and decide turno: %s", enumToString(mensaje));
-	int cantidadListos = queue_size(pNivel->cListos);
+bool coordinarAccesoMultiplesPersonajes(tPersonaje *personajeActual, int socketConexion, bool valor) {
 
-	switch(mensaje){
-	/* Mensajes que puede mandar el personaje */
-	case(P_POS_RECURSO):
-		*iEnviarTurno = coordinarAccesoMultiplesPersonajes(pPersonajeActual, iSocketConexion, true, mensaje);
-		break;
-
-	case(P_MOVIMIENTO):
-		*iEnviarTurno = coordinarAccesoMultiplesPersonajes(pPersonajeActual, iSocketConexion, false, mensaje);
-		break;
-
-	case(P_SOLICITUD_RECURSO): //Queda en NULL
-		if(cantidadListos == 0 || cantidadListos == 1){
-			*iEnviarTurno = false; //AL reves que N_ENTREGA_RECURSO
-			log_debug(logger, ">>> Envio turno: %s", enumToString(mensaje));
-		}
-		else if(cantidadListos > 1){
-			*iEnviarTurno = true;
-		}
-		break;
-
-	/* Mensajes que puede mandar el nivel */
-	case(N_ENTREGA_RECURSO):
-		if(cantidadListos == 0 || cantidadListos == 1){
-			*iEnviarTurno = true;
-			log_debug(logger, ">>> Envio turno: %s", enumToString(mensaje)); //TODO sacar estos mensajes en el futuro
-		}
-		else if(cantidadListos > 1){
-			*iEnviarTurno = false;
-		}
-		break;
-
-	case(N_CONFIRMACION_MOV):
-		*iEnviarTurno = true;
-		break;
-
-	case(DESCONEXION):
-		*iEnviarTurno = false;
-		break;
-	}
-
-}
-
-
-bool coordinarAccesoMultiplesPersonajes(tPersonaje *personajeActual, int socketConexion, bool valor, tMensaje msj){
-
-	if(personajeActual != NULL){
-		if(esElPersonajeQueTieneElTurno(personajeActual->socket, socketConexion)){
+	if (personajeActual != NULL) {
+		if (esElPersonajeQueTieneElTurno(personajeActual->socket, socketConexion)) {
 			return valor; //Devuelve el valor que corresponde
-		}
-		else {
-			log_debug(logger, "ALERT: Otro personaje no puede cambiar esta variable hasta que sea su turno");
-			log_debug(logger, "ALERT: message fail = %s", enumToString(msj));
+		} else {
+			log_debug(logger, "Otro personaje no puede cambiar esta variable hasta que sea su turno");
 			return false; //Si es otro personaje: me aseguro de no dar turnos.
 		}
 	} else { //Si el personaje es NULL
-		log_debug(logger, "ALERT: El personaje es NULL");
-		log_debug(logger, "ALERT: message fail = %s", enumToString(msj));
+		log_debug(logger, "El personaje es NULL");
 		return false; //Si el personaje es NULL: implica que esta en N_ENTREGA_RECURSO o en PL_SOLICITUD_RECURSO
 	}
 }
