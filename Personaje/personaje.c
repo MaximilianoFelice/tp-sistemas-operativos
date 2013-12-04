@@ -230,7 +230,7 @@ void *jugar(void *args) {
 			recibirMensajeTurno(personajePorNivel.socketPlataforma);
 
 			//agarra un recurso de la lista de objetivos del nivel
-			char* recurso = (char*) list_get_data(personajePorNivel.nivelQueJuego->Objetivos, personajePorNivel.recursoActual);
+			char* recurso = (char*) list_get(personajePorNivel.nivelQueJuego->Objetivos, personajePorNivel.recursoActual);
 			pedirPosicionRecurso(&personajePorNivel, recurso);
 
 			while (!conseguiRecurso(personajePorNivel) && !personajeEstaMuerto(murioPersonaje)) {
@@ -449,7 +449,6 @@ void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurs
 	tPaquete pkgSolicitudRecurso;
 	serializarPregPosicion(P_POS_RECURSO, solicitudRecurso, &pkgSolicitudRecurso);
 
-
 	enviarPaquete(personajePorNivel->socketPlataforma, &pkgSolicitudRecurso, logger, "Solicito la posicion de un recurso");
 
 	char* sPayload;
@@ -513,7 +512,6 @@ void reintentarSolicitudRecurso(personajeIndividual_t* personajePorNivel, tPaque
 		}
 	}
 }
-
 
 void handshake_plataforma(personajeIndividual_t* personajePorNivel){
 	tMensaje tipoMensaje;
@@ -594,6 +592,7 @@ int calculaMovimiento(personajeIndividual_t personajePorNivel){
 				return abajo;
 			else if (personajePorNivel.posY > personajePorNivel.posRecursoY)
 				return arriba;
+
 		}
 	}
 
@@ -614,7 +613,7 @@ void actualizaPosicion(tDirMovimiento* movimiento, personajeIndividual_t **perso
 			((*personajePorNivel)->posX)++;
 			break;
 		case izquierda:
-			((*personajePorNivel)->posY)--;
+			((*personajePorNivel)->posX)--;
 			break;
 	}
 	//log_debug(logger, "P = (%d, %d) - R = (%d, %d)", (*personajePorNivel)->posX, (*personajePorNivel)->posY, (*personajePorNivel)->posRecursoX, (*personajePorNivel)->posRecursoY);

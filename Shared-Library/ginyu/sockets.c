@@ -91,7 +91,7 @@ int recibirPaquete(int socketReceptor, tMensaje* tipoMensaje, char** psPayload, 
 	int bytesRecibidosHeader = 0;
 	int bytesRecibidos = 0;
 
-	//log_debug(pLogger, "<<< %s", sMensajeLogger);
+	log_debug(pLogger, "<<< %s", sMensajeLogger);
 	bytesRecibidosHeader = recv(socketReceptor, &header, sizeof(tHeader), MSG_WAITALL);
 
 	if (bytesRecibidosHeader == 0) {

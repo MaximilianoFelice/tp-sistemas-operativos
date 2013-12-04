@@ -51,6 +51,9 @@ void posicionRecursoPersonaje(int iSocketConexion, char* sPayload, int socketNiv
 int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNivel, t_log* logger);
 void muertePorEnemigoPersonaje(char* sPayload, tNivel *pNivel, tPersonaje* pPersonaje, t_log* logger);
 void recepcionRecurso(tNivel *pNivel, char *sPayload, t_log *logger);
+void confirmarMovimiento(tNivel *nivel, tPersonaje *pPersonajeActual);
+int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexion, char *sPayload);
+char *liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel);
 void enviarTurno(tPersonaje *pPersonaje, int delay);
 
 //Para manejar los turnos en el planificador
@@ -58,9 +61,7 @@ void checkAndDecideTurno(tPersonaje *pPersonajeActual, tNivel *pNivel, tMensaje 
 bool coordinarAccesoMultiplesPersonajes(tPersonaje *personajeActual, int socketConexion, bool valor, tMensaje msj);
 bool esElPersonajeQueTieneElTurno(int socketActual, int socketConexion);
 
-void confirmarMovimiento(tNivel *nivel, tPersonaje *pPersonajeActual, char *payload);
-int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexion, char *sPayload);
-char *liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel);
+
 
 
 /*
@@ -430,7 +431,7 @@ void *planificador(void * pvNivel) {
             	break;
 
             case(N_CONFIRMACION_MOV):
-				confirmarMovimiento(pNivel, pPersonajeActual, sPayload);
+				confirmarMovimiento(pNivel, pPersonajeActual);
 				break;
 
             case(DESCONEXION):
@@ -689,8 +690,7 @@ void movimientoPersonaje(int iSocketConexion, char* sPayload, tNivel *pNivel, tP
 	free(movPers);
 }
 
-void confirmarMovimiento(tNivel *nivel, tPersonaje *pPersonajeActual, char *payload) {
-	tSimbolo *simboloPersonaje = deserializarSimbolo(payload);
+void confirmarMovimiento(tNivel *nivel, tPersonaje *pPersonajeActual) {
 	int sockPersonaje = pPersonajeActual->socket;
 
 	if (nivel->algoritmo == RR) {
@@ -703,7 +703,6 @@ void confirmarMovimiento(tNivel *nivel, tPersonaje *pPersonajeActual, char *payl
 	pkgConfirmacionMov.length  = 0;
 	log_trace(logger, "Personaje %c con socket %d >>> Confirmacion movimiento", pPersonajeActual->simbolo, pPersonajeActual->socket);
 	enviarPaquete(sockPersonaje, &pkgConfirmacionMov, logger, "Se envia confirmacion de movimiento al personaje");
-	free(simboloPersonaje);
 }
 
 int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNivel, t_log* logger) {
@@ -906,7 +905,7 @@ int existeNivel(t_list * lNiveles, char* sLevelName) {
 /*
  * Verificar si el personaje existe en base a un criterio, si existe devuelve el indice de su posicion, sino devuelve -1
  */
-int existePersonaje(t_list *pListaPersonajes, int valor, tBusquedaPersonaje criterio) {
+int existePersonaje(t_list *pListaPersonajes, int valor, tBusqueda criterio) {
 	int iPersonajeLoop;
 	int iCantPersonajes = list_size(pListaPersonajes);
 	tPersonaje* pPersonajeGuardado;

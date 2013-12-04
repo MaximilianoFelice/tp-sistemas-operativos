@@ -59,7 +59,7 @@ typedef struct {
 typedef enum {
 	byName,
 	bySocket
-} tBusquedaPersonaje;
+} tBusqueda;
 
 //Hilos
 void *orquestador(void *) ;
@@ -80,7 +80,7 @@ void wait_personajes(bool *primerIntento);
 int existeNivel(t_list * lNiveles, char* sLevelName);
 tNivel *getNivel(char *nom_nivel);
 int existPersonajeBlock(t_list *block, tSimbolo recurso);
-int existePersonaje(t_list *pListaPersonajes, int valor, tBusquedaPersonaje criterio);
+int existePersonaje(t_list *pListaPersonajes, int valor, tBusqueda criterio);
 
 //Constructores y destroyers
 void agregarPersonaje(t_queue *cPersonajes, tSimbolo simbolo, int socket);
