@@ -115,7 +115,7 @@ int grasa_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t off
 
 	// Carga los nodos que cumple la condicion en el buffer.
 	for (i = 0; i < GFILEBYTABLE;  (i++)){
-		if ((nodo==(node->parent_dir_block)) & (((node->state) == 1) | ((node->state) == 2)))  filler(buf, (char*) &(node->fname[0]), NULL, 0);
+		if ((nodo==(node->parent_dir_block)) & (((node->state) == DIRECTORY_T) | ((node->state) == FILE_T)))  filler(buf, (char*) &(node->fname[0]), NULL, 0);
 		node = &node[1];
 	}
 
@@ -163,9 +163,12 @@ int grasa_read(const char *path, char *buf, size_t size, off_t offset, struct fu
 			log_lock_trace(logger, "Read: Toma lock lectura. Cantidad de lectores: %d", rwlock.__data.__nr_readers);
 
 	if(node->file_size <= offset){
-		log_error(logger, "Fuse intenta leer un offset mayor que el tamanio de archivo. Se retorna size 0.");
+		log_error(logger, "Fuse intenta leer un offset mayor o igual que el tamanio de archivo. Se retorna size 0. File: %s, Size: %d", path, node->file_size);
 		res = 0;
 		goto finalizar;
+	} else if (node->file_size <= (offset+size)){
+		tam = size = ((node->file_size)-(offset));
+		log_error(logger, "Fuse intenta leer una posicion mayor o igual que el tamanio de archivo. Se retornaran %d bytes. File: %s, Size: %d", size, path, node->file_size);
 	}
 	// Recorre todos los punteros en el bloque de la tabla de nodos
 	for (bloque_punteros = 0; bloque_punteros < BLKINDIRECT; bloque_punteros++){
