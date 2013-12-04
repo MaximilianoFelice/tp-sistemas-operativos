@@ -1,4 +1,4 @@
-# C o no ser, esa es la cuestion...
+C o no ser, esa es la cuestion...
 =====================
 Implementacion del TP de sistemas operativos
 ----------------------------------------------------------
@@ -13,19 +13,19 @@ Los tipos de mensajes, los paquetes a enviar y la implementeacion de la serializ
 
 Ir a la carpeta de cada proceso. Y ejecutar:
 
-#### `./mountplatform`
+`./mountplatform`
 
-#### `./mountlevel (archivo de configuracion del nivel)`
+`./mountlevel (archivo de configuracion del nivel)`
 
-#### `./mountcharacter (archivo de configuracion del personaje)`
+`./mountcharacter (archivo de configuracion del personaje)`
 
 ----------------------------------------------------------
 
-### Con los makefiles de Eclipse, asi:
+### A manopla::
 
 Primero: `export LD_LIBRARY_PATH=/home/utnso/tp-2013-2c-c-o-no-ser/Shared-Library/Debug/`
 
-Luego ejecutar, en este orden, los procesos:
+Luego usando los ejecutables compilados por Eclipse, en este orden, los procesos:
 
 `./Debug/plataforma plataforma.config -v -ll trace`
 
