@@ -221,10 +221,10 @@ int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOr
 	// Validacion de que el nivel me envia informacion correcta
 	if (tipoMensaje == N_DATOS) {
 
-		//crearNivel(listaNiveles, pNivelNuevo, iSocketComunicacion, sNombreNivel, pInfoNivel);
-		//crearHiloPlanificador(pPlanificador, pNivelNuevo, lPlanificadores);
-		//delegarConexion(&pNivelNuevo->masterfds, pSetSocketsOrquestador, iSocketComunicacion, &pNivelNuevo->maxSock);
-
+		crearNivel(listaNiveles, pNivelNuevo, iSocketComunicacion, sNombreNivel, pInfoNivel);
+		crearHiloPlanificador(pPlanificador, pNivelNuevo, lPlanificadores);
+		delegarConexion(&pNivelNuevo->masterfds, pSetSocketsOrquestador, iSocketComunicacion, &pNivelNuevo->maxSock);
+/*
 		tSimbolo simboloMsj = '#';
 		tPaquete *paquete = malloc(sizeof(tPaquete));
 		serializarSimbolo(PL_CONEXION_PERS, simboloMsj, paquete);
@@ -247,10 +247,22 @@ int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOr
 			movPers->direccion=derecha;
 			serializarMovimientoPers(PL_MOV_PERSONAJE, *movPers, paquete);
 			enviarPaquete(iSocketComunicacion, paquete, logger, "Envio al nivel el movimiento del personaje");
-			usleep(980000);
+			usleep(780000);
 		}
+		movPers->simbolo='?';
+		movPers->direccion=derecha;
+		serializarMovimientoPers(PL_MOV_PERSONAJE, *movPers, paquete);
+		enviarPaquete(iSocketComunicacion, paquete, logger, "Envio al nivel el movimiento del personaje");
+		for(i=0;i<19;i++){
+			movPers->simbolo='#';
+			movPers->direccion=arriba;
+			serializarMovimientoPers(PL_MOV_PERSONAJE, *movPers, paquete);
+			enviarPaquete(iSocketComunicacion, paquete, logger, "Envio al nivel el movimiento del personaje");
+			usleep(500000);
+		}
+		sleep(45);*/
 
-		//free(paquete);
+		free(paquete);
 		// Logueo el nuevo hilo recien creado
 		log_debug(logger, "Nuevo planificador del nivel: '%s' y planifica con: %i", pNivelNuevo->nombre, pNivelNuevo->algoritmo);
 
