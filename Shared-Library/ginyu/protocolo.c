@@ -6,6 +6,21 @@
  */
 #include "protocolo.h"
 
+char *enumToString(tMensaje tipoDeMensaje){
+	t_config *configProtocolo;
+	configProtocolo = config_create("../Shared-Library/ginyu/protocolo.config");
+	char **arrayTipoMensajes;
+	char *msjReturn;
+	arrayTipoMensajes = config_try_get_array_value(configProtocolo, "TiposDeMensajes");
+	if(arrayTipoMensajes != NULL){
+		msjReturn = arrayTipoMensajes[tipoDeMensaje];
+	} else{
+		msjReturn = NULL;
+	}
+	config_destroy(configProtocolo);
+	return msjReturn;
+}
+
 int serializarHandshakePers(tMensaje tipoMensaje, tHandshakePers handshakePersonaje, tPaquete* pPaquete) {
 	int offset   = 0;
 	int tmp_size = 0;

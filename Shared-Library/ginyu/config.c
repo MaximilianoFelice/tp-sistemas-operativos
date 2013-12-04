@@ -13,7 +13,7 @@
  * 		path - path del archivo de configuracion
  * 		optiones - (string delimitada con comas) Valida si ALMENOS tiene los parametro que le pases
  */
-t_config *config_try_create (char *path, char* options){
+t_config *config_try_create(char *path, char* options){
 
 
 	if (!file_exists (path))	//Si no existe, sale y muestra el error

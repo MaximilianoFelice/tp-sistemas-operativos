@@ -281,8 +281,8 @@ int main(int argc, char* argv[]) {
 					}
 				break;
 				case PL_SOLICITUD_RECURSO:
-					posConsultada->recurso=(tSimbolo)*(payload+sizeof(tSimbolo));//deserializar me molestaba para rastrear un error
-					posConsultada->simbolo=(tSimbolo)*payload;//VER SIEMPRE EN QUE ORDEN LO SERIALIZA
+					posConsultada->recurso=(tSimbolo)*payload;//deserializar me molestaba para rastrear un error
+					posConsultada->simbolo=(tSimbolo)*(payload+sizeof(tSimbolo));//VER SIEMPRE EN QUE ORDEN LO SERIALIZA
 					log_debug(logger, "<<< Personaje %c solicita una instancia del recurso %c", (char)posConsultada->simbolo, (char)posConsultada->recurso);
 					// Calculo la cantidad de instancias
 					int cantInstancias = restarInstanciasRecurso(list_items,posConsultada->recurso);

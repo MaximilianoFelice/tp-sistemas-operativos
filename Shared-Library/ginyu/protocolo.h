@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <stdint.h> //para los "int8_t"
 #include <string.h>
+#include "config.h"
 
 #define MAX_BUFFER 1024
 
@@ -39,56 +40,55 @@ typedef struct {
 
 //TODO despues cuando ande sacar este include y descomentar lo de abajo
 //Ahora lo dejo porque me sirve para debuggear y testear mucho
-#include "enumToString.h"
 
-//typedef enum {
-//	/* Mensajes de la plataforma */
-//	PL_HANDSHAKE,
-//	PL_CONEXION_PERS,
-//	PL_PERSONAJE_REPETIDO,
-//	PL_POS_RECURSO,
-//	PL_OTORGA_TURNO,			// Plataforma le manda al personaje
-//	PL_CONFIRMACION_MOV,  		// Plataforma le manda al personaje
-//	PL_MOV_PERSONAJE, 	  		// Plataforma le manda a nivel
-//	PL_DESCONECTARSE_MUERTE,	// AVISO
-//	PL_MUERTO_POR_ENEMIGO,
-//	PL_MUERTO_POR_DEADLOCK, 	// AVISO
-//	PL_CONFIRMACION_ELIMINACION,// AVISO
-//	PL_NIVEL_YA_EXISTENTE,		// AVISO
-//	PL_NIVEL_INEXISTENTE,		// AVISO
-//	PL_SOLICITUD_RECURSO,
-//	PL_RECURSO_INEXISTENTE,		// AVISO
-//	PL_RECURSO_OTORGADO,		// AVISO
-//	PL_DESCONEXION_PERSONAJE,
-//	/* Mensajes del nivel */
-//	N_HANDSHAKE,
-//	N_CONEXION_EXITOSA,			//Se conecta un nuevo personaje correctamente
-//	N_PERSONAJE_YA_EXISTENTE, 	//El personaje ya existia
-//	N_CONFIRMACION_ELIMINACION,	// AVISO
-//	N_MUERTO_POR_ENEMIGO, 		// tSimbolo
-//	N_PERSONAJES_DEADLOCK, 		// tSimbolo (el personaje que ya se murio)
-//	N_ESTADO_PERSONAJE,   		// Los estados posibles despues del movimiento
-//	N_POS_RECURSO,
-//	N_DATOS,
-//	N_ACTUALIZACION_CRITERIOS,
-//	N_ENTREGA_RECURSO,
-//	N_CONFIRMACION_MOV,
-//	N_PERSONAJE_INEXISTENTE,
-//	N_RECURSO_INEXISTENTE,
-//	/* Mensajes del personaje */
-//	P_HANDSHAKE,
-//	P_MOVIMIENTO,	 			// movimiento que hace el personaje
-//	P_POS_RECURSO,				//solicita la posicion del recurso
-//	P_SIN_VIDAS,				// manda simbolo
-//	P_DESCONECTARSE_MUERTE, 	// AVISO
-//	P_DESCONECTARSE_FINALIZADO,	// AVISO
-//	P_SOLICITUD_RECURSO,		//solicita el recurso en si
-//	P_FIN_TURNO,				//AVISO a plataforma
-//	P_FIN_PLAN_NIVELES,			//AVISO cuando se terminan todos los niveles
-//	/* Mensajes comunes */
-//	DESCONEXION,
-//	NO_SE_OBTIENE_RESPUESTA
-//} tMensaje;
+typedef enum {
+	/* Mensajes de la plataforma */
+	PL_HANDSHAKE,
+	PL_CONEXION_PERS,
+	PL_PERSONAJE_REPETIDO,
+	PL_POS_RECURSO,
+	PL_OTORGA_TURNO,			// Plataforma le manda al personaje
+	PL_CONFIRMACION_MOV,  		// Plataforma le manda al personaje
+	PL_MOV_PERSONAJE, 	  		// Plataforma le manda a nivel
+	PL_DESCONECTARSE_MUERTE,	// AVISO
+	PL_MUERTO_POR_ENEMIGO,
+	PL_MUERTO_POR_DEADLOCK, 	// AVISO
+	PL_CONFIRMACION_ELIMINACION,// AVISO
+	PL_NIVEL_YA_EXISTENTE,		// AVISO
+	PL_NIVEL_INEXISTENTE,		// AVISO
+	PL_SOLICITUD_RECURSO,
+	PL_RECURSO_INEXISTENTE,		// AVISO
+	PL_RECURSO_OTORGADO,		// AVISO
+	PL_DESCONEXION_PERSONAJE,
+	/* Mensajes del nivel */
+	N_HANDSHAKE,
+	N_CONEXION_EXITOSA,			//Se conecta un nuevo personaje correctamente
+	N_PERSONAJE_YA_EXISTENTE, 	//El personaje ya existia
+	N_CONFIRMACION_ELIMINACION,	// AVISO
+	N_MUERTO_POR_ENEMIGO, 		// tSimbolo
+	N_PERSONAJES_DEADLOCK, 		// tSimbolo (el personaje que ya se murio)
+	N_ESTADO_PERSONAJE,   		// Los estados posibles despues del movimiento
+	N_POS_RECURSO,
+	N_DATOS,
+	N_ACTUALIZACION_CRITERIOS,
+	N_ENTREGA_RECURSO,
+	N_CONFIRMACION_MOV,
+	N_PERSONAJE_INEXISTENTE,
+	N_RECURSO_INEXISTENTE,
+	/* Mensajes del personaje */
+	P_HANDSHAKE,
+	P_MOVIMIENTO,	 			// movimiento que hace el personaje
+	P_POS_RECURSO,				//solicita la posicion del recurso
+	P_SIN_VIDAS,				// manda simbolo
+	P_DESCONECTARSE_MUERTE, 	// AVISO
+	P_DESCONECTARSE_FINALIZADO,	// AVISO
+	P_SOLICITUD_RECURSO,		//solicita el recurso en si
+	P_FIN_TURNO,				//AVISO a plataforma
+	P_FIN_PLAN_NIVELES,			//AVISO cuando se terminan todos los niveles
+	/* Mensajes comunes */
+	DESCONEXION,
+	NO_SE_OBTIENE_RESPUESTA
+} tMensaje;
 
 typedef int8_t tSimbolo;
 
@@ -155,6 +155,8 @@ typedef struct {
 
 
 typedef char* tPersonajesDeadlock; // un array con todos los simbolos de los personajes que se bloquearon
+
+char *enumToString(tMensaje tipoDeMensaje);
 
 int serializarHandshakePers(tMensaje tipoMensaje, tHandshakePers handshakePersonaje, tPaquete* pPaquete);
 tHandshakePers* deserializarHandshakePers(char * payload);
