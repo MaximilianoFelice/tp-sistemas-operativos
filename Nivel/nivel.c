@@ -681,7 +681,7 @@ void *deteccionInterbloqueo (void *parametro){
 		personajesBloqueados=list_create();
 		bool estaBloqueado(pers_t* persoj){return (persoj->bloqueado==true);}
 		personajesBloqueados=list_filter(list_personajes,(void*)estaBloqueado);
-		if(list_size(personajesBloqueados)==0){
+		if(list_size(personajesBloqueados)!=0){
 			pthread_mutex_lock (&semItems);//nadie mueve un pelo hasta que no se evalue el interbloqueo
 			int cantPersonajes=list_size(list_personajes);
 			int matAsignacion[cantPersonajes][cantRecursos];
