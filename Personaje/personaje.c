@@ -347,7 +347,8 @@ void solicitarRecurso(int socketPlataforma, char *recurso){
 		}
 		default: {
 			log_error(logger, "Llego un mensaje (tipoMensaje: %s) cuando debia llegar PL_SOLICITUD_RECURSO", enumToString(tipoMensaje));
-			sleep(400000000);
+			log_error(logger, "Estoy en un sleep(400000000); porque me llego mal un mensaje: DETENGO TODO");
+			sleep(40000000);
 			exit(EXIT_FAILURE);
 			break;
 		}
@@ -392,7 +393,8 @@ tDirMovimiento calcularYEnviarMovimiento(personajeIndividual_t *personajePorNive
 		}
 		default: {
 			log_error(logger, "Llego un mensaje (tipoMensaje: %s) cuando debia llegar PL_CONFIRMACION_MOV", enumToString(tipoMensaje));
-			sleep(4000000);
+			log_error(logger, "Estoy en un sleep(400000000); porque me llego mal un mensaje: DETENGO TODO");
+			sleep(40000000);
 			exit(EXIT_FAILURE);
 			break;
 		}
@@ -428,6 +430,7 @@ void recibirMensajeTurno(int socketPlataforma){
 		}
 		default: {
 			log_error(logger, "Llego un mensaje (tipoMensaje: %s) cuando debia llegar PL_OTORGA_TURNO", enumToString(tipoMensaje));
+			log_error(logger, "Estoy en un sleep(400000000); porque me llego mal un mensaje: DETENGO TODO");
 			sleep(40000000);
 			exit(EXIT_FAILURE);
 			break;
@@ -469,7 +472,8 @@ void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurs
 		}
 		default:{
 			log_error(logger, "Llego un mensaje (tipoMensaje: %s) cuando debia llegar PL_POS_RECURSO", enumToString(tipoMensaje));
-			sleep(4);
+			log_error(logger, "Estoy en un sleep(400000000); porque me llego mal un mensaje: DETENGO TODO");
+			sleep(40000000);
 			exit(EXIT_FAILURE);
 			break;
 		}
@@ -502,6 +506,8 @@ void reintentarSolicitudRecurso(personajeIndividual_t* personajePorNivel, tPaque
 		}
 		default:{
 			log_error(logger, "Llego un mensaje (tipoMensaje: %d) cuando debia llegar PL_POS_RECURSO", tipoMensaje);
+			log_error(logger, "Estoy en un sleep(400000000); porque me llego mal un mensaje: DETENGO TODO");
+			sleep(40000000);
 			exit(EXIT_FAILURE);
 			break;
 		}
