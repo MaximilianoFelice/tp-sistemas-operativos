@@ -32,6 +32,8 @@ int recibirPaquete(int socketReceptor, tMensaje* tipoMensaje, char** payload, t_
 
 signed int getConnection(fd_set *master, int *maxSock, int sockListener, tMensaje *tipoMensaje, char** payload, t_log* logger);
 
+signed int getConnectionTimeOut(fd_set *setSockets, int *maxSock, int sockListener, tMensaje *tipoMensaje, char** payload, struct timeval *timeout, t_log* logger);
+
 signed int multiplexar(fd_set *master, fd_set *temp, int *maxSock, tMensaje* tipoMensaje, char** buffer, t_log* logger);
 
 signed int connectToServer(char *ip_server, int puerto, t_log *logger);

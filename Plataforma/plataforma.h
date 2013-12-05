@@ -34,8 +34,8 @@ typedef struct {
 	int  socket;
 	tSimbolo simbolo;
 	t_list *recursos;
-	int valorAlgoritmo; // Si está planificando con SRDF es la distancia al recurso y si planifica con RR es el quantum actual.
-						//	Si el valor es negativo, es que el personaje no salio de la cola de listos
+	int valorAlgoritmo;
+	int indiceLlegada;
 } tPersonaje;
 
 typedef struct {
@@ -43,12 +43,12 @@ typedef struct {
 	char* nombre; 			 // Nombre del nivel
 	t_queue* cListos; 		 // Cola de listos
 	t_list*  lBloqueados; 	 // Lista de bloqueados (ordenada por orden de llegada)
-	t_list*  lMuertos;		 // Lista de personajes muertos
 	fd_set masterfds;
 	tAlgoritmo algoritmo;
 	int quantum;
 	int delay;
 	int maxSock;
+	int cantidadIngresantes; //La uso para detectar cual personaje matar en el deadlock
 } tNivel;
 
 typedef struct {
@@ -58,8 +58,14 @@ typedef struct {
 
 typedef enum {
 	byName,
-	bySocket
-} tBusqueda;
+	bySocket,
+} tBusquedaPersonaje;
+
+typedef enum {
+	bySymbol,
+	bySock,
+	byRecursoBlock
+} tBusquedaPersBlock;
 
 //Hilos
 void *orquestador(void *) ;
@@ -79,12 +85,13 @@ void wait_personajes(bool *primerIntento);
 //Busquedas
 int existeNivel(t_list * lNiveles, char* sLevelName);
 tNivel *getNivel(char *nom_nivel);
-int existPersonajeBlock(t_list *block, tSimbolo recurso);
-int existePersonaje(t_list *pListaPersonajes, int valor, tBusqueda criterio);
-tPersonaje *getPersonaje(t_list *listaPersonajes, int valor, tBusqueda criterio);
+int existPersonajeBlock(t_list *block, tSimbolo recurso, tBusquedaPersBlock);
+int existePersonaje(t_list *pListaPersonajes, int valor, tBusquedaPersonaje criterio);
+tPersonaje *getPersonaje(t_list *listaPersonajes, int valor, tBusquedaPersonaje criterio);
+tPersonajeBloqueado *getPersonajeBlock(t_list *lBloqueados, int valor, tBusquedaPersBlock criterio);
 
 //Constructores y destroyers
-void agregarPersonaje(t_queue *cPersonajes, tSimbolo simbolo, int socket);
+void agregarPersonaje(tNivel *pNivel, tSimbolo simbolo, int socket);
 void crearNivel(t_list* lNiveles, tNivel* nivelNuevo, int socket, char *levelName, tInfoNivel *pInfoNivel);
 void crearHiloPlanificador(pthread_t *pPlanificador, tNivel *nivelNuevo, t_list*);
 tPersonajeBloqueado *createPersonajeBlock(tPersonaje *personaje, tSimbolo recurso);

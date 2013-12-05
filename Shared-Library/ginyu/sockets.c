@@ -46,7 +46,6 @@ void escucharEn(int unSocket)
 	}
 }
 
-
 int crearSocketEscucha(int puerto, t_log* logger)
 {
 	struct sockaddr_in myAddress;
@@ -67,7 +66,6 @@ int crearSocketEscucha(int puerto, t_log* logger)
 
 	return socketEscucha;
 }
-
 
 int enviarPaquete(int socketServidor, tPaquete* pPaqueteAEnviar, t_log* logger, char* info)
 {
@@ -146,6 +144,76 @@ signed int getConnection(fd_set *setSockets, int *maxSock, int sockListener, tMe
 
 	//--Multiplexa conexiones
 	if (select(*maxSock + 1, &setTemporal, NULL, NULL, NULL) == -1) {
+		log_error(logger, "select: %s", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+
+	//--Cicla las conexiones para ver cual cambio
+	for (iSocket = 0; iSocket <= *maxSock; iSocket++) {
+
+		//--Si el i° socket cambió
+		if (FD_ISSET(iSocket, &setTemporal)) {
+			//--Si el que cambió, es el listener
+
+			if (iSocket == sockListener) {
+
+				//--Gestiona nueva conexión
+				iNewSocket = accept(sockListener, (struct sockaddr*) &clientAddress, &sinClientSize);
+
+				if (iNewSocket == -1) {
+					log_error(logger, "getConnection :: accept: %s", strerror(errno));
+
+				} else {
+					log_trace(logger, "Nueva conexion socket: %d", iNewSocket);
+					//--Agrega el nuevo listener
+					FD_SET(iNewSocket, setSockets);
+
+					if (iNewSocket > *maxSock) {
+						*maxSock = iNewSocket;
+					}
+				}
+
+			} else {
+				//--Gestiona un cliente ya conectado
+				if ((iBytesRecibidos = recibirPaquete(iSocket, tipoMensaje, payload, logger, "Se recibe informacion")) <= 0) {
+					//--Si cerró la conexión o hubo error
+					if (iBytesRecibidos == 0) {
+						log_debug(logger, "Fin de conexion de socket %d.", iSocket);
+
+					} else {
+						log_error(logger, "recv: %s", strerror(errno));
+					}
+
+					//--Cierra la conexión y lo saca de la lista
+					close(iSocket);
+					FD_CLR(iSocket, setSockets);
+					*tipoMensaje = DESCONEXION;
+				}
+
+				return iSocket;
+			}
+		}
+	}
+
+	return -1;
+}
+
+signed int getConnectionTimeOut(fd_set *setSockets, int *maxSock, int sockListener, tMensaje *tipoMensaje, char** payload, struct timeval *timeout, t_log* logger)
+{
+	int iSocket;
+	int iNewSocket;
+	int iBytesRecibidos;
+	fd_set setTemporal;
+	FD_ZERO(&setTemporal);
+	setTemporal = *setSockets;
+
+
+	struct sockaddr_in clientAddress;
+	socklen_t sinClientSize;
+	sinClientSize = sizeof(clientAddress);
+
+	//--Multiplexa conexiones
+	if (select(*maxSock + 1, &setTemporal, NULL, NULL, timeout) == -1) {
 		log_error(logger, "select: %s", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
