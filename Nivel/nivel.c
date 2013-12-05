@@ -755,7 +755,6 @@ void *deteccionInterbloqueo (void *parametro){
 			}else{
 				log_debug(logger,"hay interbloqueo");
 				if(recovery==1){//notificar a plataforma, entonces vecSatisfechos contendra -1-->el personaje quedo interbloqueado
-					pthread_mutex_lock(&semMSJ);
 					paquete->type=N_MUERTO_POR_DEADLOCK;
 					paquete->length=sizeof(tSimbolo);
 					char encontrado=0;
@@ -767,9 +766,14 @@ void *deteccionInterbloqueo (void *parametro){
 							encontrado='1';
 						}
 					}
+					pthread_mutex_lock(&semMSJ);
 					enviarPaquete(sockete,paquete,logger,"enviando notificacion de bloqueo de personajes a plataforma");
 					pthread_mutex_unlock(&semMSJ);
 					//eliminar personaje y devolver recursos
+					log_debug(logger, "El personaje %c se elimino por participar en un interbloqueo", personaje->simbolo);
+					pthread_mutex_lock(&semItems);
+					liberarRecsPersonaje2((char) personaje->simbolo);
+					pthread_mutex_unlock(&semItems);
 				}
 			}
 			pthread_mutex_unlock (&semItems);
@@ -778,7 +782,6 @@ void *deteccionInterbloqueo (void *parametro){
 	}
 	return 0;
 }
-
 void liberarRecsPersonaje2(char id){
 	pers_t *persDesconexion;
 
