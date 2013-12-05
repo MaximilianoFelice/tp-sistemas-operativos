@@ -724,7 +724,8 @@ void *deteccionInterbloqueo (void *parametro){
 				personaje=list_get(list_personajes,i);
 				for(j=0;j<list_size(personaje->recursos);j++){       //recorro su lista de recursos y por cada recurso asignados:
 					caja=list_get(personaje->recursos,j);
-					for(k=0;k<cantRecursos;k++){                     //recorro a vecCajas (vector de recursos en list_items) viendo por c/u de sus elementos
+
+					for(k=0;k<cantRecursos;k++){//recorro a vecCajas (vector de recursos en list_items) viendo por c/u de sus elementos
 						if(vecCajas[k].simbolo==(char*)caja){        //si coincide con el recurso recorrido con j (esto es para que las matrices mantengan los indices)
 							if((j==list_size(personaje->recursos)-1)&&(personaje->bloqueado==true)){//me fijo si es el ultimo elemento de la lista(=>es el por el que el personaje esta bloqueado)
 								matSolicitud[i][k]+=1;               //entonces lo pongo en la ubicacion i k de la matriz de solicitud
