@@ -58,7 +58,7 @@ int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNi
 void muertePorEnemigoPersonaje(char* sPayload, tNivel *pNivel, tPersonaje* pPersonaje, t_log* logger);
 void recepcionRecurso(tNivel *pNivel, char *sPayload, t_log *logger);
 void confirmarMovimiento(tNivel *nivel, tPersonaje *pPersonajeActual);
-void matarPersonajeDeadlockeado(tNivel *pNivel, char *sPayload);
+void muertePorDeadlockPersonaje(tNivel *pNivel, char *sPayload);
 
 int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexion, char *sPayload);
 char *liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel);
@@ -534,6 +534,10 @@ void *planificador(void * pvNivel) {
 				muertePorEnemigoPersonaje(sPayload, pNivel, pPersonajeActual, logger);
             	break;
 
+            case(N_MUERTO_POR_DEADLOCK):
+				muertePorDeadlockPersonaje(pNivel, sPayload);
+				break;
+
             case(N_ENTREGA_RECURSO):
 				recepcionRecurso(pNivel, sPayload, logger);
              	cantidadListos = queue_size(pNivel->cListos);
@@ -548,10 +552,6 @@ void *planificador(void * pvNivel) {
 				confirmarMovimiento(pNivel, pPersonajeActual);
             	iEnviarTurno = true;
 				break;
-
-            case(N_PERSONAJES_DEADLOCK):
-            	matarPersonajeDeadlockeado(pNivel, sPayload);
-            	break;
 
 //            case(DESCONEXION): //TODO el personaje tiene que mandarte un P_DESCONECTARSE_FINALIZADO cuando termina sus objetivos
 //            	log_debug(logger, "<<< %s", enumToString(DESCONEXION));
@@ -748,37 +748,21 @@ void muertePorEnemigoPersonaje(char* sPayload, tNivel *pNivel, tPersonaje* pPers
 	pkgMuertePers.type    = PL_MUERTO_POR_ENEMIGO;
 	pkgMuertePers.length  = strlen(sPayload);
 
-	/* TODO analizar bien que pasa cuando muere el personaje */
-
 	enviarPaquete(pPersonaje->socket, &pkgMuertePers, logger, "Envio mensaje de muerte por personaje");
 }
 
-void matarPersonajeDeadlockeado(tNivel *pNivel, char *sPayload){
-	//El nivel me manda en el payload todos los personajes matados
-	char *personajesDeadlock = sPayload;
-	int cantidadPersonajes = strlen(personajesDeadlock);
-	int indicePersonaje;
-	tPersonaje *personajeVictima;
+void muertePorDeadlockPersonaje(tNivel *pNivel, char *sPayload){
+
+	char *personajeDeadlock = sPayload;
 	tPaquete paquete;
-	int indiceLlegada = 99;
 
-	log_debug(logger, "Me llego mensaje de deadlock del %s", pNivel->nombre);
+	log_debug(logger, "El nivel %s mato al personaje %c para resolver interbloqueo", pNivel->nombre, *personajeDeadlock);
 
-	for(indicePersonaje=0; indicePersonaje < cantidadPersonajes; indicePersonaje++){
-		tSimbolo pSimboloPers = personajesDeadlock[ indicePersonaje ];
-		tPersonajeBloqueado *persBlock = getPersonajeBlock(pNivel->lBloqueados, pSimboloPers, bySymbol);
+	tPersonajeBloqueado *persBlock = getPersonajeBlock(pNivel->lBloqueados, *personajeDeadlock, bySymbol);
 
-		//Me quedo con el que tenga menor indice, ese entró primero que los demas
-		if(indiceLlegada > persBlock->pPersonaje->indiceLlegada){
-			//Seteo una nueva victima
-			personajeVictima = (persBlock->pPersonaje);
-		}
-	}
-
-	log_debug(logger, "\n>>>>>VICTIMA: %c\n", personajeVictima->simbolo);
-	paquete.length = 0;
 	paquete.type = PL_MUERTO_POR_DEADLOCK; //Cuando el personaje se desconecte va a liberar recursos ahí.
-	enviarPaquete(personajeVictima->socket, &paquete, logger, "Se mato a un personaje por deadlock");
+	paquete.length = 0;
+	enviarPaquete(persBlock->pPersonaje->socket, &paquete, logger, "Se envia aviso de muerte por deadlock");
 
 	free(sPayload);
 }

@@ -66,7 +66,7 @@ typedef enum {
 	N_PERSONAJE_YA_EXISTENTE, 	//El personaje ya existia
 	N_CONFIRMACION_ELIMINACION,	// AVISO
 	N_MUERTO_POR_ENEMIGO, 		// tSimbolo
-	N_PERSONAJES_DEADLOCK, 		// tSimbolo (el personaje que ya se murio)
+	N_MUERTO_POR_DEADLOCK, 		// tSimbolo (el personaje que ya se murio)
 	N_ESTADO_PERSONAJE,   		// Los estados posibles despues del movimiento
 	N_POS_RECURSO,
 	N_DATOS,
