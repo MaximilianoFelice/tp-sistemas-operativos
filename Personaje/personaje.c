@@ -652,6 +652,21 @@ void muertoPorSenial(){
 	continuar=false;
 	pthread_mutex_unlock(&semModificadorDeVidas);
 
+
+	pthread_mutex_destroy(&semModificadorDeVidas);
+
+	log_destroy(logger);
+	destruirArchivoConfiguracion(configPersonaje);
+	int i;
+	for (i = 0; i < list_size(personaje.listaNiveles); i++) {
+		nivel_t *aux = (nivel_t *) list_get(personaje.listaNiveles, i);
+		list_destroy(aux->Objetivos);
+	}
+	list_destroy_and_destroy_elements(personaje.listaNiveles, (void *) nivel_destroyer);
+
+	pthread_mutex_destroy(&semMovement);
+
+	exit(EXIT_FAILURE);
 }
 
 void matarHilosYDesconectar(){
