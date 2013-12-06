@@ -48,7 +48,8 @@ typedef struct {
 	int quantum;
 	int delay;
 	int maxSock;
-	int cantidadIngresantes; //La uso para detectar cual personaje matar en el deadlock
+	int cantidadIngresantes; // La uso para detectar cual personaje matar en el deadlock
+	int rdDefault;			 // La remaining distance por default que manda el nivel
 } tNivel;
 
 typedef struct {

@@ -275,7 +275,7 @@ int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOr
 	tInfoNivel *pInfoNivel;
 
 	tNivel *pNivelNuevo = (tNivel *) malloc(sizeof(tNivel));
-	pPlanificador 	   = (pthread_t *) malloc(sizeof(pthread_t));
+	pPlanificador 	    = (pthread_t *) malloc(sizeof(pthread_t));
 	log_debug(logger, "Se conecto el nivel %s", sPayload);
 	char* sNombreNivel = strdup(sPayload);
 
@@ -347,6 +347,7 @@ int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOr
 	return EXIT_SUCCESS;
 }
 
+
 int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char* sPayload) {
 	tHandshakePers* pHandshakePers;
 	pHandshakePers = deserializarHandshakePers(sPayload);
@@ -392,6 +393,7 @@ int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char*
 	return EXIT_SUCCESS;
 }
 
+
 void sendConnectionFail(int sockPersonaje, tMensaje typeMsj, char *msjInfo){
 	tPaquete pkgPersonajeRepetido;
 	pkgPersonajeRepetido.type   = typeMsj;
@@ -399,8 +401,8 @@ void sendConnectionFail(int sockPersonaje, tMensaje typeMsj, char *msjInfo){
 	enviarPaquete(sockPersonaje, &pkgPersonajeRepetido, logger, msjInfo);
 }
 
-bool avisoConexionANivel(int sockNivel,char *sPayload, tSimbolo simbolo){
 
+bool avisoConexionANivel(int sockNivel,char *sPayload, tSimbolo simbolo){
 	tMensaje tipoMensaje;
 	tSimbolo simboloMsj = simbolo;
 	tPaquete *paquete = malloc(sizeof(tPaquete));
@@ -419,6 +421,7 @@ bool avisoConexionANivel(int sockNivel,char *sPayload, tSimbolo simbolo){
 	return false;
 }
 
+
 void crearNivel(t_list* lNiveles, tNivel* pNivelNuevo, int socket, char *levelName, tInfoNivel *pInfoNivel) {
 	pNivelNuevo->nombre = malloc(strlen(levelName) + 1);
 	strcpy(pNivelNuevo->nombre, levelName);
@@ -429,11 +432,13 @@ void crearNivel(t_list* lNiveles, tNivel* pNivelNuevo, int socket, char *levelNa
 	pNivelNuevo->algoritmo 	 = pInfoNivel->algoritmo;
 	pNivelNuevo->delay 		 = pInfoNivel->delay;
 	pNivelNuevo->maxSock 	 = socket;
+	pNivelNuevo->rdDefault	 = 30;  //TODO tenemos que decirle a cesar que agregue la remaining distance a la info que nos manda el nivel
 	pNivelNuevo->cantidadIngresantes = 0;
 	FD_ZERO(&(pNivelNuevo->masterfds));
 
 	list_add(lNiveles, pNivelNuevo);
 }
+
 
 void agregarPersonaje(tNivel *pNivel, tSimbolo simbolo, int socket) {
 
@@ -444,12 +449,18 @@ void agregarPersonaje(tNivel *pNivel, tSimbolo simbolo, int socket) {
 	pPersonajeNuevo->simbolo  	  	 = simbolo;
 	pPersonajeNuevo->socket 	  	 = socket;
 	pPersonajeNuevo->recursos 	  	 = list_create();
-	pPersonajeNuevo->valorAlgoritmo  = -1;
 	pPersonajeNuevo->posRecurso.posX = 0; // Solo se usa en SRDF
 	pPersonajeNuevo->posRecurso.posY = 0; // Solo se usa en SRDF
 
+	if (pNivel->algoritmo == RR) {
+		pPersonajeNuevo->valorAlgoritmo = 0;
+	} else {
+		pPersonajeNuevo->valorAlgoritmo = pNivel->rdDefault;
+	}
+
 	queue_push(pNivel->cListos, pPersonajeNuevo);
 }
+
 
 void crearHiloPlanificador(pthread_t *pPlanificador, tNivel *nivelNuevo, t_list *lPlanificadores) {
 
@@ -457,9 +468,7 @@ void crearHiloPlanificador(pthread_t *pPlanificador, tNivel *nivelNuevo, t_list 
         log_error(logger, "crearHiloPlanificador :: pthread_create: %s", strerror(errno));
         exit(EXIT_FAILURE);
     }
-
     list_add(lPlanificadores, pPlanificador);
-
 }
 
 /*
@@ -582,6 +591,7 @@ int seleccionarJugador(tPersonaje** pPersonaje, tNivel* nivel, bool iEnviarTurno
 
     // Me fijo si puede seguir jugando
     if (*pPersonaje != NULL) {
+
         switch(nivel->algoritmo) {
         case RR:
             if ((*pPersonaje)->valorAlgoritmo < nivel->quantum) {
@@ -621,18 +631,13 @@ int seleccionarJugador(tPersonaje** pPersonaje, tNivel* nivel, bool iEnviarTurno
     if (iTamanioColaListos == 0 && iTamanioListaBlock == 0 && pPersonaje == NULL) {
     	log_debug(logger, "No quedan mas personajes en el nivel. Planificador finalizado");
     	return EXIT_SUCCESS;
+
     } else if (iTamanioColaListos == 1) {
     	//Si estan aqui es porque su quantum terminó
         *pPersonaje = queue_pop(nivel->cListos);
-        switch(nivel->algoritmo) {
-		case RR:
-			break;
-		case SRDF:
-			//Cuando hay 2 personajes, y uno llega al recurso, se bloquea y luego entra a este case
-			break;
-		}
 
     } else if (iTamanioColaListos > 1) {
+
         switch(nivel->algoritmo) {
         case RR:
         	log_debug(logger, "Planificando RR...");
@@ -669,12 +674,15 @@ void enviarTurno(tPersonaje *pPersonaje, int delay) {
 bool coordinarAccesoMultiplesPersonajes(tPersonaje *personajeActual, int socketConexion, bool valor) {
 
 	if (personajeActual != NULL) {
+
 		if (esElPersonajeQueTieneElTurno(personajeActual->socket, socketConexion)) {
 			return valor; //Devuelve el valor que corresponde
+
 		} else {
 			log_debug(logger, "Otro personaje no puede cambiar esta variable hasta que sea su turno");
 			return false; //Si es otro personaje: me aseguro de no dar turnos.
 		}
+
 	} else { //Si el personaje es NULL
 		log_debug(logger, "El personaje es NULL");
 		return false; //Si el personaje es NULL: implica que esta en N_ENTREGA_RECURSO o en PL_SOLICITUD_RECURSO
@@ -687,21 +695,18 @@ bool esElPersonajeQueTieneElTurno(int socketActual, int socketConexion){
 
 tPersonaje* planificacionSRDF(t_queue* cListos) {
     int iNroPersonaje;
-    int iDistanciaFaltanteMinima = 4000000;
     tPersonaje *pPersonaje, *pPersonajeTemp;
-    log_debug(logger, "Planificadoooooooooooooooooooooooooooor SRDF");
+    log_debug(logger, "Planificador SRDF");
     int iTamanioCola = queue_size(cListos);
-    for (iNroPersonaje = 0; iNroPersonaje < iTamanioCola; iNroPersonaje ++) {
+
+    pPersonaje = list_get(cListos->elements, 0);
+
+    for (iNroPersonaje = 1; iNroPersonaje < iTamanioCola; iNroPersonaje++) {
         pPersonajeTemp = list_get(cListos->elements, iNroPersonaje);
-        if ((pPersonajeTemp->valorAlgoritmo > 0) && (pPersonajeTemp->valorAlgoritmo < iDistanciaFaltanteMinima)) {
-            iDistanciaFaltanteMinima = pPersonajeTemp->valorAlgoritmo;
+
+        if ((pPersonajeTemp->valorAlgoritmo > 0) && (pPersonajeTemp->valorAlgoritmo < pPersonaje->valorAlgoritmo)) {
             pPersonaje = pPersonajeTemp;
         }
-    }
-
-    if (iDistanciaFaltanteMinima == 4000000) { // Si no se encontro ninguno que cumpla los requisitos, agarro el primero de la cola
-        pPersonaje = queue_pop(cListos);
-        pPersonaje->valorAlgoritmo = -1; // -1 quiere decir que no tiene data
     }
 
     return pPersonaje;
@@ -790,7 +795,7 @@ void confirmarMovimiento(tNivel *nivel, tPersonaje *pPersonajeActual) {
 	if (nivel->algoritmo == RR) {
 		pPersonajeActual->valorAlgoritmo++;
 	} else {
-		pPersonajeActual->valorAlgoritmo--; //TODO
+		pPersonajeActual->valorAlgoritmo--;
 	}
 	tPaquete pkgConfirmacionMov;
 	pkgConfirmacionMov.type    = PL_CONFIRMACION_MOV;
