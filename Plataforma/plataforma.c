@@ -54,7 +54,7 @@ tPersonaje* planificacionSRDF(t_queue* cListos);
 void solicitudRecursoPersonaje(int iSocketConexion, char *sPayload, tNivel *pNivel, tPersonaje **pPersonajeActual, t_log *logger);
 void movimientoPersonaje(int iSocketConexion, char* sPayload, tNivel *pNivel, tPersonaje* pPersonaje, t_log* logger);
 void posicionRecursoPersonaje(tNivel *pNivel, tPersonaje *personajeActual, int iSocketConexion, char* sPayload, int socketNivel, t_log* logger);
-int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNivel, t_log* logger);
+int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNivel, tPersonaje *pPersonajeActual, t_log* logger);
 void muertePorEnemigoPersonaje(char* sPayload, tNivel *pNivel, tPersonaje* pPersonaje, t_log* logger);
 void recepcionRecurso(tNivel *pNivel, char *sPayload, t_log *logger);
 void confirmarMovimiento(tNivel *nivel, tPersonaje *pPersonajeActual);
@@ -63,6 +63,7 @@ void muertePorDeadlockPersonaje(tNivel *pNivel, char *sPayload);
 int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexion, char *sPayload);
 char *liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel);
 void obtenerDistanciaFaltante(tPersonaje *pPersonajeActual, char * sPayload);
+void cambioAlgoritmo(tAlgoritmo algoritmoNuevo, int rdDefault, tNivel* pNivel, tPersonaje *pPersonajeActual);
 
 
 void enviarTurno(tPersonaje *pPersonaje, int delay);
@@ -539,7 +540,7 @@ void *planificador(void * pvNivel) {
 			/* Mensajes que puede mandar el nivel */
 
             case(N_ACTUALIZACION_CRITERIOS):
-                actualizacionCriteriosNivel(iSocketConexion, sPayload, pNivel, logger);
+                actualizacionCriteriosNivel(iSocketConexion, sPayload, pNivel, pPersonajeActual, logger);
                 break;
 
             case(N_MUERTO_POR_ENEMIGO):
@@ -601,6 +602,7 @@ int seleccionarJugador(tPersonaje** pPersonaje, tNivel* nivel, bool iEnviarTurno
             		enviarTurno(*pPersonaje, nivel->delay);
             	}
                 return (EXIT_SUCCESS);
+
             } else {
                 // Termina su quantum vuelve a la cola
                 (*pPersonaje)->valorAlgoritmo = 0;
@@ -616,6 +618,7 @@ int seleccionarJugador(tPersonaje** pPersonaje, tNivel* nivel, bool iEnviarTurno
 					enviarTurno(*pPersonaje, nivel->delay);
 				}
                 return (EXIT_SUCCESS);
+
             } else if ((*pPersonaje)->valorAlgoritmo == 0) {
                 // Llego al recurso, se bloquea
                 return (EXIT_FAILURE);
@@ -724,9 +727,7 @@ void posicionRecursoPersonaje(tNivel *pNivel, tPersonaje *pPersonajeActual, int 
 
     if (tipoMensaje == N_POS_RECURSO) {
 
-    	if (pNivel->algoritmo == SRDF) {
-    		obtenerDistanciaFaltante(pPersonajeActual, sPayload);
-    	}
+    	obtenerDistanciaFaltante(pPersonajeActual, sPayload);
 
     	pkgPosRecurso.type    = PL_POS_RECURSO;
         pkgPosRecurso.length  = sizeof(int8_t) + sizeof(int8_t);
@@ -804,19 +805,52 @@ void confirmarMovimiento(tNivel *nivel, tPersonaje *pPersonajeActual) {
 	enviarPaquete(sockPersonaje, &pkgConfirmacionMov, logger, "Se envia confirmacion de movimiento al personaje");
 }
 
-int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNivel, t_log* logger) {
+int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNivel, tPersonaje *pPersonajeActual, t_log* logger) {
 	tInfoNivel* pInfoNivel;
 	pInfoNivel = deserializarInfoNivel(sPayload);
 	log_info(logger, "Se recibe nueva informacion del nivel");
 
 	pNivel->quantum   = pInfoNivel->quantum;
 	pNivel->delay     = pInfoNivel->delay;
-	pNivel->algoritmo = pInfoNivel->algoritmo;
+	pNivel->rdDefault = 20; // TODO Actualizar cuando lo incorpore cesar
+
+	if (pNivel->algoritmo != pInfoNivel->algoritmo) {
+		log_info(logger, "Se ha cambiado el algoritmo de planificacion");
+		cambioAlgoritmo(pInfoNivel->algoritmo, pNivel->rdDefault, pNivel, pPersonajeActual);
+		pNivel->algoritmo = pInfoNivel->algoritmo;
+	}
 
 	free(sPayload);
 	free(pInfoNivel);
 
 	return EXIT_SUCCESS;
+}
+
+void cambioAlgoritmo(tAlgoritmo algoritmoNuevo, int rdDefault, tNivel* pNivel, tPersonaje *pPersonajeActual) {
+	int valorAlgoritmo;
+	int iIndice;
+	int iCantidadReady = queue_size(pNivel->cListos);
+	int iCantidadBloq  = list_size(pNivel->lBloqueados);
+	tPersonaje *pPersonaje;
+
+	if (algoritmoNuevo == RR) {
+		valorAlgoritmo = 0;
+		pPersonajeActual->valorAlgoritmo = 0;
+	} else {
+		valorAlgoritmo = rdDefault;
+		pPersonajeActual->valorAlgoritmo = -1;	// No sabemos en donde está situado el personaje, pero al ser no expropiativo no importa, sigue jugando
+	}
+
+	for (iIndice = 0; iIndice < iCantidadReady; iIndice++) {
+		pPersonaje = list_get(pNivel->cListos->elements, iIndice);
+		pPersonaje->valorAlgoritmo = valorAlgoritmo;
+	}
+
+	for (iIndice = 0; iIndice < iCantidadBloq; iIndice++) {
+		pPersonaje = list_get(pNivel->lBloqueados, iIndice);
+		pPersonaje->valorAlgoritmo = valorAlgoritmo;
+	}
+
 }
 
 void solicitudRecursoPersonaje(int iSocketConexion, char *sPayload, tNivel *pNivel, tPersonaje **pPersonaje, t_log *logger) {
