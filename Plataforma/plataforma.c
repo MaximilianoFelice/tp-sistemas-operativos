@@ -62,6 +62,7 @@ void muertePorDeadlockPersonaje(tNivel *pNivel, char *sPayload);
 
 int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexion, char *sPayload);
 char *liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel);
+void obtenerDistanciaFaltante(tPersonaje *pPersonajeActual, char * sPayload);
 
 
 void enviarTurno(tPersonaje *pPersonaje, int delay);
@@ -440,11 +441,13 @@ void agregarPersonaje(tNivel *pNivel, tSimbolo simbolo, int socket) {
 	tPersonaje *pPersonajeNuevo;
 	pPersonajeNuevo = malloc(sizeof(tPersonaje));
 
-	pPersonajeNuevo->simbolo  	  	= simbolo;
-	pPersonajeNuevo->socket 	  	= socket;
-	pPersonajeNuevo->recursos 	  	= list_create();
-	pPersonajeNuevo->valorAlgoritmo = -1;
-	pPersonajeNuevo->indiceLlegada = pNivel->cantidadIngresantes++;
+	pPersonajeNuevo->simbolo  	  	 = simbolo;
+	pPersonajeNuevo->socket 	  	 = socket;
+	pPersonajeNuevo->recursos 	  	 = list_create();
+	pPersonajeNuevo->valorAlgoritmo  = -1;
+	pPersonajeNuevo->posRecurso.posX = 0; // Solo se usa en SRDF
+	pPersonajeNuevo->posRecurso.posY = 0; // Solo se usa en SRDF
+
 	queue_push(pNivel->cListos, pPersonajeNuevo);
 }
 
@@ -704,7 +707,7 @@ tPersonaje* planificacionSRDF(t_queue* cListos) {
     return pPersonaje;
 }
 
-void posicionRecursoPersonaje(tNivel *pNivel, tPersonaje*pPersonajeActual, int iSocketConexion, char* sPayload, int socketNivel, t_log* logger) {
+void posicionRecursoPersonaje(tNivel *pNivel, tPersonaje *pPersonajeActual, int iSocketConexion, char* sPayload, int socketNivel, t_log* logger) {
     tMensaje tipoMensaje;
     tPaquete pkgPosRecurso;
     pkgPosRecurso.type   = PL_POS_RECURSO;
@@ -715,25 +718,16 @@ void posicionRecursoPersonaje(tNivel *pNivel, tPersonaje*pPersonajeActual, int i
     recibirPaquete(socketNivel, &tipoMensaje, &sPayload, logger, "Recibo del NIVEL posicion del recurso");
 
     if (tipoMensaje == N_POS_RECURSO) {
-    	//Este es un nuevo mensaje que me manda el nivel con la posicion del recurso y la distancia del personaje al recurso tmb
-    	//TODO esto es para el SRDF
-//       	tRtaPosicion2 *rtaPosicion = deserializarRtaPosicion2(sPayload);
-//    	if(pPersonajeActual->socket == iSocketConexion){
-//    		pPersonajeActual->valorAlgoritmo = rtaPosicion->RD;
-//    	}
-//    	else {
-//    		tPersonaje *personajeEntrante = getPersonaje(pNivel->cListos->elements, iSocketConexion, bySocket);
-//    		personajeEntrante->valorAlgoritmo = rtaPosicion->RD;
-//    	}
-//    	tRtaPosicion rtaPosPersonaje;
-//    	rtaPosPersonaje.posX = rtaPosicion->posX;
-//    	rtaPosPersonaje.posY = rtaPosicion->posY;
-//    	serializarRtaPosicion(PL_POS_RECURSO, rtaPosPersonaje, &pkgPosRecurso);
+
+    	if (pNivel->algoritmo == SRDF) {
+    		obtenerDistanciaFaltante(pPersonajeActual, sPayload);
+    	}
 
     	pkgPosRecurso.type    = PL_POS_RECURSO;
         pkgPosRecurso.length  = sizeof(int8_t) + sizeof(int8_t);
         memcpy(pkgPosRecurso.payload, sPayload, pkgPosRecurso.length);
     	enviarPaquete(iSocketConexion, &pkgPosRecurso, logger, "Envio de posicion de recurso al personaje");
+
     } else {
         pkgPosRecurso.type    = NO_SE_OBTIENE_RESPUESTA;
         pkgPosRecurso.length  = 0;
@@ -741,6 +735,18 @@ void posicionRecursoPersonaje(tNivel *pNivel, tPersonaje*pPersonajeActual, int i
     }
 
     free(sPayload);
+}
+
+void obtenerDistanciaFaltante(tPersonaje *pPersonajeActual, char * sPayload) {
+	tRtaPosicion *pPosicion;
+	pPosicion = deserializarRtaPosicion(sPayload);
+	pPersonajeActual->valorAlgoritmo =
+			abs(pPosicion->posX - pPersonajeActual->posRecurso.posX)
+			+
+			abs(pPosicion->posY - pPersonajeActual->posRecurso.posY);
+	pPersonajeActual->posRecurso.posX = pPosicion->posX;
+	pPersonajeActual->posRecurso.posY = pPosicion->posY;
+	free(pPosicion);
 }
 
 void muertePorEnemigoPersonaje(char* sPayload, tNivel *pNivel, tPersonaje* pPersonaje, t_log* logger) {

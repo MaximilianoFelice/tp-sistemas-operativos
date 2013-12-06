@@ -35,7 +35,7 @@ typedef struct {
 	tSimbolo simbolo;
 	t_list *recursos;
 	int valorAlgoritmo;
-	int indiceLlegada;
+	tRtaPosicion posRecurso;
 } tPersonaje;
 
 typedef struct {
