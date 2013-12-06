@@ -818,13 +818,18 @@ int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNi
 
 	pNivel->quantum   = pInfoNivel->quantum;
 	pNivel->delay     = pInfoNivel->delay;
-	pNivel->rdDefault = 20; // TODO Actualizar cuando lo incorpore cesar
+//	pNivel->rdDefault = 20; // TODO Actualizar cuando lo incorpore cesar
+	//TODO para mi el rdDefault no se actualiza, solo el quantum delay y algoritmo; no le veo mucho sentido actualizar esto
 
 	if (pNivel->algoritmo != pInfoNivel->algoritmo) {
 		log_info(logger, "Se ha cambiado el algoritmo de planificacion");
 		pPersonajeActual->quantumUsado = 0;
 		pNivel->algoritmo = pInfoNivel->algoritmo;
-		//TODO ordenar lista
+
+		bool _menorRemainingDistance(tPersonaje *unPersonaje, tPersonaje *otroPersonaje){
+			return (unPersonaje->remainingDistance < otroPersonaje->remainingDistance );
+		}
+		list_sort(pNivel->cListos->elements, (void *)_menorRemainingDistance);
 	}
 
 	free(sPayload);
