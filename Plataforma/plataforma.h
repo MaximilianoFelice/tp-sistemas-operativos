@@ -34,7 +34,8 @@ typedef struct {
 	int  socket;
 	tSimbolo simbolo;
 	t_list *recursos;
-	int valorAlgoritmo;
+	int quantumUsado;
+	int remainingDistance;
 	tRtaPosicion posRecurso;
 } tPersonaje;
 
