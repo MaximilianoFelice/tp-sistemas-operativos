@@ -197,4 +197,6 @@ tSimbolo* deserializarSimbolo(char * payload);
 int serializarDesconexionPers(tMensaje tipoMensaje, tDesconexionPers descPers, tPaquete* pPaquete);
 tDesconexionPers * deserializarDesconexionPers(char * payload);
 
+tDesconexionPers* deserializarPersDesconect(char *payload);
+
 #endif /* PROTOCOLO_H_ */
