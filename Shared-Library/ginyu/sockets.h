@@ -30,7 +30,7 @@ int enviarPaquete(int socketServidor, tPaquete* buffer, t_log* logger, char* inf
 
 int recibirPaquete(int socketReceptor, tMensaje* tipoMensaje, char** payload, t_log* pLogger, char* sMensajeLogger);
 
-signed int getConnection(fd_set *master, int *maxSock, int sockListener, tMensaje *tipoMensaje, char** payload, t_log* logger);
+signed int getConnection(fd_set *master, int *maxSock, int sockListener, tMensaje *tipoMensaje, char** payload, int *nroConexiones, t_log* logger);
 
 signed int getConnectionTimeOut(fd_set *setSockets, int *maxSock, int sockListener, tMensaje *tipoMensaje, char** payload, struct timeval *timeout, t_log* logger);
 

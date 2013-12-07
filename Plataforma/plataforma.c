@@ -14,7 +14,7 @@ t_list 	 *listaNiveles;
 t_config *configPlataforma;
 t_log *logger;
 unsigned short usPuerto;
-
+int nroConexiones;
 fd_set setSocketsOrquestador;
 int iSocketMaximoOrquestador;
 char *pathKoopa;
@@ -32,7 +32,8 @@ char *getRecursosNoAsignados(t_list *recursos);
  */
 int executeKoopa(char *koopaPath, char *scriptPath);
 void orquestadorTerminaJuego();
-bool nivelVacio(tNivel *);
+bool nivelVacio(tNivel *unNivel);
+bool soloQuedanNiveles();
 void cerrarTodoSignal();
 void cerrarTodo();
 
@@ -51,6 +52,8 @@ void crearHiloPlanificador(pthread_t *pPlanificador, tNivel *nivelNuevo, t_list 
  */
 int seleccionarJugador(tPersonaje** pPersonaje, tNivel* nivel, bool iEnviarTurno);
 tPersonaje* planificacionSRDF(tNivel *nivel);
+void obtenerDistanciaFaltante(tPersonaje *pPersonajeActual, char * sPayload);
+void enviarTurno(tPersonaje *pPersonaje, int delay);
 void solicitudRecursoPersonaje(int iSocketConexion, char *sPayload, tNivel *pNivel, tPersonaje **pPersonajeActual, t_log *logger);
 void movimientoPersonaje(int iSocketConexion, char* sPayload, tNivel *pNivel, tPersonaje* pPersonaje, t_log* logger);
 void posicionRecursoPersonaje(tNivel *pNivel, tPersonaje *personajeActual, int iSocketConexion, char* sPayload, int socketNivel, t_log* logger);
@@ -59,20 +62,92 @@ void muertePorEnemigoPersonaje(char* sPayload, tNivel *pNivel, tPersonaje* pPers
 void recepcionRecurso(tNivel *pNivel, char *sPayload, t_log *logger);
 void confirmarMovimiento(tNivel *nivel, tPersonaje *pPersonajeActual);
 void muertePorDeadlockPersonaje(tNivel *pNivel, char *sPayload);
-
 int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexion, char *sPayload);
-bool seDesconectoElNivel(int iSocketConexion, int socketNivel);
 char *liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel);
-void obtenerDistanciaFaltante(tPersonaje *pPersonajeActual, char * sPayload);
-void enviarTurno(tPersonaje *pPersonaje, int delay);
-
-
-//Para manejar los turnos en el planificador
+bool seDesconectoElNivel(int iSocketConexion, int socketNivel);
 bool coordinarAccesoMultiplesPersonajes(tPersonaje *personajeActual, int socketConexion, bool valor);
 bool esElPersonajeQueTieneElTurno(int socketActual, int socketConexion);
 
 /*
  * PLATAFORMA
+ */
+
+/* Lista de TODO's
+ *
+ * TODO IMPORTANTE (1)
+ * (1) Hablar con cesar para que cuando se desconecta un personaje reciba un array de recurso no asignados + simbolo personaje que salio
+ * (debemos modificar ese mensaje actual que solo le manda el simbolo del personaje. Esta hecho el deserializador y serialiazador)
+ *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * TODO IMPORTANTE (2)
+ * (2) DESBLOQUEO de un personaje:
+ * Cuando un personaje se mueve, en el nivel debe verificar que no este bloqueado, si lo esta desbloquearlo
+ * 		- EJEMPLO:
+ * 		tenemos bloqueado un personaje X por el recurso 8 y otro personaje Y termina y libera 8 y 9 en plataforma nosotros le damos el recurso 8 a X y lo desbloqueamos
+ * 		y al nivel le avisamos que el personaje Y termino y que NO SE REASIGNO A NINGUN PERSONAJE el recurso 9
+ *		peeeeeero NO LE DICE que el personaje X ya se desbloqueo y entonces para el nivel X va a seguir bloqueado y para nosotros no
+ *		Entonces para evitar tener que pasarle tambien los personajes desbloqueados, cada vez que se mueve un personaje EL NIVEL VERIFICA QUE NO ESTE BLOQUEADO, si lo esta lo desbloquea ya que es obvio que si pide moverse es porque ya se desbloqueo
+ *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ *
+ * Luego de solucionada la 1 y 2, debemos seguir con esto:
+ *
+ * TODO IMPORTANTEEEEEE!!!!!!! (3)
+ * (3) Segun lo que estuve chusmeando en el nivel:
+ * Cuando un personaje lo mata un enemigo o el hilo interbloqueo, luego de avisarle a Plataforma,
+ * el nivel lo que hace es que que libere recursos apenas lo mata.
+ *
+ * Nosotros lo que hacemos es avisarle al personaje pero no liberamos recursos.
+ * Ver que hacer con eso:
+ * 		- Si seguimos como esta y agregamos que liberamos recursos cuando viene muerto. Aqui podriamos tener problemas
+ * 		 porque nosotros REASIGNAMOS los recursos a personajes bloqueados y solo le decimos al nivel que libere los recursos que
+ * 		 nosotros NO reasignamos. Entonces el nivel cuando, por ejemplo un enemigo mata un personaje X, libera TODOS los recursos de ese personaje X,
+ * 		 PERO nosotros Planificador nos fijamos si tenemos pesonajes bloqueados para reasignarlos a ellos y desbloquearlos y luego le decimos al nivel que
+ * 		 libere aquellos recursos que nosotros no hemos reasignado.
+ * 		 Es decir podria haber una desincronizados entre ambos y no puede pasar.
+ *
+ * 		- La solucion mas facil y rapida es que el nivel solo libere recursos cuando le llega el mensaje PL_DESCONEXION_PERSONAJE entonces:
+ * 		Un enemigo alcanza la posicion de X -> le dice al planificador que X tiene que morir ->
+ * 		El planificador le avisa al personaje que se murio ->
+ * 		el personaje se desconecta -> nosotros detectamos que se desconecto y ahi si hacemos reasignar recursos, blablabla
+ *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Otras cosas:
+ *
+ * Hablar con cesar para que nos pase un Remaining Distance.
+ *
+ * El hilo detecta interbloqueo del nivel tira seg fault a veces cuando se esta moviendo un personaje
+ *
+ *
+ * La funcion libRecursos() del nivel tira seg fault. Yo le agregue la mia que es libRecursos2() que anda bien.
+ * Aunque igual la va a tener que modificar porque ahora va a recibir una lista de recursos no asignados,
+ * ademas del simbolo del personaje que termino
+ *
+ *
+ * Cuando plataforma termina agregar que libere memoria de las listas, log y archivo de configuracion en la funcion cerrarTodo();
+ *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ *
+ * Cosas que faltan TESTEAR o que no se si ya se probaron pero agrego por las dudas:
+ *
+ * 1) Cuando se muere un personaje:
+ * 			-Que reinicie bien, si le quedan vidas
+ * 			-Que si se queda sin vidas mate a los otros hilos y pregunte al usuario:
+ * 				-Si le dice que SI, todos los otros hilos deben reiniciar
+ * 				-Si le dice que NO, que cierre correctamente
+ * (fijarse que plataforma no haya ejecutado a Koopa hasta entonces, no deberia pasar ya).
+ *
+ * 2) En personaje manejo de señales para aumentar y restar vidas. El SIGINT funciona rebien testeado mil veces :P
+ *
+ * 3) Cambio de algorimo de SRDF a RR
+ *
+ * 4) Cambio de quantum del RR
+ *
+ * 5) Cambio de delay.
+ *
+ * 6) Interbloqueo
+ *
+ *
  */
 
 int main(int argc, char*argv[]) {
@@ -105,6 +180,7 @@ int main(int argc, char*argv[]) {
 	pthread_mutex_init(&semNivel, NULL );
 	pthread_cond_init(&hayPersonajes, NULL);
 
+
 	thResult = pthread_create(&thOrquestador, NULL, orquestador, (void *) &usPuerto);
 
 	if (thResult != 0) {
@@ -113,9 +189,9 @@ int main(int argc, char*argv[]) {
 	}
 
 	pthread_join(thOrquestador, NULL);
+
 	log_destroy(logger);
 
-	executeKoopa(pathKoopa, pathScript);
 
 	exit(EXIT_SUCCESS);
 }
@@ -180,12 +256,10 @@ void *orquestador(void *vPuerto) {
 	tMensaje tipoMensaje;
 	char * sPayload;
 
-//	struct timeval timeout;
-//	timeout.tv_sec = 5;
-//	timeout.tv_usec = 0;
+	nroConexiones = 0;
 
 	while (1) {
-		iSocketComunicacion = getConnection(&setSocketsOrquestador, &iSocketMaximoOrquestador, iSocketEscucha, &tipoMensaje, &sPayload, logger);
+		iSocketComunicacion = getConnection(&setSocketsOrquestador, &iSocketMaximoOrquestador, iSocketEscucha, &tipoMensaje, &sPayload, &nroConexiones, logger);
 
 		if (iSocketComunicacion != -1) {
 
@@ -200,10 +274,9 @@ void *orquestador(void *vPuerto) {
 				conexionPersonaje(iSocketComunicacion, &setSocketsOrquestador, sPayload);
 				break;
 
-//			case DESCONEXION:
-//				log_debug(logger, "ORQUESTADOR: Me llego la desconexion en %d.....", iSocketComunicacion);
-//				orquestadorTerminaJuego();
-//				break;
+			case DESCONEXION:
+				orquestadorTerminaJuego();
+				break;
 
 			default:
 				log_debug(logger, "ORQUESTADOR: Estoy en el case por default");
@@ -221,27 +294,27 @@ void *orquestador(void *vPuerto) {
 
 void orquestadorTerminaJuego(){
 	int indiceNivel;
-	int cantidadNiveles = list_size(listaNiveles);
-	bool noHayNadie = true;
+	int cantidadNiveles;
 	tNivel *nivelLevantador;
+
 	log_debug(logger, "Verificando niveles...");
+	cantidadNiveles =list_size(listaNiveles);
+	bool noHayPersonajes = (cantidadNiveles == 0 ? false : true);
+	nroConexiones--; //Me llego una desconexion, resto.
 
-	if(list_size(listaNiveles) == 0){
-		noHayNadie=false;
-	}
-
+	//Reviso los niveles
 	for(indiceNivel=0; indiceNivel < cantidadNiveles; indiceNivel++){
 		nivelLevantador = list_get(listaNiveles, indiceNivel);
 
 		if(!nivelVacio(nivelLevantador)){
 			log_debug(logger, "El %s todavia tiene chaboncitos", nivelLevantador->nombre);
-			noHayNadie = false;
+			noHayPersonajes = false;
 			break;
 		}
 		log_debug(logger, "El %s esta vacio", nivelLevantador->nombre);
 	}
 
-	if(noHayNadie){
+	if(noHayPersonajes && soloQuedanNiveles()){
 		log_debug(logger, "No hay tipitos jugando entonces ejecuto koopa y cierro todo");
 		cerrarTodo();
 		executeKoopa(pathKoopa, pathScript);
@@ -251,6 +324,10 @@ void orquestadorTerminaJuego(){
 
 bool nivelVacio(tNivel* nivel){
 	return ((list_size(nivel->cListos->elements)==0) && (list_size(nivel->lBloqueados) == 0));
+}
+
+bool soloQuedanNiveles(){
+	return ((nroConexiones - list_size(listaNiveles)) == 0);
 }
 
 int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOrquestador, t_list *lPlanificadores) {
@@ -431,7 +508,6 @@ void crearNivel(t_list* lNiveles, tNivel* pNivelNuevo, int socket, char *levelNa
 	pNivelNuevo->delay 		 = pInfoNivel->delay;
 	pNivelNuevo->maxSock 	 = socket;
 	pNivelNuevo->rdDefault	 = 30;  //TODO tenemos que decirle a cesar que agregue la remaining distance a la info que nos manda el nivel
-	pNivelNuevo->cantidadIngresantes = 0;
 	FD_ZERO(&(pNivelNuevo->masterfds));
 
 	list_add(lNiveles, pNivelNuevo);
@@ -450,7 +526,7 @@ void agregarPersonaje(tNivel *pNivel, tSimbolo simbolo, int socket) {
 	pPersonajeNuevo->posRecurso.posX = 0; // Solo se usa en SRDF
 	pPersonajeNuevo->posRecurso.posY = 0; // Solo se usa en SRDF
 	pPersonajeNuevo->quantumUsado = 0;
-	pPersonajeNuevo->remainingDistance = 30;//pNivel->rdDefault;
+	pPersonajeNuevo->remainingDistance = pNivel->rdDefault;
 
 	queue_push(pNivel->cListos, pPersonajeNuevo);
 }
@@ -554,7 +630,7 @@ void *planificador(void * pvNivel) {
             	iEnviarTurno = true;
 				break;
 
-            case(DESCONEXION): //TODO hablar con Mel sobre este tema que vamos a hacer.
+            case(DESCONEXION):
 				desconectar(pNivel, &pPersonajeActual, iSocketConexion, sPayload);
             	iEnviarTurno = false;
 				break;
@@ -750,7 +826,7 @@ void obtenerDistanciaFaltante(tPersonaje *pPersonajeActual, char * sPayload) {
 	int terminoEnX = abs(pPosicion->posX - pPersonajeActual->posRecurso.posX);
 	int terminoEnY = abs(pPosicion->posY - pPersonajeActual->posRecurso.posY);
 
-	pPersonajeActual->remainingDistance = terminoEnX + terminoEnY; //TODO revisar
+	pPersonajeActual->remainingDistance = terminoEnX + terminoEnY;
 
 	pPersonajeActual->posRecurso.posX = pPosicion->posX;
 	pPersonajeActual->posRecurso.posY = pPosicion->posY;
@@ -905,6 +981,7 @@ int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexi
 	}
 
 	log_info(logger, "Se detecta desconexion...");
+	nroConexiones--; //Bajo el contador
 
 	if (iSocketConexion == (*pPersonajeActual)->socket) {
 		log_info(logger, "Se desconecto el personaje %c", (*pPersonajeActual)->simbolo);

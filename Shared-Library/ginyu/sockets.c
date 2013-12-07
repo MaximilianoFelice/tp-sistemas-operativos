@@ -129,7 +129,7 @@ int recibirPaquete(int socketReceptor, tMensaje* tipoMensaje, char** psPayload, 
  * 	<0 = Se cerro el socket que devuelve
  * 	>0 = Cambio el socket que devuelve
  */
-signed int getConnection(fd_set *setSockets, int *maxSock, int sockListener, tMensaje *tipoMensaje, char** payload, t_log* logger)
+signed int getConnection(fd_set *setSockets, int *maxSock, int sockListener, tMensaje *tipoMensaje, char** payload, int *nroConexiones, t_log* logger)
 {
 	int iSocket;
 	int iNewSocket;
@@ -171,6 +171,7 @@ signed int getConnection(fd_set *setSockets, int *maxSock, int sockListener, tMe
 					if (iNewSocket > *maxSock) {
 						*maxSock = iNewSocket;
 					}
+					(*nroConexiones)++;
 				}
 
 			} else {
@@ -178,7 +179,7 @@ signed int getConnection(fd_set *setSockets, int *maxSock, int sockListener, tMe
 				if ((iBytesRecibidos = recibirPaquete(iSocket, tipoMensaje, payload, logger, "Se recibe informacion")) <= 0) {
 					//--Si cerró la conexión o hubo error
 					if (iBytesRecibidos == 0) {
-						log_debug(logger, "Fin de conexion de socket %d.", iSocket);
+						log_trace(logger, "Fin de conexion de socket %d.", iSocket);
 
 					} else {
 						log_error(logger, "recv: %s", strerror(errno));

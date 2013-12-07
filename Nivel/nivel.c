@@ -53,7 +53,7 @@ int main(int argc, char* argv[]) {
 
 	int8_t tipoMsj;
 	tRtaPosicion posRespondida;
-	tMovimientoPers movPersonaje;
+//	tMovimientoPers movPersonaje;
 
 	//LOG
 	logger = logInit(argv, "NIVEL");
@@ -260,22 +260,6 @@ int main(int argc, char* argv[]) {
 					log_debug(logger, "<<< Personaje %c solicita la posicion del recurso %c", (char)posConsultada->simbolo, (char)posConsultada->recurso);
 					bool buscarRecurso(ITEM_NIVEL *item){return ((item->id==(char)posConsultada->recurso)&&(item->item_type==RECURSO_ITEM_TYPE));}
 					itemRec=list_find(list_items,(void*)buscarRecurso);
-					//Cesar no borres esto lo deje porque capaz necesite este mensaje para la planificacion SRDF
-					//Donde ademas de la posicion del recurso le paso tambien la distancia del personaje al recurso
-					//Ademas usa un tRtaPosicion2 con sus correspondientes serializadores y deserializadores
-//					if(itemRec!=NULL){
-//						posRecX=itemRec->posx;
-//						posRecY=itemRec->posy;
-//						posRta.posX=posRecX;
-//						posRta.posY=posRecY;
-//						int posPerX, posPerY;
-//						getPosPersonaje(list_items, posConsultada->simbolo, &posPerX, &posPerY);
-//						posRta.RD = distancia(posPerX, posPerY, posRecX, posRecY);
-//						pthread_mutex_lock(&semMSJ);
-//						serializarRtaPosicion2(N_POS_RECURSO, posRta, paquete);
-//						enviarPaquete(sockete,paquete,logger,"enviando pos de recurso a plataforma");
-//						pthread_mutex_unlock(&semMSJ);
-//					}
 					if(itemRec!=NULL){
 						posRecX=itemRec->posx;
 						posRecY=itemRec->posy;
@@ -355,11 +339,10 @@ int main(int argc, char* argv[]) {
 					//eliminar al personaje de list_personajes
 					bool buscarPersonaje(pers_t* perso){return(perso->simbolo==persDesconectado->simbolo);}
 					list_remove_by_condition(list_personajes,(void*)buscarPersonaje);
+					//TODO eliminalo de list_items tambien. Sino va a seguir en el mapa
 				break;
 				} //Fin del switch
-				//Cesar lo pongo que dibuje porque estuve probando que los enemigos son MUY LENTOS entonces no llegarian nunca a dibujar
-				//Entonces lo agrego aqui para que dibuje el nivel también.
-				//Ademas sería una posibilidad factible que nos hagan probar enemigos muy lentos en el examen
+
 				nivel_gui_dibujar(list_items, nom_nivel);
 			}
 		}
@@ -612,7 +595,7 @@ void *enemigo(void * args) {
 							enviarPaquete(sockete,&paquete,logger,"enviando notificacion de muerte de personaje a plataforma");
 							pthread_mutex_unlock(&semSockPaq);
 							pthread_mutex_lock(&semItems);
-							liberarRecsPersonaje(item->id);
+							liberarRecsPersonaje(item->id); //TODO este me tiraba seg fault, por eso hice el liberarRecsPersonaje2
 							pthread_mutex_unlock(&semItems);
 							victimaAsignada='0';
 						}
@@ -776,7 +759,6 @@ void liberarRecsPersonaje2(char id){
 	//eliminar al personaje de list_personajes y devolverlo para desasignar sus recursos:
 	persDesconexion=list_find(list_personajes,(void*)buscarPersonaje);
 	list_remove_by_condition(list_personajes,(void*)buscarPersonaje);
-	log_debug(logger, "Pase el list_remove del personaje %c", persDesconexion->simbolo);
 	int i;
 	for(i=0; i<list_size(persDesconexion->recursos); i++){
 		tSimbolo *recurso = list_get(persDesconexion->recursos, i);
@@ -796,7 +778,6 @@ void liberarRecsPersonaje(char id){
 	//eliminar al personaje de list_personajes y devolverlo para desasignar sus recursos:
 	personaje=list_find(list_personajes,(void*)buscarPersonaje);
 	list_remove_by_condition(list_personajes,(void*)buscarPersonaje);
-	log_debug(logger, "Pase el list_remove");
 
 	void desasignar(char id1){
 		ITEM_NIVEL* itemAux;
@@ -805,7 +786,6 @@ void liberarRecsPersonaje(char id){
 		itemAux->quantity++;
 	}
 	list_iterate(personaje->recursos,(void*)desasignar);
-	log_debug(logger, "Pase el list_iterate()");
 	BorrarPersonaje(list_items, id);
 	personaje_destroyer(personaje);
 }
