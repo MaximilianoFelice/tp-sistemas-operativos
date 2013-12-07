@@ -10,7 +10,6 @@
 
 pthread_mutex_t semNivel;
 pthread_mutex_t mtxlNiveles;
-pthread_cond_t hayPersonajes;
 t_list 	 *listaNiveles;
 t_config *configPlataforma;
 t_log *logger;
@@ -27,6 +26,7 @@ char *pathScript;
 tPersonaje* desbloquearPersonaje(t_list* lBloqueados, tSimbolo recurso);
 tPersonaje *sacarPersonajeDeListas(tNivel *pNivel, int iSocket);
 char *getRecursosNoAsignados(t_list *recursos);
+void waitPersonajes(bool *primerIntento, tNivel *pNivel);
 
 /*
  * Funciones privadas plataforma
@@ -73,83 +73,6 @@ bool esElPersonajeQueTieneElTurno(int socketActual, int socketConexion);
  * PLATAFORMA
  */
 
-/* Lista de TODO's
- *
- * TODO IMPORTANTE (1)
- * (1) Hablar con cesar para que cuando se desconecta un personaje reciba un array de recurso no asignados + simbolo personaje que salio
- * (debemos modificar ese mensaje actual que solo le manda el simbolo del personaje. Esta hecho el deserializador y serialiazador)
- *
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- * TODO IMPORTANTE (2)
- * (2) DESBLOQUEO de un personaje:
- * Cuando un personaje se mueve, en el nivel debe verificar que no este bloqueado, si lo esta desbloquearlo
- * 		- EJEMPLO:
- * 		tenemos bloqueado un personaje X por el recurso 8 y otro personaje Y termina y libera 8 y 9 en plataforma nosotros le damos el recurso 8 a X y lo desbloqueamos
- * 		y al nivel le avisamos que el personaje Y termino y que NO SE REASIGNO A NINGUN PERSONAJE el recurso 9
- *		peeeeeero NO LE DICE que el personaje X ya se desbloqueo y entonces para el nivel X va a seguir bloqueado y para nosotros no
- *		Entonces para evitar tener que pasarle tambien los personajes desbloqueados, cada vez que se mueve un personaje EL NIVEL VERIFICA QUE NO ESTE BLOQUEADO, si lo esta lo desbloquea ya que es obvio que si pide moverse es porque ya se desbloqueo
- *
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- *
- * Luego de solucionada la 1 y 2, debemos seguir con esto:
- *
- * TODO IMPORTANTEEEEEE!!!!!!! (3)
- * (3) Segun lo que estuve chusmeando en el nivel:
- * Cuando un personaje lo mata un enemigo o el hilo interbloqueo, luego de avisarle a Plataforma,
- * el nivel lo que hace es que que libere recursos apenas lo mata.
- *
- * Nosotros lo que hacemos es avisarle al personaje pero no liberamos recursos.
- * Ver que hacer con eso:
- * 		- Si seguimos como esta y agregamos que liberamos recursos cuando viene muerto. Aqui podriamos tener problemas
- * 		 porque nosotros REASIGNAMOS los recursos a personajes bloqueados y solo le decimos al nivel que libere los recursos que
- * 		 nosotros NO reasignamos. Entonces el nivel cuando, por ejemplo un enemigo mata un personaje X, libera TODOS los recursos de ese personaje X,
- * 		 PERO nosotros Planificador nos fijamos si tenemos pesonajes bloqueados para reasignarlos a ellos y desbloquearlos y luego le decimos al nivel que
- * 		 libere aquellos recursos que nosotros no hemos reasignado.
- * 		 Es decir podria haber una desincronizados entre ambos y no puede pasar.
- *
- * 		- La solucion mas facil y rapida es que el nivel solo libere recursos cuando le llega el mensaje PL_DESCONEXION_PERSONAJE entonces:
- * 		Un enemigo alcanza la posicion de X -> le dice al planificador que X tiene que morir ->
- * 		El planificador le avisa al personaje que se murio ->
- * 		el personaje se desconecta -> nosotros detectamos que se desconecto y ahi si hacemos reasignar recursos, blablabla
- *
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- * Otras cosas:
- *
- * Hablar con cesar para que nos pase un Remaining Distance.
- *
- * El hilo detecta interbloqueo del nivel tira seg fault a veces cuando se esta moviendo un personaje
- *
- *
- * La funcion libRecursos() del nivel tira seg fault. Yo le agregue la mia que es libRecursos2() que anda bien.
- * Aunque igual la va a tener que modificar porque ahora va a recibir una lista de recursos no asignados,
- * ademas del simbolo del personaje que termino
- *
- *
- * Cuando plataforma termina agregar que libere memoria de las listas, log y archivo de configuracion en la funcion cerrarTodo();
- *
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- *
- * Cosas que faltan TESTEAR o que no se si ya se probaron pero agrego por las dudas:
- *
- * 1) Cuando se muere un personaje:
- * 			-Que reinicie bien, si le quedan vidas
- * 			-Que si se queda sin vidas mate a los otros hilos y pregunte al usuario:
- * 				-Si le dice que SI, todos los otros hilos deben reiniciar
- * 				-Si le dice que NO, que cierre correctamente
- * (fijarse que plataforma no haya ejecutado a Koopa hasta entonces, no deberia pasar ya).
- *
- * 2) En personaje manejo de señales para aumentar y restar vidas. El SIGINT funciona rebien testeado mil veces :P
- *
- * 3) Cambio de algorimo de SRDF a RR
- *
- * 4) Cambio de quantum del RR
- *
- * 5) Cambio de delay.
- *
- * 6) Interbloqueo
- *
- *
- */
 
 int main(int argc, char*argv[]) {
 
@@ -180,8 +103,6 @@ int main(int argc, char*argv[]) {
 	// Inicializo el semaforo
 	pthread_mutex_init(&semNivel, NULL);
 	pthread_mutex_init(&mtxlNiveles, NULL);
-	pthread_cond_init(&hayPersonajes, NULL);
-
 
 	thResult = pthread_create(&thOrquestador, NULL, orquestador, (void *) &usPuerto);
 
@@ -193,7 +114,6 @@ int main(int argc, char*argv[]) {
 	pthread_join(thOrquestador, NULL);
 
 	log_destroy(logger);
-
 
 	exit(EXIT_SUCCESS);
 }
@@ -288,7 +208,7 @@ void *orquestador(void *vPuerto) {
 	pthread_exit(NULL);
 }
 
-void orquestadorTerminaJuego(){
+void orquestadorTerminaJuego() {
 	int indiceNivel;
 	int cantidadNiveles;
 	tNivel *nivelLevantador;
@@ -415,7 +335,7 @@ int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char*
 			nroConexiones++;
 			delegarConexion(&pNivelPedido->masterfds, socketsOrquestador, iSocketComunicacion, &pNivelPedido->maxSock);
 
-			signal_personajes();
+			pthread_cond_signal(&(pNivelPedido->hayPersonajes));
 
 			tPaquete pkgHandshake;
 			pkgHandshake.type   = PL_HANDSHAKE;
@@ -484,6 +404,7 @@ void crearNivel(t_list* lNiveles, tNivel* pNivelNuevo, int socket, char *levelNa
 	pNivelNuevo->delay 		 = pInfoNivel->delay;
 	pNivelNuevo->maxSock 	 = socket;
 	pNivelNuevo->rdDefault	 = 30;  //TODO tenemos que decirle a cesar que agregue la remaining distance a la info que nos manda el nivel
+	pthread_cond_init(&(pNivelNuevo->hayPersonajes), NULL);
 	FD_ZERO(&(pNivelNuevo->masterfds));
 
 	pthread_mutex_lock(&mtxlNiveles);
@@ -493,8 +414,6 @@ void crearNivel(t_list* lNiveles, tNivel* pNivelNuevo, int socket, char *levelNa
 
 
 void agregarPersonaje(tNivel *pNivel, tSimbolo simbolo, int socket) {
-
-	log_debug(logger, "Apunto de agregar a un personaje");
 	tPersonaje *pPersonajeNuevo;
 	pPersonajeNuevo = malloc(sizeof(tPersonaje));
 
@@ -507,6 +426,8 @@ void agregarPersonaje(tNivel *pNivel, tSimbolo simbolo, int socket) {
 	pPersonajeNuevo->remainingDistance = pNivel->rdDefault;
 
 	queue_push(pNivel->cListos, pPersonajeNuevo);
+	log_debug(logger, "Se agrego personaje a la cola de listos");
+	imprimirLista(pNivel, NULL);
 }
 
 
@@ -546,7 +467,7 @@ void *planificador(void * pvNivel) {
     // Ciclo donde se multiplexa para escuchar personajes que se conectan
     while (1) {
 
-       	wait_personajes(&primerIntento);
+       	waitPersonajes(&primerIntento, pNivel);
 
        	seleccionarJugador(&pPersonajeActual, pNivel, iEnviarTurno);
 
@@ -672,8 +593,8 @@ int seleccionarJugador(tPersonaje** pPersonaje, tNivel* nivel, bool iEnviarTurno
     iTamanioListaBlock = list_size(nivel->lBloqueados);
     imprimirLista(nivel, *pPersonaje);
 
-    if (iTamanioColaListos == 0 && iTamanioListaBlock == 0 && *pPersonaje == NULL) { //Malditos dobles punteros del demonio
-    	log_debug(logger, "No quedan mas personajes en el nivel. Planificador finalizado");
+    if (iTamanioColaListos == 0 && iTamanioListaBlock == 0 && *pPersonaje == NULL) {
+    	log_debug(logger, "No quedan mas personajes en el nivel: %s. Planificador finalizado", nivel->nombre);
     	return EXIT_SUCCESS;
 
     } else if (iTamanioColaListos == 1) {
@@ -1372,20 +1293,14 @@ void imprimirConexiones(fd_set *master_planif, int maxSock, char* host) {
 	log_debug(logger, "La cantidad de sockets totales del %s es %d", host, cantSockets);
 }
 
-
-void signal_personajes() {
-	pthread_cond_signal(&hayPersonajes);
-}
-
-
-void wait_personajes(bool *primerIntento) {
+void waitPersonajes(bool *primerIntento, tNivel *pNivel) {
 
 	if (*primerIntento) {
 		pthread_mutex_lock(&semNivel);
-		pthread_cond_wait(&hayPersonajes, &semNivel);
+		pthread_cond_wait(&(pNivel->hayPersonajes), &semNivel);
 		pthread_mutex_unlock(&semNivel);
+		*primerIntento = false;
 	}
-	*primerIntento = false;
 }
 
 /*

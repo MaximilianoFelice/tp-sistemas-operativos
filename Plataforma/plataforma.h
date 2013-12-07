@@ -50,6 +50,7 @@ typedef struct {
 	int delay;
 	int maxSock;
 	int rdDefault;			 // La remaining distance por default que manda el nivel
+	pthread_cond_t hayPersonajes;
 } tNivel;
 
 typedef struct {
@@ -80,8 +81,6 @@ void marcarPersonajeComoReady(t_list *ready, int sock);
 void delegarConexion(fd_set *conjuntoDestino, fd_set *conjuntoOrigen, int iSocketADelegar, int *maxSockDestino);
 void inicializarConexion(fd_set *master_planif, int *maxSock, int *sock);
 void imprimirConexiones(fd_set *master_planif, int maxSock, char* host);
-void signal_personajes();
-void wait_personajes(bool *primerIntento);
 
 //Busquedas
 int existeNivel(t_list * lNiveles, char* sLevelName);

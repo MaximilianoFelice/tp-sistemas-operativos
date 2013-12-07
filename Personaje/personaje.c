@@ -232,12 +232,17 @@ void *jugar(void *args) {
 
 			while (!conseguiRecurso(personajePorNivel) && !personajeEstaMuerto(murioPersonaje)) {
 
+				// TODO VEAN SI ES POSIBLE DIMINUIR LA CANTIDAD DE COSAS QUE LOCKEAN CUANDO HACEN ESTO
+//				/* El thread se va a mover, y no quiere que otro thread se mueva y pueda perder vidas */
+//				pthread_mutex_lock(&semMovement);
+
 				//Espera que el planificador le de el turno para moverse
 				recibirMensajeTurno(personajePorNivel.socketPlataforma);
 
 				//El personaje se mueve
 				moverAlPersonaje(&personajePorNivel);
 
+//				pthread_mutex_unlock(&semMovement);
 			}
 
 			//Espera que el planificador le de el turno para solicitar el recurso
@@ -430,7 +435,7 @@ void recibirMensajeTurno(int socketPlataforma){
 		default: {
 			log_error(logger, "Llego un mensaje (tipoMensaje: %s) cuando debia llegar PL_OTORGA_TURNO", enumToString(tipoMensaje));
 			log_error(logger, "Estoy en un sleep(400000000); porque me llego mal un mensaje: DETENGO TODO");
-			sleep(40000000);
+			sleep(400);
 			exit(EXIT_FAILURE);
 			break;
 		}
