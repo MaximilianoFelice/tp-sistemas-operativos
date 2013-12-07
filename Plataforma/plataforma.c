@@ -9,6 +9,7 @@
 #include "plataforma.h"
 
 pthread_mutex_t semNivel;
+pthread_mutex_t mtxlNiveles;
 pthread_cond_t hayPersonajes;
 t_list 	 *listaNiveles;
 t_config *configPlataforma;
@@ -177,7 +178,8 @@ int main(int argc, char*argv[]) {
 	logger = logInit(argv, "PLATAFORMA");
 
 	// Inicializo el semaforo
-	pthread_mutex_init(&semNivel, NULL );
+	pthread_mutex_init(&semNivel, NULL);
+	pthread_mutex_init(&mtxlNiveles, NULL);
 	pthread_cond_init(&hayPersonajes, NULL);
 
 
@@ -263,8 +265,6 @@ void *orquestador(void *vPuerto) {
 
 		if (iSocketComunicacion != -1) {
 
-			pthread_mutex_lock(&semNivel);
-	
 			switch (tipoMensaje) {
 			case N_HANDSHAKE: // Un nuevo nivel se conecta
 				conexionNivel(iSocketComunicacion, sPayload, &setSocketsOrquestador, lPlanificadores, &nroConexiones);
@@ -282,11 +282,7 @@ void *orquestador(void *vPuerto) {
 				log_debug(logger, "ORQUESTADOR: Estoy en el case por default");
 				break;
 			}
-
-			pthread_mutex_unlock(&semNivel);
-
 		}
-
 	}
 
 	pthread_exit(NULL);
@@ -298,23 +294,25 @@ void orquestadorTerminaJuego(){
 	tNivel *nivelLevantador;
 
 	log_debug(logger, "Verificando niveles...");
-	cantidadNiveles =list_size(listaNiveles);
+	pthread_mutex_lock(&mtxlNiveles);
+	cantidadNiveles = list_size(listaNiveles);
 	bool noHayPersonajes = (cantidadNiveles == 0 ? false : true);
 	nroConexiones--; //Me llego una desconexion, resto.
 
 	//Reviso los niveles
-	for(indiceNivel=0; indiceNivel < cantidadNiveles; indiceNivel++){
+	for (indiceNivel=0; indiceNivel < cantidadNiveles; indiceNivel++) {
 		nivelLevantador = list_get(listaNiveles, indiceNivel);
 
-		if(!nivelVacio(nivelLevantador)){
+		if (!nivelVacio(nivelLevantador)) {
 			log_debug(logger, "El %s todavia tiene chaboncitos", nivelLevantador->nombre);
 			noHayPersonajes = false;
 			break;
 		}
 		log_debug(logger, "El %s esta vacio", nivelLevantador->nombre);
 	}
+	pthread_mutex_unlock(&mtxlNiveles);
 
-	if(noHayPersonajes && soloQuedanNiveles()){
+	if (noHayPersonajes && soloQuedanNiveles()) {
 		log_debug(logger, "No hay tipitos jugando entonces ejecuto koopa y cierro todo");
 		cerrarTodo();
 		executeKoopa(pathKoopa, pathScript);
@@ -322,18 +320,26 @@ void orquestadorTerminaJuego(){
 	}
 }
 
-bool nivelVacio(tNivel* nivel){
+bool nivelVacio(tNivel* nivel) {
 	return ((list_size(nivel->cListos->elements)==0) && (list_size(nivel->lBloqueados) == 0));
 }
 
-bool soloQuedanNiveles(){
-	return ((nroConexiones - list_size(listaNiveles)) == 0);
+bool soloQuedanNiveles() {
+	bool bSoloNiveles;
+	pthread_mutex_lock(&mtxlNiveles);
+	bSoloNiveles = ((nroConexiones - list_size(listaNiveles)) == 0);
+	pthread_mutex_unlock(&mtxlNiveles);
+
+	return bSoloNiveles;
 }
 
 int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOrquestador, t_list *lPlanificadores, int *nroConexiones) {
 
 	int iIndiceNivel;
+
+	pthread_mutex_lock(&mtxlNiveles);
 	iIndiceNivel = existeNivel(listaNiveles, sPayload);
+	pthread_mutex_unlock(&mtxlNiveles);
 
 	if (iIndiceNivel >= 0) {
 		tPaquete pkgNivelRepetido;
@@ -347,7 +353,7 @@ int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOr
 	tMensaje tipoMensaje;
 	tInfoNivel *pInfoNivel;
 
-	tNivel *pNivelNuevo = (tNivel *) malloc(sizeof(tNivel));
+	tNivel *pNivelNuevo = (tNivel *)    malloc(sizeof(tNivel));
 	pPlanificador 	    = (pthread_t *) malloc(sizeof(pthread_t));
 	log_debug(logger, "Se conecto el nivel %s", sPayload);
 	char* sNombreNivel = strdup(sPayload);
@@ -369,46 +375,6 @@ int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOr
 		nroConexiones++;
 		crearHiloPlanificador(pPlanificador, pNivelNuevo, lPlanificadores);
 		delegarConexion(&pNivelNuevo->masterfds, pSetSocketsOrquestador, iSocketComunicacion, &pNivelNuevo->maxSock);
-/*
-		tSimbolo simboloMsj = '#';
-		tPaquete *paquete = malloc(sizeof(tPaquete));
-		serializarSimbolo(PL_CONEXION_PERS, simboloMsj, paquete);
-		enviarPaquete(iSocketComunicacion, paquete, logger, "Envio al nivel el nuevo personaje que se conecto");
-		simboloMsj = '=';
-		serializarSimbolo(PL_CONEXION_PERS, simboloMsj, paquete);
-		enviarPaquete(iSocketComunicacion, paquete, logger, "Envio al nivel el nuevo personaje que se conecto");
-		simboloMsj = '?';
-		serializarSimbolo(PL_CONEXION_PERS, simboloMsj, paquete);
-		enviarPaquete(iSocketComunicacion, paquete, logger, "Envio al nivel el nuevo personaje que se conecto");
-		sleep(2);
-		tMovimientoPers *movPers=malloc(sizeof(tMovimientoPers)) ;
-		int i;
-		for(i=0;i<20;i++){
-			movPers->simbolo='#';
-			movPers->direccion=abajo;
-			serializarMovimientoPers(PL_MOV_PERSONAJE, *movPers, paquete);
-			enviarPaquete(iSocketComunicacion, paquete, logger, "Envio al nivel el movimiento del personaje");
-			movPers->simbolo='=';
-			movPers->direccion=derecha;
-			serializarMovimientoPers(PL_MOV_PERSONAJE, *movPers, paquete);
-			enviarPaquete(iSocketComunicacion, paquete, logger, "Envio al nivel el movimiento del personaje");
-			usleep(780000);
-		}
-		movPers->simbolo='?';
-		movPers->direccion=derecha;
-		serializarMovimientoPers(PL_MOV_PERSONAJE, *movPers, paquete);
-		enviarPaquete(iSocketComunicacion, paquete, logger, "Envio al nivel el movimiento del personaje");
-		for(i=0;i<19;i++){
-			movPers->simbolo='#';
-			movPers->direccion=arriba;
-			serializarMovimientoPers(PL_MOV_PERSONAJE, *movPers, paquete);
-			enviarPaquete(iSocketComunicacion, paquete, logger, "Envio al nivel el movimiento del personaje");
-			usleep(500000);
-		}
-		sleep(45);
-		free(paquete);
-		*/
-		// Logueo el nuevo hilo recien creado
 		log_debug(logger, "Nuevo planificador del nivel: '%s' y planifica con: %i", pNivelNuevo->nombre, pNivelNuevo->algoritmo);
 
 	} else {
@@ -429,14 +395,17 @@ int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char*
 
 	log_info(logger, "Se conectó el personaje %c pidiendo el nivel '%s'", pHandshakePers->simbolo, pHandshakePers->nombreNivel);
 
+	pthread_mutex_lock(&mtxlNiveles);
 	iIndiceNivel = existeNivel(listaNiveles, pHandshakePers->nombreNivel);
 
 	if (iIndiceNivel >= 0) {
 		tNivel *pNivelPedido;
 		pNivelPedido = list_get_data(listaNiveles, iIndiceNivel);
+		pthread_mutex_unlock(&mtxlNiveles);
 
-		if(pNivelPedido == NULL) {
+		if (pNivelPedido == NULL) {
 			log_error(logger, "Saco mal el nivel: Puntero en NULL");
+			sendConnectionFail(iSocketComunicacion, PL_NIVEL_INEXISTENTE, "No se encontro el nivel pedido");
 		}
 
 		bool rta_nivel = avisoConexionANivel(pNivelPedido->socket, sPayload, pHandshakePers->simbolo);
@@ -456,12 +425,17 @@ int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char*
 		} else {
 			log_error(logger, "El personaje ya esta jugando actualmente en ese nivel");
 			sendConnectionFail(iSocketComunicacion, PL_PERSONAJE_REPETIDO, "El personaje ya esta jugando ese nivel");
+			free(sPayload);
+			free(pHandshakePers);
 			return EXIT_FAILURE;
 		}
 
 	} else {
+		pthread_mutex_unlock(&mtxlNiveles);
 		log_error(logger, "El nivel solicitado no se encuentra conectado a la plataforma");
 		sendConnectionFail(iSocketComunicacion, PL_NIVEL_INEXISTENTE, "No se encontro el nivel pedido");
+		free(sPayload);
+		free(pHandshakePers);
 		return EXIT_FAILURE;
 	}
 
@@ -482,7 +456,7 @@ void sendConnectionFail(int sockPersonaje, tMensaje typeMsj, char *msjInfo){
 bool avisoConexionANivel(int sockNivel,char *sPayload, tSimbolo simbolo){
 	tMensaje tipoMensaje;
 	tSimbolo simboloMsj = simbolo;
-	tPaquete *paquete = malloc(sizeof(tPaquete));
+	tPaquete *paquete   = malloc(sizeof(tPaquete));
 	serializarSimbolo(PL_CONEXION_PERS, simboloMsj, paquete);
 
 	enviarPaquete(sockNivel, paquete, logger, "Envio al nivel el nuevo personaje que se conecto");
@@ -492,7 +466,7 @@ bool avisoConexionANivel(int sockNivel,char *sPayload, tSimbolo simbolo){
 
 	if (tipoMensaje == N_CONEXION_EXITOSA) {
 		return true;
-	} else if(tipoMensaje == N_PERSONAJE_YA_EXISTENTE){
+	} else if(tipoMensaje == N_PERSONAJE_YA_EXISTENTE) {
 		return false;
 	}
 	return false;
@@ -512,7 +486,9 @@ void crearNivel(t_list* lNiveles, tNivel* pNivelNuevo, int socket, char *levelNa
 	pNivelNuevo->rdDefault	 = 30;  //TODO tenemos que decirle a cesar que agregue la remaining distance a la info que nos manda el nivel
 	FD_ZERO(&(pNivelNuevo->masterfds));
 
+	pthread_mutex_lock(&mtxlNiveles);
 	list_add(lNiveles, pNivelNuevo);
+	pthread_mutex_unlock(&mtxlNiveles);
 }
 
 
@@ -577,7 +553,6 @@ void *planificador(void * pvNivel) {
         iSocketConexion = multiplexar(&pNivel->masterfds, &readfds, &pNivel->maxSock, &tipoMensaje, &sPayload, logger);
 
         if (iSocketConexion != -1) {
-            pthread_mutex_lock(&semNivel);
             iEnviarTurno = false;
             switch (tipoMensaje) {
 
@@ -641,7 +616,6 @@ void *planificador(void * pvNivel) {
                 break;
             } //Fin de switch
 
-            pthread_mutex_unlock(&semNivel);
 
         } //Fin del if
 
@@ -969,13 +943,13 @@ void recepcionRecurso(tNivel *pNivel, char *sPayload, t_log *logger) {
 
 int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexion, char *sPayload) {
 	tPersonaje *pPersonaje;
-	/*UNDER CONSTRUCTION*/
 
-	//Me volvia loco cuando cerraba el nivel me tiraba seg fault plataforma, posta me enfermaba
-	if(seDesconectoElNivel(iSocketConexion, pNivel->socket)){
+	if (seDesconectoElNivel(iSocketConexion, pNivel->socket)) {
 		log_error(logger, "Se desconecto el %s", pNivel->nombre);
+		pthread_mutex_lock(&mtxlNiveles);
 		int indiceNivel = existeNivel(listaNiveles, pNivel->nombre);
 		list_remove(listaNiveles, indiceNivel);
+		pthread_mutex_unlock(&mtxlNiveles);
 		free(pNivel);
 		return EXIT_FAILURE;
 	}
@@ -1100,12 +1074,13 @@ int existeNivel(t_list * lNiveles, char* sLevelName) {
 
 		for (iNivelLoop = 0; iNivelLoop < iCantNiveles; iNivelLoop++) {
 			pNivelGuardado = (tNivel *)list_get(listaNiveles, iNivelLoop);
+
 			if (string_equals_ignore_case(pNivelGuardado->nombre, sLevelName)) {
+				pthread_mutex_unlock(&mtxlNiveles);
 				return iNivelLoop;
 			}
 		}
 	}
-
 	return -1;
 }
 
@@ -1361,7 +1336,6 @@ void delegarConexion(fd_set *conjuntoDestino, fd_set *conjuntoOrigen, int iSocke
 	FD_CLR(iSocket, conjuntoOrigen); // Saco el socket del conjunto de sockets del origen
 	FD_SET(iSocket, conjuntoDestino); //Lo agrego al conjunto destino
 
-
 	if (FD_ISSET(iSocket, conjuntoDestino)) {
 		log_debug(logger, "--> Se delega la conexion <--");
 
@@ -1388,7 +1362,8 @@ void imprimirConexiones(fd_set *master_planif, int maxSock, char* host) {
 	int cantSockets =0;
 
 	log_debug(logger, "Conexiones del %s", host);
-	for(i = 0; i<=maxSock; i++) {
+
+	for (i = 0; i<=maxSock; i++) {
 		if (FD_ISSET(i, master_planif)) {
 			log_debug(logger, "El socket %d esta en el conjunto", i);
 			cantSockets++;
