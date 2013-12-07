@@ -727,28 +727,43 @@ void *deteccionInterbloqueo (void *parametro){
 			}else{
 				log_debug(logger,"hay interbloqueo");
 				if(recovery==1){//notificar a plataforma, entonces vecSatisfechos contendra -1-->el personaje quedo interbloqueado
-					paquete->type=N_MUERTO_POR_DEADLOCK;
-					paquete->length=sizeof(tSimbolo);
-					char encontrado=0;
+					encontrado='0';
 					while(encontrado=='0'){
+						log_debug(logger,"en el while");
 						if(vecSatisfechos[i]!=0){
-							//cargar el simbolo de ese personaje al payload
+							//cargar el simbolo de ese personaje
+							log_debug(logger,"en el if del while");
 							personaje=list_get(list_personajes,i);
-							memcpy(paquete->payload,&personaje->simbolo,sizeof(tSimbolo));
+							perso=personaje->simbolo;
+							log_debug(logger,"en el if del while2");
 							encontrado='1';
 						}
+						log_debug(logger,"saliendo del if");
 					}
-					pthread_mutex_lock(&semMSJ);
-					enviarPaquete(sockete,paquete,logger,"enviando notificacion de bloqueo de personajes a plataforma");
-					pthread_mutex_unlock(&semMSJ);
+					log_debug(logger,"saliendo del while");
+					log_debug(logger,"antes de enviar paquete con perso(caja):%c",perso);
+					pthread_mutex_lock(&semSockPaq);
+					paquete.type=N_MUERTO_POR_DEADLOCK;
+					paquete.length=sizeof(tSimbolo);
+					paquete.payload[0]=perso;
+					enviarPaquete(sockete,&paquete,logger,"enviando notificacion de bloqueo de personajes a plataforma");
+					pthread_mutex_unlock(&semSockPaq);
 					//eliminar personaje y devolver recursos
-					log_debug(logger, "El personaje %c se elimino por participar en un interbloqueo", personaje->simbolo);
+					log_debug(logger, "El personaje %c se elimino por participar en un interbloqueo", paquete.payload[0]);
 					pthread_mutex_lock(&semItems);
 					liberarRecsPersonaje2((char) personaje->simbolo);
 					pthread_mutex_unlock(&semItems);
 				}
 			}
 			pthread_mutex_unlock (&semItems);
+			for(i=1;i<cantPersonajes;i++){//i=1 o 0?
+				free(matSolicitud[i]);
+				free(matAsignacion[i]);
+			}
+			free(matAsignacion);
+			free(matSolicitud);
+			free(vecSatisfechos);
+			free(vecCajas);
 		}
 		nanosleep(&dormir,NULL);
 	}
