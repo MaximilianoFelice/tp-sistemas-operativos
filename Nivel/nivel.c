@@ -115,7 +115,9 @@ int main(int argc, char* argv[]) {
 	//INOTIFY
 	descriptorNotify=inotify_init();
 	vigilante=inotify_add_watch(descriptorNotify,argv[1],IN_MODIFY);
-	if(vigilante==-1) puts("error en inotify add_watch");
+	if (vigilante==-1) {
+		log_error(logger, "error en inotify add_watch");
+	}
 
 	//POLL
 	uDescriptores[0].fd=sockete;
@@ -144,9 +146,9 @@ int main(int argc, char* argv[]) {
 		if((rv=poll(uDescriptores,2,-1))==-1) perror("poll");
 		else{
 			if (uDescriptores[1].revents&POLLIN){
-				puts("novedad es POLLIN");
+				log_error(logger, "novedad es POLLIN");
 				read(descriptorNotify,buferNotify,TAM_BUFER);
-				puts("se lee el descriptor en el buffer");
+				log_error(logger, "se lee el descriptor en el buffer");
 				struct inotify_event* evento=(struct inotify_event*) &buferNotify[0];
 				if(evento->mask & IN_MODIFY){//avisar a planificador que cambio el archivo config
 					actualizarInfoNivel(argv[1]);
@@ -410,6 +412,7 @@ void levantarArchivoConf(char* argumento){
 	//config_destroy(configNivel);
 	free(dirYpuerto);
 }
+
 void actualizarInfoNivel(char* argumento){
 	extern tAlgoritmo algoritmo;
 	extern int quantum;
@@ -417,17 +420,21 @@ void actualizarInfoNivel(char* argumento){
 	char* algoritmoAux;
 	t_config *configNivel;
 
-	configNivel=config_create(argumento);
-	puts("se hizo configCreate");
-	algoritmoAux   = config_get_string_value(configNivel, "algoritmo");
-	printf("se levanto algoritmo con:%s\n",algoritmoAux);
+	configNivel  = config_create(argumento);
+	algoritmoAux = config_get_string_value(configNivel, "algoritmo");
+
 	char rr[]="RR";
-	if(strcmp(algoritmoAux,rr)==0)
-		algoritmo=RR;else algoritmo=SRDF;
-	quantum 	   = config_get_int_value(configNivel, "quantum");
-	retardo 	   = config_get_int_value(configNivel, "retardo");
-	//config_destroy(configNivel);
+	if (strcmp(algoritmoAux,rr)==0) {
+		algoritmo = RR;
+	} else {
+		algoritmo = SRDF;
+	}
+
+	quantum = config_get_int_value(configNivel, "quantum");
+	retardo = config_get_int_value(configNivel, "retardo");
+	//config_destroy(configNivel); TODO ver esto
 }
+
 void *enemigo(void * args) {
 	enemigo_t *enemigo;
 	enemigo = (enemigo_t *) args;
