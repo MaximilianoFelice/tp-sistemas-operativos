@@ -604,7 +604,6 @@ void *planificador(void * pvNivel) {
                 break;
 
 			/* Mensajes que puede mandar el nivel */
-
             case(N_ACTUALIZACION_CRITERIOS):
                 actualizacionCriteriosNivel(iSocketConexion, sPayload, pNivel, pPersonajeActual, logger);
                 break;
@@ -622,7 +621,7 @@ void *planificador(void * pvNivel) {
              	cantidadListos = queue_size(pNivel->cListos);
             	if (cantidadListos == 0 || cantidadListos == 1) {
 					iEnviarTurno = true;
-				} else if(cantidadListos > 1) {
+				} else if (cantidadListos > 1) {
 					iEnviarTurno = false;
 				}
             	break;
@@ -638,7 +637,7 @@ void *planificador(void * pvNivel) {
 				break;
 
             default:
-            	log_error(logger, "ERROR: estoy en el case por default");
+            	log_error(logger, "Mensaje no esperado");
                 break;
             } //Fin de switch
 
@@ -942,31 +941,30 @@ void recepcionRecurso(tNivel *pNivel, char *sPayload, t_log *logger) {
 	tPersonaje *pPersonaje;
 
 	pSimbolo = deserializarSimbolo(sPayload);
-
+	log_info(logger, "Se recibe el recurso %c", *pSimbolo);
 	pPersonaje = desbloquearPersonaje(pNivel->lBloqueados, *pSimbolo);
-	log_info(logger, " <<< Se recibe recurso solicitado por el personaje %c", pPersonaje->simbolo);
 
 	if (pPersonaje != NULL) {
 		log_info(logger, "Se desbloquea el personaje: %c", pPersonaje->simbolo);
 	    //Aqui actualizo su quantum
 
-		pPersonaje->quantumUsado = pNivel->quantum;
+		pPersonaje->quantumUsado 	  = pNivel->quantum;
 		pPersonaje->remainingDistance = pNivel->rdDefault;
 
+		tPaquete pkgRecursoOtorgado;
+		pkgRecursoOtorgado.type   = PL_RECURSO_OTORGADO;
+		pkgRecursoOtorgado.length = 0;
+		enviarPaquete(pPersonaje->socket, &pkgRecursoOtorgado, logger, "Se confirma otorgamiento de recurso al personaje");
+
 		queue_push(pNivel->cListos, pPersonaje);
+
 	} else {
-		log_info(logger, "No se encontro ningun personaje esperando por el recurso");
+		log_error(logger, "No se encontro ningun personaje esperando por el recurso %c", *pSimbolo);
 		sleep(8000); //Le pongo un sleep y no un exit para que se pueda ver el estado de cada proceso bien clarito
 	}
 
-	tPaquete pkgRecursoOtorgado;
-	pkgRecursoOtorgado.type = PL_RECURSO_OTORGADO;
-	pkgRecursoOtorgado.length = 0;
-	enviarPaquete(pPersonaje->socket, &pkgRecursoOtorgado, logger, "Confirmo otorgamiento de recurso al personaje");
-
 	free(pSimbolo);
 	free(sPayload);
-
 }
 
 int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexion, char *sPayload) {
@@ -1346,12 +1344,13 @@ tPersonaje* desbloquearPersonaje(t_list* lBloqueados, tSimbolo recurso) {
 	if (iIndicePersonaje != -1) {
 		tPersonaje *personaje = removePersonajeOfBlock(lBloqueados, iIndicePersonaje);
 
-		if(personaje == NULL){
+		if (personaje == NULL) {
 			log_debug(logger, "personaje es NULL");
-			sleep(40);
+			sleep(30);	//TODO borrar este sleep
 		}
 		list_add_new(personaje->recursos, (void *)&recurso, sizeof(recurso));
 		return personaje;
+
 	} else {
 		return NULL;
 	}
@@ -1367,7 +1366,7 @@ void delegarConexion(fd_set *conjuntoDestino, fd_set *conjuntoOrigen, int iSocke
 		log_debug(logger, "--> Se delega la conexion <--");
 
 	} else {
-		log_warning(logger, "WARN: Error al delegar conexiones");
+		log_error(logger, "Error al delegar conexiones");
 		exit(EXIT_FAILURE);
 	}
 
@@ -1376,10 +1375,14 @@ void delegarConexion(fd_set *conjuntoDestino, fd_set *conjuntoOrigen, int iSocke
 		*maxSock = iSocket;
 	}
 }
+
+
 void inicializarConexion(fd_set *master_planif, int *maxSock, int *sock) {
 	FD_ZERO(master_planif);
 	*maxSock = *sock;
 }
+
+
 void imprimirConexiones(fd_set *master_planif, int maxSock, char* host) {
 	int i;
 	int cantSockets =0;
@@ -1393,9 +1396,13 @@ void imprimirConexiones(fd_set *master_planif, int maxSock, char* host) {
 	}
 	log_debug(logger, "La cantidad de sockets totales del %s es %d", host, cantSockets);
 }
+
+
 void signal_personajes() {
 	pthread_cond_signal(&hayPersonajes);
 }
+
+
 void wait_personajes(bool *primerIntento) {
 
 	if (*primerIntento) {

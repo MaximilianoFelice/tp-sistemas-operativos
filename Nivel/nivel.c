@@ -299,8 +299,7 @@ int main(int argc, char* argv[]) {
 						}
 						list_iterate(list_personajes,(void*) agregaRecursoYdesboquea);
 						pthread_mutex_lock(&semSockPaq);
-						paquete.type=N_ENTREGA_RECURSO;
-						paquete.length=0;
+						serializarSimbolo(N_ENTREGA_RECURSO, posConsultada->recurso, &paquete);
 						// Envio mensaje donde confirmo la otorgacion del recurso pedido
 						enviarPaquete(sockete,&paquete,logger,"enviando confirmacion de otorgamiento de recurso a plataforma");
 						pthread_mutex_unlock(&semSockPaq);
