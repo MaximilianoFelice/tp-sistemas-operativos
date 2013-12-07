@@ -129,7 +129,7 @@ int recibirPaquete(int socketReceptor, tMensaje* tipoMensaje, char** psPayload, 
  * 	<0 = Se cerro el socket que devuelve
  * 	>0 = Cambio el socket que devuelve
  */
-signed int getConnection(fd_set *setSockets, int *maxSock, int sockListener, tMensaje *tipoMensaje, char** payload, int *nroConexiones, t_log* logger)
+signed int getConnection(fd_set *setSockets, int *maxSock, int sockListener, tMensaje *tipoMensaje, char** payload, t_log* logger)
 {
 	int iSocket;
 	int iNewSocket;
@@ -171,7 +171,6 @@ signed int getConnection(fd_set *setSockets, int *maxSock, int sockListener, tMe
 					if (iNewSocket > *maxSock) {
 						*maxSock = iNewSocket;
 					}
-					(*nroConexiones)++;
 				}
 
 			} else {

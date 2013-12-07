@@ -40,8 +40,8 @@ void cerrarTodo();
 /*
  * Funciones privadas orquestador
  */
-int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOrquestador, t_list *lPlanificadores);
-int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char* sPayload);
+int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOrquestador, t_list *lPlanificadores, int *nroConexiones);
+int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char* sPayload, int *nroConexiones);
 bool avisoConexionANivel(int sockNivel,char *sPayload, tSimbolo simbolo);
 void sendConnectionFail(int sockPersonaje, tMensaje typeMsj, char *msjInfo);
 void crearHiloPlanificador(pthread_t *pPlanificador, tNivel *nivelNuevo, t_list *lPlanificadores);
@@ -259,7 +259,7 @@ void *orquestador(void *vPuerto) {
 	nroConexiones = 0;
 
 	while (1) {
-		iSocketComunicacion = getConnection(&setSocketsOrquestador, &iSocketMaximoOrquestador, iSocketEscucha, &tipoMensaje, &sPayload, &nroConexiones, logger);
+		iSocketComunicacion = getConnection(&setSocketsOrquestador, &iSocketMaximoOrquestador, iSocketEscucha, &tipoMensaje, &sPayload, logger);
 
 		if (iSocketComunicacion != -1) {
 
@@ -267,11 +267,11 @@ void *orquestador(void *vPuerto) {
 	
 			switch (tipoMensaje) {
 			case N_HANDSHAKE: // Un nuevo nivel se conecta
-				conexionNivel(iSocketComunicacion, sPayload, &setSocketsOrquestador, lPlanificadores);
+				conexionNivel(iSocketComunicacion, sPayload, &setSocketsOrquestador, lPlanificadores, &nroConexiones);
 				break;
 
 			case P_HANDSHAKE:
-				conexionPersonaje(iSocketComunicacion, &setSocketsOrquestador, sPayload);
+				conexionPersonaje(iSocketComunicacion, &setSocketsOrquestador, sPayload, &nroConexiones);
 				break;
 
 			case DESCONEXION:
@@ -330,7 +330,7 @@ bool soloQuedanNiveles(){
 	return ((nroConexiones - list_size(listaNiveles)) == 0);
 }
 
-int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOrquestador, t_list *lPlanificadores) {
+int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOrquestador, t_list *lPlanificadores, int *nroConexiones) {
 
 	int iIndiceNivel;
 	iIndiceNivel = existeNivel(listaNiveles, sPayload);
@@ -366,6 +366,7 @@ int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOr
 	if (tipoMensaje == N_DATOS) {
 
 		crearNivel(listaNiveles, pNivelNuevo, iSocketComunicacion, sNombreNivel, pInfoNivel);
+		nroConexiones++;
 		crearHiloPlanificador(pPlanificador, pNivelNuevo, lPlanificadores);
 		delegarConexion(&pNivelNuevo->masterfds, pSetSocketsOrquestador, iSocketComunicacion, &pNivelNuevo->maxSock);
 /*
@@ -421,7 +422,7 @@ int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOr
 }
 
 
-int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char* sPayload) {
+int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char* sPayload, int *nroConexiones) {
 	tHandshakePers* pHandshakePers;
 	pHandshakePers = deserializarHandshakePers(sPayload);
 	int iIndiceNivel;
@@ -442,6 +443,7 @@ int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char*
 
 		if (rta_nivel) {
 			agregarPersonaje(pNivelPedido, pHandshakePers->simbolo, iSocketComunicacion);
+			nroConexiones++;
 			delegarConexion(&pNivelPedido->masterfds, socketsOrquestador, iSocketComunicacion, &pNivelPedido->maxSock);
 
 			signal_personajes();
