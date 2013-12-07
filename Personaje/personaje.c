@@ -109,15 +109,6 @@ int main(int argc, char*argv[]) {
 
 }
 
-void desconectarPersonajeFinPlan(){
-
-    void _desconectarPersonaje(char* key, personajeIndividual_t* personajePorNivel) {
-            desconectarPersonaje(personajePorNivel);
-    }
-
-	dictionary_iterator(listaPersonajePorNiveles, (void*) _desconectarPersonaje);
-}
-
 void notificarFinPlanNiveles(){
 	tPaquete pkgDevolverRecursos;
 	pkgDevolverRecursos.type   = P_FIN_PLAN_NIVELES;
@@ -125,14 +116,7 @@ void notificarFinPlanNiveles(){
 
 	enviarPaquete(socketOrquestador, &pkgDevolverRecursos, logger, "Se notifica al orquestador la finalizacion del plan de niveles del personaje correctamente");
 }
-/*
-void enviarPaqueteFinPlan(personajeIndividual_t* personajePorNivel){
-	tPaquete pkgDevolverRecursos;
-	pkgDevolverRecursos.type   = P_FIN_PLAN_NIVELES;
-	pkgDevolverRecursos.length = 0;
 
-	enviarPaquete(personajePorNivel->socketPlataforma, &pkgDevolverRecursos, logger, "Se notifica a la plataforma la finalizacion del plan de niveles del personaje correctamente");
-}*/
 void destruirArchivoConfiguracion(t_config *configPersonaje){
 
 	config_destroy(configPersonaje);
