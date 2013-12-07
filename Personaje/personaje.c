@@ -8,6 +8,7 @@
 
 #include "personaje.h"
 
+pthread_mutex_t mtxlPersPorNivel;
 pthread_mutex_t semMovement;
 pthread_mutex_t semModificadorDeVidas;
 bool continuar = false;
@@ -31,6 +32,7 @@ int main(int argc, char*argv[]) {
 
 	pthread_mutex_init(&semMovement, NULL);
 	pthread_mutex_init(&semModificadorDeVidas, NULL);
+	pthread_mutex_init(&mtxlPersPorNivel, NULL);
 
 	// Inicializa el log.
 	logger = logInit(argv, "PERSONAJE");
@@ -203,9 +205,11 @@ void *jugar(void *args) {
 
 	bool murioPersonaje = false;
 
-	personajePorNivel.socketPlataforma= connectToServer(ip_plataforma, atoi(puerto_orq), logger);
+	personajePorNivel.socketPlataforma = connectToServer(ip_plataforma, atoi(puerto_orq), logger);
 
+	pthread_mutex_lock(&mtxlPersPorNivel);
 	dictionary_put(listaPersonajePorNiveles, personajePorNivel.nivelQueJuego->nomNivel, &personajePorNivel);
+	pthread_mutex_unlock(&mtxlPersPorNivel);
 
 	handshake_plataforma(&personajePorNivel);
 
@@ -228,16 +232,11 @@ void *jugar(void *args) {
 
 			while (!conseguiRecurso(personajePorNivel) && !personajeEstaMuerto(murioPersonaje)) {
 
-				/* El thread se va a mover, y no quiere que otro thread se mueva y pueda perder vidas */
-				pthread_mutex_lock(&semMovement);
-
 				//Espera que el planificador le de el turno para moverse
 				recibirMensajeTurno(personajePorNivel.socketPlataforma);
 
 				//El personaje se mueve
 				moverAlPersonaje(&personajePorNivel);
-
-				pthread_mutex_unlock(&semMovement);
 
 			}
 
