@@ -73,9 +73,7 @@ typedef enum {
 void *orquestador(void *) ;
 void *planificador(void *);
 
-void desbloquearPersonajes(t_list* block, t_list *ready, tPersonaje *pjLevantador, bool encontrado, char*nom_nivel, int proxPj);
 void imprimirLista(tNivel *pNivel, tPersonaje *pPersonaje);
-void marcarPersonajeComoReady(t_list *ready, int sock);
 
 //Delegar conexiones
 void delegarConexion(fd_set *conjuntoDestino, fd_set *conjuntoOrigen, int iSocketADelegar, int *maxSockDestino);
@@ -84,7 +82,6 @@ void imprimirConexiones(fd_set *master_planif, int maxSock, char* host);
 
 //Busquedas
 int existeNivel(t_list * lNiveles, char* sLevelName);
-tNivel *getNivel(char *nom_nivel);
 int existPersonajeBlock(t_list *block, tSimbolo recurso, tBusquedaPersBlock);
 int existePersonaje(t_list *pListaPersonajes, int valor, tBusquedaPersonaje criterio);
 tPersonaje *getPersonaje(t_list *listaPersonajes, int valor, tBusquedaPersonaje criterio);
