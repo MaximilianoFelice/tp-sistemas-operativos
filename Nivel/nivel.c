@@ -192,41 +192,43 @@ int main(int argc, char* argv[]) {
 						CrearPersonaje(list_items,symbol, INI_X, INI_Y);
 						pthread_mutex_unlock(&semItems);
 						// Logueo el personaje recien agregado
-						log_info(logger, "<<< Se agrego al personaje %c a la lista", (char) pjNew.simbolo);
-						pthread_mutex_lock(&semMSJ);
-						paquete->type=N_CONEXION_EXITOSA;
-						paquete->length=0;
-						enviarPaquete(sockete,paquete,logger,"notificando a plataforma personaje nuevo aceptado");
-						pthread_mutex_unlock(&semMSJ);
+						log_info(logger, "<<< Se agrego al personaje %c a la lista", (char) pjNew->simbolo);
+						pthread_mutex_lock(&semSockPaq);
+						paquete.type=N_CONEXION_EXITOSA;
+						paquete.length=0;
+						enviarPaquete(sockete,&paquete,logger,"notificando a plataforma personaje nuevo aceptado");
+						pthread_mutex_unlock(&semSockPaq);
 					}else {//se encontro=>el personaje ya existe
-						pthread_mutex_lock(&semMSJ);
-						paquete->type=N_PERSONAJE_YA_EXISTENTE;
-						paquete->length=0;
-						enviarPaquete(sockete,paquete,logger,"notificando a plataforma personaje ya existente");
-						pthread_mutex_unlock(&semMSJ);
+						pthread_mutex_lock(&semSockPaq);
+						paquete.type=N_PERSONAJE_YA_EXISTENTE;
+						paquete.length=0;
+						enviarPaquete(sockete,&paquete,logger,"notificando a plataforma personaje ya existente");
+						pthread_mutex_unlock(&semSockPaq);
 					}
 				break;
 				case PL_MOV_PERSONAJE:
 					movPersonaje.simbolo=(int8_t)*payload;
 					movPersonaje.direccion=(tDirMovimiento)*(payload+sizeof(int8_t));
 					log_debug(logger, "<<< El personaje %c solicito moverse", movPersonaje.simbolo);
-					personaG=(pers_t *)list_find(list_personajes,(void*)buscaPersonaje);
+					bool buscaPer(pers_t* perso){
+						log_debug(logger,"perso.simbolo:%c movPerso.simbolo:%c",perso->simbolo,movPersonaje.simbolo);
+						return (perso->simbolo==movPersonaje.simbolo);
+					}
+					personaG=(pers_t *)list_find(list_personajes,(void*)buscaPer);
 					if(personaG==NULL){
-						pthread_mutex_lock(&semMSJ);
-						paquete->type=N_PERSONAJE_INEXISTENTE;
-						paquete->length=0;
-						enviarPaquete(sockete,paquete,logger,"notificando a plataforma personaje no existe");
-						pthread_mutex_unlock(&semMSJ);
+						pthread_mutex_lock(&semSockPaq);
+						paquete.type=N_PERSONAJE_INEXISTENTE;
+						paquete.length=0;
+						enviarPaquete(sockete,&paquete,logger,"notificando a plataforma personaje no existe");
+						pthread_mutex_unlock(&semSockPaq);
 					}else{
+						personaG->bloqueado=false;//si era true se pone en false porque planificador lo desbloqueo asignandole un recurso---->ULTIMA DESICION
 						char symbol=(char) movPersonaje.simbolo;
-						pthread_mutex_lock(&semItems);
 						// Busco la posicion actual del personaje
 						getPosPersonaje(list_items,symbol, &posX, &posY);
 						log_debug(logger, "Posicion actual del personaje %c: (%d,%d)", symbol, posX, posY);
 						// calculo el movimiento
-						pthread_mutex_unlock(&semItems);
 						switch (movPersonaje.direccion) {
-						//switch (movimientoPers->direccion) {
 							case arriba:
 								if (posY > 1) posY--;
 							break;
@@ -243,15 +245,14 @@ int main(int argc, char* argv[]) {
 								log_error(logger, "ERROR: no detecto una direccion de movimiento valida: %d", movPersonaje.direccion);
 							break;
 						}
-						log_info(logger, "El personaje %c se movio a la posicion (%d,%d)", symbol, posX, posY);
-						pthread_mutex_lock(&semItems);
-						MoverPersonaje(list_items,symbol, posX, posY);
-						pthread_mutex_unlock(&semItems);
-						pthread_mutex_lock(&semMSJ);
-						paquete->type = N_CONFIRMACION_MOV;
-						paquete->length = 0;
-						enviarPaquete(sockete,paquete,logger,"notificando a plataforma personaje movido correctamente");
-						pthread_mutex_unlock(&semMSJ);
+					pthread_mutex_lock(&semItems);
+					MoverPersonaje(list_items,symbol, posX, posY);
+					pthread_mutex_unlock(&semItems);
+					pthread_mutex_lock(&semSockPaq);
+					paquete.type = N_CONFIRMACION_MOV;
+					paquete.length = 0;
+					enviarPaquete(sockete,&paquete,logger,"notificando a plataforma personaje movido correctamente");
+					pthread_mutex_unlock(&semSockPaq);
 					}
 				break;
 				case PL_POS_RECURSO:
@@ -280,27 +281,27 @@ int main(int argc, char* argv[]) {
 						posRecY=itemRec->posy;
 						posRespondida.posX=posRecX;
 						posRespondida.posY=posRecY;
-						pthread_mutex_lock(&semMSJ);
-						paquete->type=N_POS_RECURSO;
-						memcpy(paquete->payload,&posRespondida,sizeof(tRtaPosicion));
-						paquete->length=sizeof(tRtaPosicion);
-						enviarPaquete(sockete,paquete,logger,"enviando pos de recurso a plataforma");
-						pthread_mutex_unlock(&semMSJ);
-					}
-					else{
-						pthread_mutex_lock(&semMSJ);
-						paquete->type=N_RECURSO_INEXISTENTE;
-						paquete->length=0;
-						enviarPaquete(sockete,paquete,logger,"el recurso solicitado no existe");
-						pthread_mutex_unlock(&semMSJ);
+						pthread_mutex_lock(&semSockPaq);
+						paquete.type=N_POS_RECURSO;
+						memcpy(paquete.payload,&posRespondida,sizeof(tRtaPosicion));
+						paquete.length=sizeof(tRtaPosicion);
+						enviarPaquete(sockete,&paquete,logger,"enviando pos de recurso a plataforma");
+						pthread_mutex_unlock(&semSockPaq);
+					}else{
+						pthread_mutex_lock(&semSockPaq);
+						paquete.type=N_RECURSO_INEXISTENTE;
+						paquete.length=0;
+						enviarPaquete(sockete,&paquete,logger,"el recurso solicitado no existe");
+						pthread_mutex_unlock(&semSockPaq);
 					}
 				break;
 				case PL_SOLICITUD_RECURSO:
-					posConsultada->recurso=(tSimbolo)*payload;//deserializar me molestaba para rastrear un error
-					posConsultada->simbolo=(tSimbolo)*(payload+sizeof(tSimbolo));//VER SIEMPRE EN QUE ORDEN LO SERIALIZA
+					posConsultada=deserializarPregPosicion(payload);
 					log_debug(logger, "<<< Personaje %c solicita una instancia del recurso %c", (char)posConsultada->simbolo, (char)posConsultada->recurso);
 					// Calculo la cantidad de instancias
+					pthread_mutex_lock(&semItems);
 					int cantInstancias = restarInstanciasRecurso(list_items,posConsultada->recurso);
+					pthread_mutex_unlock(&semItems);
 					if (cantInstancias >= 0) {
 						log_info(logger, "Al personaje %c se le dio el recurso %c",posConsultada->simbolo,posConsultada->recurso);
 						bool buscarPersonaje(pers_t* personaje){return (personaje->simbolo==posConsultada->simbolo);}
