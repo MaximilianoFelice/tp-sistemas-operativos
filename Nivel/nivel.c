@@ -314,12 +314,16 @@ int main(int argc, char* argv[]) {
 							}
 						}
 						list_iterate(list_personajes,(void*) agregaRecursoYdesboquea);
-						pthread_mutex_lock(&semMSJ);
-						serializarSimbolo(N_ENTREGA_RECURSO, posConsultada->recurso, paquete);
+						pthread_mutex_lock(&semSockPaq);
+						paquete.type=N_ENTREGA_RECURSO;
+						paquete.length=0;
 						// Envio mensaje donde confirmo la otorgacion del recurso pedido
-						enviarPaquete(sockete,paquete,logger,"enviando confirmacion de otorgamiento de recurso a plataforma");
-						pthread_mutex_unlock(&semMSJ);
+						enviarPaquete(sockete,&paquete,logger,"enviando confirmacion de otorgamiento de recurso a plataforma");
+						pthread_mutex_unlock(&semSockPaq);
 					} else {
+						bool buscPers(pers_t* personaje){return (personaje->simbolo==posConsultada->simbolo);}
+						personaG=list_find(list_personajes,(void*)buscPers);
+						personaG->recursos=list_create();
 						// Logueo el bloqueo del personaje/
 						log_info(logger,"El personaje %c se bloqueo por el recurso %c",posConsultada->simbolo,posConsultada->recurso);
 						//Agrego el recurso a la lista de recursos del personaje y lo bloqueo
@@ -339,15 +343,18 @@ int main(int argc, char* argv[]) {
 						pthread_mutex_unlock(&semMSJ);*/
 					}
 				break;
-				case PL_DESCONEXION_PERSONAJE://SALIR:
-					// Un personaje termino o murio y debo liberar instancias de recursos que tenia asignado
-					//habria un payload con aunque sea el id del personaje, por ahora uso tSimbolo
-					//memcpy(&personajeMuerto,payload,sizeof(tSimbolo)); //cambio a personajeMuerto por un pers_t*
-					personajeMuerto = deserializarSimbolo(payload);
-					log_debug(logger, "El personaje %c se desconecto", *personajeMuerto);
+				case PL_DESCONEXION_PERSONAJE:// Un personaje termino o murio y debo liberar instancias de recursos que tenia asignado
+					persDesconectado= deserializarPersDesconect(payload);
+					log_debug(logger, "El personaje %c se desconecto",persDesconectado->simbolo);
 					pthread_mutex_lock(&semItems);
-					liberarRecsPersonaje2((char) *personajeMuerto);
+					//agrego una instancia a list_items de todos los recursos que me manda planificador (que son todos los que no reasigno)
+					for(i=0;i<persDesconectado->lenghtRecursos;i++){
+						sumarRecurso(list_items,persDesconectado->recursos[i]);
+					}
 					pthread_mutex_unlock(&semItems);
+					//eliminar al personaje de list_personajes
+					bool buscarPersonaje(pers_t* perso){return(perso->simbolo==persDesconectado->simbolo);}
+					list_remove_by_condition(list_personajes,(void*)buscarPersonaje);
 				break;
 				} //Fin del switch
 				//Cesar lo pongo que dibuje porque estuve probando que los enemigos son MUY LENTOS entonces no llegarian nunca a dibujar
@@ -364,9 +371,12 @@ int main(int argc, char* argv[]) {
 
 void levantarArchivoConf(char* argumento){
 	t_config *configNivel; //TODO destruir el config cuando cierra el nivel,
+	extern char* dir_plataforma;
+	extern char* ip_plataforma;
+	dir_plataforma=(char*)malloc(sizeof(char)*22);
+	ip_plataforma=(char*)malloc(sizeof(char)*16);
 	char* algoritmoAux;
 	int i,posXCaja,posYCaja,cantCajas;
-	char* dir_plataforma;
 	char* messageLimitErr= malloc(sizeof(char) * 100);
 	char** lineaCaja;
 	char** dirYpuerto;
@@ -378,7 +388,7 @@ void levantarArchivoConf(char* argumento){
 
 	configNivel=config_create(argumento);
 	cantCajas=config_keys_amount(configNivel)-9;
-	lineaCaja=malloc(cantCajas*15*sizeof(char));
+
 
 	for(i=0;i<cantCajas;i++){
 		//printf("valor de i:%i",i);
@@ -399,7 +409,7 @@ void levantarArchivoConf(char* argumento){
 	}
 	free(lineaCaja);
 	free(messageLimitErr);
-	nom_nivel 	   = string_duplicate(config_get_string_value(configNivel,"Nombre"));//config_get_string_value(configNivel, "Nombre");
+	nom_nivel 	   = string_duplicate(config_get_string_value(configNivel,"Nombre"));
 	recovery       = config_get_int_value(configNivel, "Recovery");
 	cant_enemigos  = config_get_int_value(configNivel, "Enemigos");
 	sleep_enemigos = config_get_int_value(configNivel, "Sleep_Enemigos");
@@ -411,10 +421,11 @@ void levantarArchivoConf(char* argumento){
 	timeCheck      = config_get_int_value(configNivel, "TiempoChequeoDeadlock");
 	dir_plataforma = config_get_string_value(configNivel, "Plataforma");
 	dirYpuerto     = string_split(dir_plataforma,":");
-	ip_plataforma  = string_duplicate(dirYpuerto[0]);//strtok(dir_plataforma, ":");
-	port_orq 	   = atoi(dirYpuerto[1]);//strtok(NULL, ":");
+	ip_plataforma  = string_duplicate(dirYpuerto[0]);
+	port_orq 	   = atoi(dirYpuerto[1]);
 	cantRecursos   = list_size(list_items);
-	config_destroy(configNivel);
+
+	//config_destroy(configNivel);
 	free(dirYpuerto);
 }
 void actualizarInfoNivel(char* argumento){
@@ -438,16 +449,16 @@ void actualizarInfoNivel(char* argumento){
 void *enemigo(void * args) {
 	enemigo_t *enemigo;
 	enemigo = (enemigo_t *) args;
-
+	extern t_list *list_items;
+	extern tPaquete paquete;
 	int cantPersonajesActivos;
 	int contMovimiento = 3;
 	char victimaAsignada='0';
 	char ultimoMov='a';
 	char dirMov='b';
 	int dist1,dist2=9999999,i;
-	//ITEM_NIVEL* itemBusq=malloc(sizeof(ITEM_NIVEL));
-	ITEM_NIVEL* item=malloc(sizeof(ITEM_NIVEL));
-	pers_t* persVictima=malloc(sizeof(pers_t));
+	ITEM_NIVEL* item;
+	pers_t* persVictima;
 
 	//chequeando que la posicion del enemigo no caiga en un recurso
 	enemigo->posX = 1+(rand() % maxCols);
@@ -462,11 +473,8 @@ void *enemigo(void * args) {
 	pthread_mutex_unlock(&semItems);//????
 
 	while (1) {
-		//pthread_mutex_lock(&semlistPers);por si un perso que esta bloqueado se lee como no bloqueado (pero creo seria en un lapso de tiempo muy corto=>no importa)
 		bool personajeBloqueado(pers_t* personaje){return(personaje->bloqueado==false);}
 		cantPersonajesActivos=list_count_satisfying(list_personajes,(void*)personajeBloqueado);
-		//pthread_mutex_unlock(&semlistPers);
-
 		if (cantPersonajesActivos == 0) {
 			/* para hacer el movimiento de caballo uso la var ultimoMov que puede ser:
 			 * a:el ultimo movimiento fue horizontal por primera vez b:el utlimo movimiento fue horizontal por segunda vez
@@ -596,13 +604,13 @@ void *enemigo(void * args) {
 						if(enemigo->posX==item->posx){//se esta en la misma posicion que la victima =>matarla
 							//un semaforo para que no mande mensaje al mismo tiempo que otros enemigos o el while principal
 							//otro semaforo para que no desasigne y se esten evaluando otros
-							log_debug(logger, "El personaje %c esta muerto",paquete->type);
-							pthread_mutex_lock(&semMSJ);
-							paquete->type=N_MUERTO_POR_ENEMIGO;
-							memcpy(paquete->payload,&(item->id),sizeof(char));
-							paquete->length=sizeof(char);
-							enviarPaquete(sockete,paquete,logger,"enviando notificacion de muerte de personaje a plataforma");
-							pthread_mutex_unlock(&semMSJ);
+
+							pthread_mutex_lock(&semSockPaq);
+							paquete.type=N_MUERTO_POR_ENEMIGO;
+							memcpy(paquete.payload,&(item->id),sizeof(char));
+							paquete.length=sizeof(char);
+							enviarPaquete(sockete,&paquete,logger,"enviando notificacion de muerte de personaje a plataforma");
+							pthread_mutex_unlock(&semSockPaq);
 							pthread_mutex_lock(&semItems);
 							liberarRecsPersonaje(item->id);
 							pthread_mutex_unlock(&semItems);
@@ -626,52 +634,15 @@ void *enemigo(void * args) {
 		pthread_mutex_unlock(&semItems);
 		usleep(sleep_enemigos);
 		} //Fin de while(1)
-	//free(itemBusq);
-	free(persVictima);
-	free(item);
 	pthread_exit(NULL );
-}
-void *tirando2personajes (void* sinUso){
-	int i,h=0,x1=2,y1=2,x2=15,y2=7;
-	pers_t *personaje1=malloc(sizeof(pers_t));
-	pers_t *personaje2=malloc(sizeof(pers_t));
-	personaje1->bloqueado=false;
-	personaje2->bloqueado=false;
-	personaje1->simbolo='#';
-	personaje2->simbolo='$';
-	personaje1->recursos=list_create();
-	personaje2->recursos=list_create();
-	list_add_new(list_personajes,(void*)personaje1,sizeof(pers_t));
-	list_add_new(list_personajes,(void*)personaje2,sizeof(pers_t));
-
-	pthread_mutex_lock(&semItems);
-	CrearPersonaje(list_items,'#',2,2);
-	CrearPersonaje(list_items,'$',16,7);
-	pthread_mutex_unlock(&semItems);
-	for(i=0;i<10;i++){
-		if(h==0){
-			pthread_mutex_lock(&semItems);
-			MoverPersonaje(list_items,personaje1->simbolo,x1,y1++);
-			MoverPersonaje(list_items,personaje2->simbolo,x2--,y2);
-			pthread_mutex_unlock(&semItems);
-			h=1;
-		}else{
-			pthread_mutex_lock(&semItems);
-			MoverPersonaje(list_items,personaje1->simbolo,x1++,y1);
-			MoverPersonaje(list_items,personaje2->simbolo,x2--,y2);
-			pthread_mutex_unlock(&semItems);
-			h=0;
-		}
-		usleep(400000);
-	}
-	void esUn2(pers_t *personaje){if (personaje->simbolo==personaje1->simbolo||personaje->simbolo==personaje2->simbolo)personaje->bloqueado=true;}
-	list_iterate(list_personajes,(void*)esUn2);
-	return 0;
 }
 void *deteccionInterbloqueo (void *parametro){
 	extern t_list* list_items;
-	tPaquete* paqueteInterbloqueo=NULL;
+	extern tPaquete paquete;
+
 	tSimbolo* caja;
+	tSimbolo perso;
+
 	int i,j,k,fila;
 	ITEM_NIVEL* itemRec=NULL;
 	pers_t* personaje=NULL;
@@ -684,11 +655,13 @@ void *deteccionInterbloqueo (void *parametro){
 	int **matSolicitud=NULL;
 	int *vecSatisfechos=NULL;
 	t_caja *vecCajas=NULL;
-	int indice,cantPersonajesSatisfechos=0;
+	int indice,cantPersonajesSatisfechos;
+	char encontrado;
 
 	while(1){
 	    cantPersonajes=list_size(list_personajes);
 		indice=0;
+		cantPersonajesSatisfechos=0;
 
 		if(cantPersonajes!=0){
 			matAsignacion=(int**)malloc(sizeof(int*)*cantPersonajes);
@@ -701,17 +674,15 @@ void *deteccionInterbloqueo (void *parametro){
 				matSolicitud[i]=(int*)malloc(sizeof(int)*cantRecursos);
 			}
 
-		   pthread_mutex_lock (&semItems);//nadie mueve un pelo hasta que no se evalue el interbloqueo
-
+		    pthread_mutex_lock (&semItems);//nadie mueve un pelo hasta que no se evalue el interbloqueo
 			//inicializando matrices
-			for(i=0;i<cantRecursos;i++){
-				for(j=0;j<cantPersonajes;j++){
+			for(i=0;i<cantPersonajes;i++){
+				for(j=0;j<cantRecursos;j++){
 					matAsignacion[i][j]=0;
 					*(*(matSolicitud+i)+j)=0;
 				}
 				*(vecSatisfechos+i)=-1;
 			}
-
 			//llenando las matrices con la info
 			for(i=0;i<list_size(list_items);i++){
 				itemRec=list_get(list_items,i);
@@ -725,9 +696,8 @@ void *deteccionInterbloqueo (void *parametro){
 				personaje=list_get(list_personajes,i);
 				for(j=0;j<list_size(personaje->recursos);j++){       //recorro su lista de recursos y por cada recurso asignados:
 					caja=list_get(personaje->recursos,j);
-
-					for(k=0;k<cantRecursos;k++){//recorro a vecCajas (vector de recursos en list_items) viendo por c/u de sus elementos
-						if(vecCajas[k].simbolo==(char*)caja){        //si coincide con el recurso recorrido con j (esto es para que las matrices mantengan los indices)
+					for(k=0;k<cantRecursos;k++){                     //recorro a vecCajas (vector de recursos en list_items) viendo por c/u de sus elementos
+						if(vecCajas[k].simbolo==(char)*caja){        //si coincide con el recurso recorrido con j (esto es para que las matrices mantengan los indices)
 							if((j==list_size(personaje->recursos)-1)&&(personaje->bloqueado==true)){//me fijo si es el ultimo elemento de la lista(=>es el por el que el personaje esta bloqueado)
 								matSolicitud[i][k]+=1;               //entonces lo pongo en la ubicacion i k de la matriz de solicitud
 							}else{
