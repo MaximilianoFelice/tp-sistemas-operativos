@@ -10,45 +10,50 @@
 #define TAM_EVENTO (sizeof(struct inotify_event)+24)
 #define TAM_BUFER (1*TAM_EVENTO)//ex 1024
 
-t_log *logger;
-t_list *list_personajes;
-t_list *list_items;
-char* nom_nivel;
+t_log *logger=NULL;
+t_list *list_personajes=NULL;
+t_list *list_items=NULL;
+char* nom_nivel=NULL;
 int cantRecursos;
 int maxRows=0, maxCols=0;
-tPaquete* paquete;
 
+//Variables del archivo config
 int cant_enemigos;
 int sleep_enemigos;
 int hayQueAsesinar = true;
-char* dir_plataforma;
 int recovery;
 tAlgoritmo algoritmo;
 int quantum;
 uint32_t retardo;
 int timeCheck;
-char* ip_plataforma;
+char* dir_plataforma=NULL;
+char* ip_plataforma=NULL;
 int port_orq;
 
 int sockete;
+tPaquete paquete;
 
-pthread_mutex_t semMSJ;
+pthread_mutex_t semSockPaq;
 pthread_mutex_t semItems;
 
-
 int main(int argc, char* argv[]) {
+	extern char* nom_nivel;
+	extern tPaquete paquete;
+
+	pers_t* pjNew=(pers_t*)malloc(sizeof(pers_t));
 
 	signal(SIGINT, cerrarForzado);
 	char buferNotify[TAM_BUFER];
 	int i,vigilante,rv,descriptorNotify;
 	struct pollfd uDescriptores[2];
-	pers_t pjNew;
-	pthread_mutex_init(&semMSJ, NULL );
+	pthread_mutex_init(&semSockPaq, NULL );
 	pthread_mutex_init(&semItems,NULL);
 	int posX = 0, posY = 0;// Para los personajes
 	int posRecY = 0, posRecX = 0;// Para los recursos
-	extern tPaquete* paquete;
-	paquete=malloc(sizeof(tPaquete));
+
+	int8_t tipoMsj;
+	tRtaPosicion posRespondida;
+	tMovimientoPers movPersonaje;
 
 	//LOG
 	logger = logInit(argv, "NIVEL");
@@ -71,10 +76,10 @@ int main(int argc, char* argv[]) {
 
 	// MENSAJE INICIAL A ORQUESTADOR (SALUDO)
 	//la serializacion:
-	paquete->type=N_HANDSHAKE;
-	paquete->length=strlen(nom_nivel)+1;
-	memcpy(paquete->payload,nom_nivel,strlen(nom_nivel)+1);
-	enviarPaquete(sockete,paquete,logger,"handshake nivel");
+	paquete.type=N_HANDSHAKE;
+	paquete.length=strlen(nom_nivel)+1;
+	memcpy(paquete.payload,nom_nivel,strlen(nom_nivel)+1);
+	enviarPaquete(sockete,&paquete,logger,"handshake nivel");
 
 	//RECIBIENDO CONTESTACION
 	tMensaje tipoDeMensaje;
@@ -97,12 +102,15 @@ int main(int argc, char* argv[]) {
 	infoDeNivel.quantum=quantum;
 	infoDeNivel.delay=retardo;
 	//serializacion propia porque la de protocolo no me andaba bien
-	paquete->type=N_DATOS;
-	paquete->length=sizeof(infoDeNivel);
-	memcpy(paquete->payload,&infoDeNivel.delay,sizeof(uint32_t));
-	memcpy(paquete->payload+sizeof(uint32_t),&infoDeNivel.quantum,sizeof(int8_t));
-	memcpy(paquete->payload+sizeof(uint32_t)+sizeof(int8_t),&infoDeNivel.algoritmo,sizeof(tAlgoritmo));
-	enviarPaquete(sockete,paquete,logger,"notificando a plataforma algoritmo");
+	paquete.type=N_DATOS;
+	paquete.length=sizeof(infoDeNivel);
+	memcpy(paquete.payload,&infoDeNivel.delay,sizeof(uint32_t));
+	memcpy(paquete.payload+sizeof(uint32_t),&infoDeNivel.quantum,sizeof(int8_t));
+	memcpy(paquete.payload+sizeof(uint32_t)+sizeof(int8_t),&infoDeNivel.algoritmo,sizeof(tAlgoritmo));
+	enviarPaquete(sockete,&paquete,logger,"notificando a plataforma algoritmo");
+	//free(nom_nivel);--->NO, la usaran los hilos enemigos
+	free(ip_plataforma);
+	free(dir_plataforma);
 
 	//INOTIFY
 	descriptorNotify=inotify_init();
@@ -114,7 +122,6 @@ int main(int argc, char* argv[]) {
 	uDescriptores[0].events=POLLIN;
 	uDescriptores[1].fd=descriptorNotify;
 	uDescriptores[1].events=POLLIN;
-	//puts("poll hecho"); //TODO Lo saco porque me dibuja mal despues
 
 	////CREANDO Y LANZANDO HILOS ENEMIGOS
 	threadEnemy_t *hilosEnemigos;
@@ -127,11 +134,6 @@ int main(int argc, char* argv[]) {
 			exit(EXIT_FAILURE);
 		}
 	}
-
-//	//LANZANDO UN PAR DE PERSONAJES DE PRUEBA ---->BORRAR DESPUES
-	//pthread_t tipoHilo;
-	//pthread_create(&tipoHilo,NULL,&tirando2personajes,NULL);
-
 
 	//LANZANDO EL HILO DETECTOR DE INTERBLOQUEO
 	pthread_t hiloInterbloqueo;
@@ -154,39 +156,37 @@ int main(int argc, char* argv[]) {
 					infoDeNivel.quantum=quantum;
 					infoDeNivel.delay=retardo;
 					//serializacion propia porque la de protocolo no me andaba bien
-					pthread_mutex_lock(&semMSJ);
-					paquete->type=N_DATOS;
-					paquete->length=sizeof(infoDeNivel);
-					memcpy(paquete->payload,&infoDeNivel.delay,sizeof(uint32_t));
-					memcpy(paquete->payload+sizeof(uint32_t),&infoDeNivel.quantum,sizeof(int8_t));
-					memcpy(paquete->payload+sizeof(uint32_t)+sizeof(int8_t),&infoDeNivel.algoritmo,sizeof(tAlgoritmo));
-					enviarPaquete(sockete,paquete,logger,"notificando a plataforma algoritmo");
-					pthread_mutex_unlock(&semMSJ);
+					pthread_mutex_lock(&semSockPaq);
+					paquete.type=N_DATOS;
+					paquete.length=sizeof(infoDeNivel);
+					memcpy(paquete.payload,&infoDeNivel.delay,sizeof(uint32_t));
+					memcpy(paquete.payload+sizeof(uint32_t),&infoDeNivel.quantum,sizeof(int8_t));
+					memcpy(paquete.payload+sizeof(uint32_t)+sizeof(int8_t),&infoDeNivel.algoritmo,sizeof(tAlgoritmo));
+					enviarPaquete(sockete,&paquete,logger,"notificando a plataforma algoritmo");
+					pthread_mutex_unlock(&semSockPaq);
 				}
 			}
 			if(uDescriptores[0].revents & POLLIN){
+				tPregPosicion* posConsultada=NULL;
+				pers_t* personaG=NULL;
+				ITEM_NIVEL* itemRec=NULL;
+				tDesconexionPers* persDesconectado;
 				recibirPaquete(sockete,&tipoDeMensaje,&payload,logger,"recibiendo mensaje de plataforma");
-				int8_t tipoMsj;
-				tPregPosicion* posConsultada=malloc(sizeof(tPregPosicion));
-				tRtaPosicion posRespondida;
+
 //				tRtaPosicion2 posRta; //No borres lee el comentario del case PL_POS_RECURSO
 				tMovimientoPers movPersonaje;
-				pers_t* personaG=NULL;
-				//tSimbolo *persNew;
-				tSimbolo *personajeMuerto;
 				tipoMsj=(int8_t)tipoDeMensaje;
-				ITEM_NIVEL* itemRec;
+
 				switch(tipoMsj){
 				case PL_CONEXION_PERS:
 					movPersonaje.simbolo=(int8_t)*payload;
 					bool buscaPersonaje(pers_t* perso){return (perso->simbolo==movPersonaje.simbolo);}
 					personaG=list_find(list_personajes,(void*)buscaPersonaje);
-
 					if(personaG==NULL){
-						pjNew.simbolo  = movPersonaje.simbolo;
-						pjNew.bloqueado  = false;
-						pjNew.recursos = list_create();
-						list_add_new(list_personajes,(void*)&pjNew,sizeof(pers_t));
+						pjNew->simbolo  = movPersonaje.simbolo;
+						pjNew->bloqueado  = false;
+						pjNew->recursos = list_create();
+						list_add_new(list_personajes,(void*)pjNew,sizeof(pers_t));
 						char symbol=(char) movPersonaje.simbolo;
 						pthread_mutex_unlock(&semItems);
 						CrearPersonaje(list_items,symbol, INI_X, INI_Y);
