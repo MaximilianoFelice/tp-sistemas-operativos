@@ -40,8 +40,6 @@ int main(int argc, char* argv[]) {
 	extern char* nom_nivel;
 	extern tPaquete paquete;
 
-	pers_t* pjNew=(pers_t*)malloc(sizeof(pers_t));
-
 	signal(SIGINT, cerrarForzado);
 	char buferNotify[TAM_BUFER];
 	int i,vigilante,rv,descriptorNotify;
@@ -160,13 +158,13 @@ int main(int argc, char* argv[]) {
 					infoDeNivel.delay=retardo;
 					//serializacion propia porque la de protocolo no me andaba bien
 					pthread_mutex_lock(&semSockPaq);
-					log_debug(logger, "\nCriterios: \n \t Algoritmo: %d \n \t Quantum: %d \n \t Delay: %d \n", infoDeNivel.algoritmo, infoDeNivel.quantum, infoDeNivel.delay);
 					serializarInfoNivel(N_ACTUALIZACION_CRITERIOS, infoDeNivel, &paquete);
 					enviarPaquete(sockete,&paquete,logger,"notificando a plataforma algoritmo");
 					pthread_mutex_unlock(&semSockPaq);
 				}
 			}
 			if(uDescriptores[0].revents & POLLIN){
+				pers_t pjNew;
 				tPregPosicion* posConsultada=NULL;
 				pers_t* personaG=NULL;
 				ITEM_NIVEL* itemRec=NULL;
@@ -181,16 +179,16 @@ int main(int argc, char* argv[]) {
 					bool buscaPersonaje(pers_t* perso){return (perso->simbolo==movPersonaje.simbolo);}
 					personaG=list_find(list_personajes,(void*)buscaPersonaje);
 					if(personaG==NULL){
-						pjNew->simbolo  = movPersonaje.simbolo;
-						pjNew->bloqueado  = false;
-						pjNew->recursos = list_create();
-						list_add_new(list_personajes,(void*)pjNew,sizeof(pers_t));
+						pjNew.simbolo  = movPersonaje.simbolo;
+						pjNew.bloqueado  = false;
+						pjNew.recursos = list_create();
+						list_add_new(list_personajes,(void*)&pjNew,sizeof(pers_t));
 						char symbol=(char) movPersonaje.simbolo;
 						pthread_mutex_unlock(&semItems);
 						CrearPersonaje(list_items,symbol, INI_X, INI_Y);
 						pthread_mutex_unlock(&semItems);
 						// Logueo el personaje recien agregado
-						log_info(logger, "<<< Se agrego al personaje %c a la lista", (char) pjNew->simbolo);
+						log_info(logger, "<<< Se agrego al personaje %c a la lista", (char) pjNew.simbolo);
 						pthread_mutex_lock(&semSockPaq);
 						paquete.type=N_CONEXION_EXITOSA;
 						paquete.length=0;
@@ -209,7 +207,7 @@ int main(int argc, char* argv[]) {
 					movPersonaje.direccion=(tDirMovimiento)*(payload+sizeof(int8_t));
 					log_debug(logger, "<<< El personaje %c solicito moverse", movPersonaje.simbolo);
 					bool buscaPer(pers_t* perso){
-						log_debug(logger,"perso.simbolo:%c movPerso.simbolo:%c",perso->simbolo,movPersonaje.simbolo);
+//						log_debug(logger,"perso.simbolo:%c movPerso.simbolo:%c",perso->simbolo,movPersonaje.simbolo);
 						return (perso->simbolo==movPersonaje.simbolo);
 					}
 					personaG=(pers_t *)list_find(list_personajes,(void*)buscaPer);
@@ -342,6 +340,7 @@ int main(int argc, char* argv[]) {
 	}
 	inotify_rm_watch(descriptorNotify,vigilante);
 	close(descriptorNotify);
+	log_destroy(logger);
 	return 0;
 }
 
@@ -364,7 +363,6 @@ void levantarArchivoConf(char* argumento){
 
 	configNivel=config_create(argumento);
 	cantCajas=config_keys_amount(configNivel)-9;
-
 
 	for(i=0;i<cantCajas;i++){
 		//printf("valor de i:%i",i);
@@ -402,6 +400,8 @@ void levantarArchivoConf(char* argumento){
 	cantRecursos   = list_size(list_items);
 
 	//config_destroy(configNivel);
+	free(dirYpuerto[0]);
+	free(dirYpuerto[1]);
 	free(dirYpuerto);
 }
 
@@ -622,9 +622,9 @@ void matarPersonaje(ITEM_NIVEL *item){
 	paquete.length=sizeof(char);
 	enviarPaquete(sockete,&paquete,logger,"enviando notificacion de muerte de personaje a plataforma");
 	pthread_mutex_unlock(&semSockPaq);
-	pthread_mutex_lock(&semItems);
-	liberarRecsPersonaje(item->id); //TODO este me tiraba seg fault, por eso hice el liberarRecsPersonaje2
-	pthread_mutex_unlock(&semItems);
+//	pthread_mutex_lock(&semItems);
+//	liberarRecsPersonaje(item->id); //Libera recursos solo en DESCONEXION_PERS
+//	pthread_mutex_unlock(&semItems);
 
 }
 
@@ -742,9 +742,9 @@ void *deteccionInterbloqueo (void *parametro){
 					pthread_mutex_unlock(&semSockPaq);
 					//eliminar personaje y devolver recursos
 					log_debug(logger, "El personaje %c se elimino por participar en un interbloqueo", paquete.payload[0]);
-					pthread_mutex_lock(&semItems);
-					liberarRecsPersonaje2((char) personaje->simbolo);
-					pthread_mutex_unlock(&semItems);
+//					pthread_mutex_lock(&semItems);
+//					liberarRecsPersonaje2((char) personaje->simbolo); //Libera recursos solo en DESCONEXIN_PERS
+//					pthread_mutex_unlock(&semItems);
 				}
 			}
 			pthread_mutex_unlock (&semItems);
@@ -762,22 +762,6 @@ void *deteccionInterbloqueo (void *parametro){
 	return 0;
 }
 
-void liberarRecsPersonaje2(char id){
-	pers_t *persDesconexion;
-
-	bool buscarPersonaje(pers_t* perso){return(perso->simbolo==id);}
-	//eliminar al personaje de list_personajes y devolverlo para desasignar sus recursos:
-	persDesconexion=list_find(list_personajes,(void*)buscarPersonaje);
-	list_remove_by_condition(list_personajes,(void*)buscarPersonaje);
-	int i;
-	for(i=0; i<list_size(persDesconexion->recursos); i++){
-		tSimbolo *recurso = list_get(persDesconexion->recursos, i);
-		sumarInstanciasRecurso(list_items, *recurso);
-	}
-	list_destroy_and_destroy_elements(persDesconexion->recursos, free);
-	BorrarItem(list_items, id);
-	personaje_destroyer(persDesconexion);
-}
 
 void liberarRecsPersonaje(char id){
 	pers_t* personaje;
