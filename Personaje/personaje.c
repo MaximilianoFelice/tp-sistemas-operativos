@@ -401,36 +401,31 @@ tDirMovimiento calcularYEnviarMovimiento(personajeIndividual_t *personajePorNive
 void recibirMensajeTurno(int socketPlataforma){
 	tMensaje tipoMensaje;
 	char* sPayload;
-	recibirPaquete(socketPlataforma, &tipoMensaje, &sPayload, logger, "Espero turno");
 
-	switch (tipoMensaje){
-		case PL_OTORGA_TURNO: {
-			log_info(logger, "Se recibe turno");
-			break;
-		}
-		case PL_MUERTO_POR_ENEMIGO:{
-			log_info(logger, "El personaje se murio por enemigos");
-			restarVida();
-			if (personaje.vidas>0)
-				recibirMensajeTurno(socketPlataforma);
-			break;
-		}
-		case PL_MUERTO_POR_DEADLOCK:{
-			log_info(logger, "El personaje se murio por deadlock");
-			restarVida();
-			if (personaje.vidas>0)
-				recibirMensajeTurno(socketPlataforma);
-			break;
-		}
-		default: {
-			log_error(logger, "Llego un mensaje (tipoMensaje: %s) cuando debia llegar PL_OTORGA_TURNO", enumToString(tipoMensaje));
-			log_error(logger, "Estoy en un sleep(400000000); porque me llego mal un mensaje: DETENGO TODO");
-			sleep(400);
-			exit(EXIT_FAILURE);
-			break;
-		}
-	}
+	do {
+		recibirPaquete(socketPlataforma, &tipoMensaje, &sPayload, logger, "Espero turno");
 
+		switch (tipoMensaje) {
+			case PL_OTORGA_TURNO:
+				log_info(logger, "Se recibe turno");
+				break;
+
+			case PL_MUERTO_POR_ENEMIGO:
+				log_info(logger, "El personaje se murio por enemigos");
+				restarVida();
+				break;
+
+			case PL_MUERTO_POR_DEADLOCK:
+				log_info(logger, "El personaje se murio por deadlock");
+				restarVida();
+				break;
+
+			default:
+				log_error(logger, "Llego un mensaje (tipoMensaje: %s) cuando debia llegar PL_OTORGA_TURNO", enumToString(tipoMensaje));
+				break;
+		}
+
+	} while (tipoMensaje != PL_OTORGA_TURNO);
 }
 
 void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurso){
@@ -614,22 +609,22 @@ void actualizaPosicion(tDirMovimiento* movimiento, personajeIndividual_t **perso
 
 }
 
-void sig_aumentar_vidas(){
+void sig_aumentar_vidas() {
 	pthread_mutex_lock(&semModificadorDeVidas);
 	personaje.vidas++;
 	pthread_mutex_unlock(&semModificadorDeVidas);
 	log_debug(logger, "Se le ha agregado una vida por senal.");
 }
 
-void restarVida(){
+void restarVida() {
 
 	pthread_mutex_lock(&semModificadorDeVidas);
 	personaje.vidas--;
 
-	reiniciarJuego();
-
+	if (personaje.vidas <= 0) {
+		reiniciarJuego();
+	}
 	pthread_mutex_unlock(&semModificadorDeVidas);
-
 	log_debug(logger, "Se le ha restado una vida.");
 }
 
@@ -668,12 +663,14 @@ void matarHilosYDesconectar(){
 	int i;
 
 	/* matar a todos los threads */
-	for (i = 0; i < cantidadNiveles; i++){
+	for (i = 0; i < cantidadNiveles; i++) {
 		pthread_cancel(hilosNiv->thread);
 
 		unPersonaje = dictionary_get(listaPersonajePorNiveles, hilosNiv->nivel.nomNivel);
-		if (unPersonaje->socketPlataforma!=0)
+
+		if (unPersonaje->socketPlataforma != 0) {
 			desconectarPersonaje(unPersonaje);
+		}
 	}
 
 }
@@ -681,22 +678,23 @@ void matarHilosYDesconectar(){
 void reiniciarJuego(){
 	char n;
 
-	if (personaje.vidas <= 0) {
+	log_info(logger, "El personaje murio por quedarse sin vidas.");
+	log_debug(logger, "Se procede a desconectarse de la plataforma");
 
-		log_info(logger, "Se quedo sin vidas el personaje y se murio.");
+	matarHilosYDesconectar();
+	log_debug(logger, "Ya se desconecto de la plataforma");
 
-		log_debug(logger, "Se procede a desconectar de la plataforma");
-		matarHilosYDesconectar();
-		log_debug(logger, "Ya se desconecto de la plataforma");
+	printf("\n ¿Desea volver a intentar? (Y/N) ");
 
-		printf("\n ¿Desea volver a intentar? (Y/N) ");
+	n = getchar();
+
+	while( (n != 'N') | (n != 'Y') ){
 		n = getchar();
-		while( (n != 'N') | (n != 'Y') ){
-			n = getchar();
-			printf("No entiendo ese comando");
-			printf("\n ¿Desea volver a intentar? (Y/N) ");
-		}
-		if (n == 'Y') continuar = true;
-		if (n == 'N') continuar = false;
+		printf("No entiendo ese comando");
+		printf("\n ¿Desea volver a intentar? (Y/N) ");
 	}
+
+	if (n == 'Y') continuar = true;
+	if (n == 'N') continuar = false;
+
 }
