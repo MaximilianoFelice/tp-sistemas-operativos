@@ -8,7 +8,7 @@
 
 #include "nivel.h"
 #define TAM_EVENTO (sizeof(struct inotify_event)+24)
-#define TAM_BUFER (1*TAM_EVENTO)//ex 1024
+#define TAM_BUFFER (1024*TAM_EVENTO)//podria ser 1 en lugar de 1024? (ya que es cant.de eventos simultaneos y yo solo pregunto por un evento)
 
 t_log *logger=NULL;
 t_list *list_personajes=NULL;
@@ -41,8 +41,9 @@ int main(int argc, char* argv[]) {
 	extern tPaquete paquete;
 
 	signal(SIGINT, cerrarForzado);
-	char buferNotify[TAM_BUFER];
-	int i,vigilante,rv,descriptorNotify;
+
+	char bufferInotify[TAM_BUFFER];
+	int i,rv,descriptorVigilador,bytesLeidos,descriptorInotify;
 	struct pollfd uDescriptores[2];
 	pthread_mutex_init(&semSockPaq, NULL );
 	pthread_mutex_init(&semItems,NULL);
@@ -112,16 +113,16 @@ int main(int argc, char* argv[]) {
 	free(dir_plataforma);
 
 	//INOTIFY
-	descriptorNotify=inotify_init();
-	vigilante=inotify_add_watch(descriptorNotify,argv[1],IN_MODIFY);
-	if (vigilante==-1) {
+	descriptorInotify=inotify_init();
+	descriptorVigilador=inotify_add_watch(descriptorInotify,argv[1],IN_MODIFY);
+	if (descriptorVigilador==-1) {
 		log_error(logger, "error en inotify add_watch");
 	}
 
 	//POLL
 	uDescriptores[0].fd=sockete;
 	uDescriptores[0].events=POLLIN;
-	uDescriptores[1].fd=descriptorNotify;
+	uDescriptores[1].fd=descriptorInotify;
 	uDescriptores[1].events=POLLIN;
 
 	////CREANDO Y LANZANDO HILOS ENEMIGOS
@@ -145,24 +146,28 @@ int main(int argc, char* argv[]) {
 		if((rv=poll(uDescriptores,2,-1))==-1) perror("poll");
 		else{
 			if (uDescriptores[1].revents&POLLIN){
-				log_error(logger, "novedades POLLIN");
-				read(descriptorNotify,buferNotify,TAM_BUFER);
-				log_error(logger, "se lee el descriptor en el buffer");
-				struct inotify_event* evento=(struct inotify_event*) &buferNotify[0];
-				if(evento->mask & IN_MODIFY){//avisar a planificador que cambio el archivo config
-					actualizarInfoNivel(argv[1]);
-					//ENVIANDO A PLATAFORMA NOTIFICACION DE ALGORITMO ASIGNADO
-					tInfoNivel infoDeNivel;
-					infoDeNivel.algoritmo=algoritmo;
-					infoDeNivel.quantum=quantum;
-					infoDeNivel.delay=retardo;
-					//serializacion propia porque la de protocolo no me andaba bien
-					pthread_mutex_lock(&semSockPaq);
-					serializarInfoNivel(N_ACTUALIZACION_CRITERIOS, infoDeNivel, &paquete);
-					enviarPaquete(sockete,&paquete,logger,"notificando a plataforma algoritmo");
-					pthread_mutex_unlock(&semSockPaq);
+				i=0;
+				bytesLeidos=read(descriptorInotify,bufferInotify,TAM_BUFFER);
+				while(i<bytesLeidos){
+					struct inotify_event* evento;
+					evento=(struct inotify_event*) &bufferInotify[i];
+					if(evento->mask & IN_MODIFY){//avisar a planificador que cambio el archivo config
+						actualizarInfoNivel(argv[1]);
+						//ENVIANDO A PLATAFORMA NOTIFICACION DE ALGORITMO ASIGNADO
+						tInfoNivel infoDeNivel;
+						infoDeNivel.algoritmo=algoritmo;
+						infoDeNivel.quantum=quantum;
+						infoDeNivel.delay=retardo;
+						//serializacion propia porque la de protocolo no me andaba bien
+						pthread_mutex_lock(&semSockPaq);
+						serializarInfoNivel(N_ACTUALIZACION_CRITERIOS, infoDeNivel, &paquete);
+						enviarPaquete(sockete,&paquete,logger,"notificando a plataforma algoritmo");
+						pthread_mutex_unlock(&semSockPaq);
+					}
+					i+=TAM_EVENTO+evento->len;
 				}
-			}
+			}//Preguntar por que si poll detecta actividad en el descriptor del inotify y este solo se acciona cuando ocurre in_modify => haria falta todo lo que sigue? o
+			 //simplemente podria actualizar los datos y listo?
 			if(uDescriptores[0].revents & POLLIN){
 				pers_t pjNew;
 				tPregPosicion* posConsultada=NULL;
@@ -338,8 +343,8 @@ int main(int argc, char* argv[]) {
 			}
 		}
 	}
-	inotify_rm_watch(descriptorNotify,vigilante);
-	close(descriptorNotify);
+	inotify_rm_watch(descriptorInotify,descriptorVigilador);
+	close(descriptorInotify);
 	log_destroy(logger);
 	return 0;
 }
