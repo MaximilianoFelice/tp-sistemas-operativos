@@ -810,6 +810,7 @@ int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNi
 
 			if(pPersonajeActual != NULL){
 				pPersonajeActual->quantumUsado = 0;
+				queue_push(pNivel->cListos, pPersonajeActual);
 			}
 
 			bool _menorRemainingDistance(tPersonaje *unPersonaje, tPersonaje *otroPersonaje){
