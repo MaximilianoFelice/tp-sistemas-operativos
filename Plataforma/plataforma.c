@@ -11,6 +11,7 @@
 pthread_mutex_t semNivel;
 pthread_mutex_t mtxlNiveles;
 t_list 	 *listaNiveles;
+t_list *lPlanificadores;
 t_config *configPlataforma;
 t_log *logger;
 unsigned short usPuerto;
@@ -152,12 +153,24 @@ void cerrarTodo() {
 	log_trace(logger, "Proceso Finalizado.");
 }
 
+void destroyNivel(tNivel *pNivel){
+	list_destroy(pNivel->lBloqueados);
+	queue_destroy(pNivel->cListos);
+	free(pNivel->nombre);
+	pthread_cond_destroy(&pNivel->hayPersonajes);
+	free(pNivel);
+}
+
+void destroyPlanificador(pthread_t *pPlanificador){
+	pthread_exit(NULL);
+	free(pPlanificador);
+}
+
 /*
  * ORQUESTADOR
  */
 
 void *orquestador(void *vPuerto) {
-	t_list *lPlanificadores;
 
 	unsigned short usPuerto;
 	usPuerto = *(unsigned short*)vPuerto;
@@ -292,7 +305,7 @@ int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOr
 	if (tipoMensaje == N_DATOS) {
 
 		crearNivel(listaNiveles, pNivelNuevo, iSocketComunicacion, sNombreNivel, pInfoNivel);
-		nroConexiones++;
+		nroConexiones++; //TODO revisr
 		crearHiloPlanificador(pPlanificador, pNivelNuevo, lPlanificadores);
 		delegarConexion(&pNivelNuevo->masterfds, pSetSocketsOrquestador, iSocketComunicacion, &pNivelNuevo->maxSock);
 		log_debug(logger, "Nuevo planificador del nivel: '%s' y planifica con: %i", pNivelNuevo->nombre, pNivelNuevo->algoritmo);
@@ -595,7 +608,7 @@ int seleccionarJugador(tPersonaje** pPersonaje, tNivel* nivel, bool iEnviarTurno
     imprimirLista(nivel, *pPersonaje);
 
     if (iTamanioColaListos == 0 && iTamanioListaBlock == 0 && *pPersonaje == NULL) {
-    	log_debug(logger, "No quedan mas personajes en el nivel: %s. Planificador finalizado", nivel->nombre);
+    	log_debug(logger, "No quedan mas personajes en el nivel: %s.", nivel->nombre);
     	return EXIT_SUCCESS;
 
     } else if (iTamanioColaListos == 1) {
@@ -637,10 +650,7 @@ void enviarTurno(tPersonaje *pPersonaje, int delay) {
 	pkgProximoTurno.type   = PL_OTORGA_TURNO;
 	pkgProximoTurno.length = 0;
 	usleep(delay);
-	char *msjInfo = malloc(sizeof(char) * 100);
-	sprintf(msjInfo, "Turno al personaje %c", pPersonaje->simbolo);
-	enviarPaquete(pPersonaje->socket, &pkgProximoTurno, logger, msjInfo);
-	free(msjInfo);
+	enviarPaquete(pPersonaje->socket, &pkgProximoTurno, logger, "Se otorga un turno al personaje");
 }
 
 bool coordinarAccesoMultiplesPersonajes(tPersonaje *personajeActual, int socketConexion, bool valor) {
@@ -785,20 +795,26 @@ void confirmarMovimiento(tNivel *nivel, tPersonaje *pPersonajeActual) {
 int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNivel, tPersonaje *pPersonajeActual, t_log* logger) {
 	tInfoNivel* pInfoNivel;
 	pInfoNivel = deserializarInfoNivel(sPayload);
-	log_info(logger, "<<< Se recibe nueva informacion del nivel");
+	log_debug(logger, "<<< Recibe actualizacion de criterios del nivel");
 
 	pNivel->quantum   = pInfoNivel->quantum;
 	pNivel->delay     = pInfoNivel->delay;
 
 	if (pNivel->algoritmo != pInfoNivel->algoritmo) {
-		log_info(logger, "Se ha cambiado el algoritmo de planificacion");
-		pPersonajeActual->quantumUsado = 0;
 		pNivel->algoritmo = pInfoNivel->algoritmo;
 
-		bool _menorRemainingDistance(tPersonaje *unPersonaje, tPersonaje *otroPersonaje){
-			return (unPersonaje->remainingDistance < otroPersonaje->remainingDistance );
+		if(!nivelVacio(pNivel)){
+
+			if(pPersonajeActual != NULL){
+				pPersonajeActual->quantumUsado = 0;
+			}
+
+			bool _menorRemainingDistance(tPersonaje *unPersonaje, tPersonaje *otroPersonaje){
+				return (unPersonaje->remainingDistance < otroPersonaje->remainingDistance );
+			}
+			list_sort(pNivel->cListos->elements, (void *)_menorRemainingDistance);
+
 		}
-		list_sort(pNivel->cListos->elements, (void *)_menorRemainingDistance);
 	}
 
 	free(sPayload);
@@ -859,6 +875,7 @@ void recepcionRecurso(tNivel *pNivel, char *sPayload, t_log *logger) {
 	free(sPayload);
 }
 
+
 int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexion, char *sPayload) {
 	tPersonaje *pPersonaje;
 
@@ -872,9 +889,11 @@ int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexi
 			log_error(logger, "No se encontro el nivel desconectado");
 			exit(EXIT_FAILURE);
 		}
-		list_remove(listaNiveles, indiceNivel);
+		pNivel = list_remove(listaNiveles, indiceNivel);
+		destroyNivel(pNivel);
 		pthread_mutex_unlock(&mtxlNiveles);
-		free(pNivel);
+		pthread_t *pPlanificador = list_remove(lPlanificadores, indiceNivel);
+		destroyPlanificador(pPlanificador);
 		return EXIT_FAILURE;
 	}
 

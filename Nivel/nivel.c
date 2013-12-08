@@ -146,7 +146,7 @@ int main(int argc, char* argv[]) {
 		if((rv=poll(uDescriptores,2,-1))==-1) perror("poll");
 		else{
 			if (uDescriptores[1].revents&POLLIN){
-				log_error(logger, "novedad es POLLIN");
+				log_error(logger, "novedades POLLIN");
 				read(descriptorNotify,buferNotify,TAM_BUFER);
 				log_error(logger, "se lee el descriptor en el buffer");
 				struct inotify_event* evento=(struct inotify_event*) &buferNotify[0];
@@ -159,11 +159,8 @@ int main(int argc, char* argv[]) {
 					infoDeNivel.delay=retardo;
 					//serializacion propia porque la de protocolo no me andaba bien
 					pthread_mutex_lock(&semSockPaq);
-					paquete.type=N_DATOS;
-					paquete.length=sizeof(infoDeNivel);
-					memcpy(paquete.payload,&infoDeNivel.delay,sizeof(uint32_t));
-					memcpy(paquete.payload+sizeof(uint32_t),&infoDeNivel.quantum,sizeof(int8_t));
-					memcpy(paquete.payload+sizeof(uint32_t)+sizeof(int8_t),&infoDeNivel.algoritmo,sizeof(tAlgoritmo));
+					log_debug(logger, "\nCriterios: \n \t Algoritmo: %d \n \t Quantum: %d \n \t Delay: %d \n", infoDeNivel.algoritmo, infoDeNivel.quantum, infoDeNivel.delay);
+					serializarInfoNivel(N_ACTUALIZACION_CRITERIOS, infoDeNivel, &paquete);
 					enviarPaquete(sockete,&paquete,logger,"notificando a plataforma algoritmo");
 					pthread_mutex_unlock(&semSockPaq);
 				}
@@ -174,8 +171,6 @@ int main(int argc, char* argv[]) {
 				ITEM_NIVEL* itemRec=NULL;
 				tDesconexionPers* persDesconectado;
 				recibirPaquete(sockete,&tipoDeMensaje,&payload,logger,"recibiendo mensaje de plataforma");
-
-//				tRtaPosicion2 posRta; //No borres lee el comentario del case PL_POS_RECURSO
 				tMovimientoPers movPersonaje;
 				tipoMsj=(int8_t)tipoDeMensaje;
 
