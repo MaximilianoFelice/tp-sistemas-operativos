@@ -868,6 +868,10 @@ int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexi
 		log_error(logger, "Se desconecto el %s", pNivel->nombre);
 		pthread_mutex_lock(&mtxlNiveles);
 		int indiceNivel = existeNivel(listaNiveles, pNivel->nombre);
+		if(indiceNivel == -1){
+			log_error(logger, "No se encontro el nivel desconectado");
+			exit(EXIT_FAILURE);
+		}
 		list_remove(listaNiveles, indiceNivel);
 		pthread_mutex_unlock(&mtxlNiveles);
 		free(pNivel);
@@ -878,9 +882,13 @@ int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexi
 
 	if (iSocketConexion == (*pPersonajeActual)->socket) {
 		log_info(logger, "Se desconecto el personaje %c", (*pPersonajeActual)->simbolo);
-		liberarRecursos(*pPersonajeActual, pNivel);
+		char *recursosNoAsignados = liberarRecursos(*pPersonajeActual, pNivel);
 		tPaquete pkgDesconexionPers;
-		serializarSimbolo(PL_DESCONEXION_PERSONAJE, (*pPersonajeActual)->simbolo, &pkgDesconexionPers);
+		tDesconexionPers desconexionPersonaje;
+		desconexionPersonaje.simbolo = (*pPersonajeActual)->simbolo;
+		desconexionPersonaje.lenghtRecursos = strlen(recursosNoAsignados);
+		memcpy(&desconexionPersonaje.recursos, recursosNoAsignados, desconexionPersonaje.lenghtRecursos);
+		serializarDesconexionPers(PL_DESCONEXION_PERSONAJE, desconexionPersonaje, &pkgDesconexionPers);
 		enviarPaquete(pNivel->socket, &pkgDesconexionPers, logger, "Se envia desconexion del personaje actual al nivel");
 		free(*pPersonajeActual);
 		*pPersonajeActual = NULL;
@@ -889,10 +897,14 @@ int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexi
 
 	pPersonaje = sacarPersonajeDeListas(pNivel, iSocketConexion);
 	if (pPersonaje != NULL) {
-		liberarRecursos(pPersonaje, pNivel); //TODO armar un mensaje para pasarle esto al nivel
 		log_info(logger, "Se desconecto el personaje %c", pPersonaje->simbolo);
+		char *recursosNoAsignados = liberarRecursos(*pPersonajeActual, pNivel);
 		tPaquete pkgDesconexionPers;
-		serializarSimbolo(PL_DESCONEXION_PERSONAJE, pPersonaje->simbolo, &pkgDesconexionPers);
+		tDesconexionPers desconexionPersonaje;
+		desconexionPersonaje.simbolo = (*pPersonajeActual)->simbolo;
+		desconexionPersonaje.lenghtRecursos = strlen(recursosNoAsignados);
+		memcpy(&desconexionPersonaje.recursos, recursosNoAsignados, desconexionPersonaje.lenghtRecursos);
+		serializarDesconexionPers(PL_DESCONEXION_PERSONAJE, desconexionPersonaje, &pkgDesconexionPers);
 		enviarPaquete(pNivel->socket, &pkgDesconexionPers, logger, "Se envia desconexion del personaje al nivel");
 		free(pPersonaje);
 		return EXIT_SUCCESS;
@@ -1002,32 +1014,6 @@ int existeNivel(t_list * lNiveles, char* sLevelName) {
 	return -1;
 }
 
-/*
- * Verificar si el personaje existe en base a un criterio, si existe devuelve el indice de su posicion, sino devuelve -1
- */
-int existePersonaje(t_list *pListaPersonajes, int valor, tBusquedaPersonaje criterio) {
-	int iPersonajeLoop;
-	int iCantPersonajes = list_size(pListaPersonajes);
-	tPersonaje* pPersonajeGuardado;
-
-	if (iCantPersonajes > 0) {
-		for (iPersonajeLoop = 0; iPersonajeLoop < iCantPersonajes; iPersonajeLoop++) {
-			pPersonajeGuardado = (tPersonaje *)list_get(pListaPersonajes, iPersonajeLoop);
-			switch(criterio){
-			case bySocket:
-				if(pPersonajeGuardado->socket == valor)
-					return iPersonajeLoop;
-				break;
-			case byName:
-				if(pPersonajeGuardado->simbolo == (tSimbolo)valor)
-					return iPersonajeLoop;
-				break;
-			}
-		}
-	}
-	return -1;
-}
-
 tPersonaje *getPersonaje(t_list *listaPersonajes, int valor, tBusquedaPersonaje criterio){
 	int iPersonajeLoop;
 	int iCantPersonajes = list_size(listaPersonajes);
@@ -1090,6 +1076,32 @@ tPersonajeBloqueado *getPersonajeBlock(t_list *lBloqueados, int valor, tBusqueda
 }
 
 /*
+ * Verificar si el personaje existe en base a un criterio, si existe devuelve el indice de su posicion, sino devuelve -1
+ */
+int existePersonaje(t_list *pListaPersonajes, int valor, tBusquedaPersonaje criterio) {
+	int iPersonajeLoop;
+	int iCantPersonajes = list_size(pListaPersonajes);
+	tPersonaje* pPersonajeGuardado;
+
+	if (iCantPersonajes > 0) {
+		for (iPersonajeLoop = 0; iPersonajeLoop < iCantPersonajes; iPersonajeLoop++) {
+			pPersonajeGuardado = (tPersonaje *)list_get(pListaPersonajes, iPersonajeLoop);
+			switch(criterio){
+			case bySocket:
+				if(pPersonajeGuardado->socket == valor)
+					return iPersonajeLoop;
+				break;
+			case byName:
+				if(pPersonajeGuardado->simbolo == (tSimbolo)valor)
+					return iPersonajeLoop;
+				break;
+			}
+		}
+	}
+	return -1;
+}
+
+/*
  * Verificar si el personaje existe en bloqueados, si existe devuelve el indice de su posicion, sino devuelve -1
  */
 int existPersonajeBlock(t_list *block, tSimbolo valor, tBusquedaPersBlock criterio){
@@ -1130,7 +1142,6 @@ tPersonaje *sacarPersonajeDeListas(tNivel *pNivel, int iSocket) {
 	int iIndicePersonaje;
 
 	iIndicePersonaje = existePersonaje(pNivel->cListos->elements, iSocket, bySocket);
-	log_debug(logger, "iIndicePersonaje = %d", iIndicePersonaje);
 
 	if (iIndicePersonaje != -1) {
 
@@ -1290,6 +1301,7 @@ void imprimirConexiones(fd_set *master_planif, int maxSock, char* host) {
 	log_debug(logger, "La cantidad de sockets totales del %s es %d", host, cantSockets);
 }
 
+
 void waitPersonajes(bool *primerIntento, tNivel *pNivel) {
 
 	if (*primerIntento) {
@@ -1300,6 +1312,7 @@ void waitPersonajes(bool *primerIntento, tNivel *pNivel) {
 	}
 }
 
+
 /*
  * Crea estructura de personaje bloqueado y alocando memoria y returna un puntero al personaje creado
  */
@@ -1309,6 +1322,7 @@ tPersonajeBloqueado *createPersonajeBlock(tPersonaje *personaje, tSimbolo recurs
 	 memcpy(&pPersonajeBloqueado->recursoEsperado, &recurso, sizeof(tSimbolo));
 	 return pPersonajeBloqueado;
 }
+
 
 /*
  * Retorna un puntero a un personaje de la lista de bloqueados y libera memoria

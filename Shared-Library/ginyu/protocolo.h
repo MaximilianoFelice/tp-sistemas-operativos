@@ -14,6 +14,7 @@
 #include "config.h"
 
 #define MAX_BUFFER 1024
+#define MAX_RECURSOS 32
 
 typedef struct {
 	int8_t  type;
@@ -37,10 +38,6 @@ typedef struct {
  *
  * 	aviso: significa que no manda nada
  */
-
-//TODO despues cuando ande sacar este include y descomentar lo de abajo
-//Ahora lo dejo porque me sirve para debuggear y testear mucho
-
 typedef enum {
 	/* Mensajes de la plataforma */
 	PL_HANDSHAKE,
@@ -91,8 +88,6 @@ typedef enum {
 } tMensaje;
 
 typedef int8_t tSimbolo;
-
-typedef int8_t *tRecursos;
 
 typedef enum {
 	arriba,
@@ -156,7 +151,7 @@ typedef struct {
 typedef struct {
 	tSimbolo simbolo;
 	int8_t lenghtRecursos;
-	tRecursos recursos;
+	char recursos[MAX_RECURSOS];
 } tDesconexionPers;
 
 
@@ -175,9 +170,6 @@ tPregPosicion* deserializarPregPosicion(char * payload);
 
 int serializarRtaPosicion(tMensaje tipoMensaje, tRtaPosicion pRtaPosicion, tPaquete* pPaquete);
 tRtaPosicion* deserializarRtaPosicion(char * payload);
-
-int serializarRtaPosicion2(tMensaje tipoMensaje, tRtaPosicion2 pRtaPosicion, tPaquete* pPaquete);
-tRtaPosicion2* deserializarRtaPosicion2(char * payload);
 
 int serializarRtaPosicion(tMensaje tipoMensaje, tRtaPosicion pRtaPosicion, tPaquete* pPaquete);
 tRtaPosicion* deserializarRtaPosicion(char * payload);

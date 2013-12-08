@@ -329,18 +329,20 @@ int main(int argc, char* argv[]) {
 					}
 				break;
 				case PL_DESCONEXION_PERSONAJE:// Un personaje termino o murio y debo liberar instancias de recursos que tenia asignado
-					persDesconectado= deserializarPersDesconect(payload);
-					log_debug(logger, "El personaje %c se desconecto",persDesconectado->simbolo);
+					persDesconectado = deserializarDesconexionPers(payload);
+					log_debug(logger, "<<< El personaje %c se desconecto", persDesconectado->simbolo);
 					pthread_mutex_lock(&semItems);
 					//agrego una instancia a list_items de todos los recursos que me manda planificador (que son todos los que no reasigno)
 					for(i=0;i<persDesconectado->lenghtRecursos;i++){
 						sumarRecurso(list_items,persDesconectado->recursos[i]);
 					}
+					BorrarItem(list_items, persDesconectado->simbolo);
 					pthread_mutex_unlock(&semItems);
+					log_debug(logger, "Liberé recursos");
 					//eliminar al personaje de list_personajes
 					bool buscarPersonaje(pers_t* perso){return(perso->simbolo==persDesconectado->simbolo);}
 					list_remove_by_condition(list_personajes,(void*)buscarPersonaje);
-					//TODO eliminalo de list_items tambien. Sino va a seguir en el mapa
+					free(persDesconectado);
 				break;
 				} //Fin del switch
 
@@ -773,9 +775,6 @@ void liberarRecsPersonaje2(char id){
 	list_destroy_and_destroy_elements(persDesconexion->recursos, free);
 	BorrarItem(list_items, id);
 	personaje_destroyer(persDesconexion);
-}
-int distancia(int posXPer, int posYPer, int posX, int posY){
-	 return pow((posXPer-posX),2) + pow((posYPer-posY), 2);
 }
 void liberarRecsPersonaje(char id){
 	pers_t* personaje;

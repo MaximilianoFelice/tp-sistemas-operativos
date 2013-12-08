@@ -167,49 +167,6 @@ tRtaPosicion * deserializarRtaPosicion(char * payload) {
 	return pRtaPosicion;
 }
 
-int serializarRtaPosicion2(tMensaje tipoMensaje, tRtaPosicion2 rtaPosicion, tPaquete* pPaquete) {
-
-	int offset   = 0;
-	int tmp_size = 0;
-
-	pPaquete->type = tipoMensaje;
-
-	tmp_size = sizeof(rtaPosicion.posX);
-	memcpy(pPaquete->payload, &(rtaPosicion.posX), tmp_size);
-
-	offset   = tmp_size;
-	tmp_size = sizeof(rtaPosicion.posY);
-	memcpy(pPaquete->payload + offset, &(rtaPosicion.posY), tmp_size);
-
-	offset  += tmp_size;
-	tmp_size = sizeof(int32_t);
-	memcpy(pPaquete->payload + offset, &rtaPosicion.RD, tmp_size);
-
-	pPaquete->length = offset + tmp_size;
-
-	return EXIT_SUCCESS;
-}
-
-tRtaPosicion2 * deserializarRtaPosicion2(char * payload) {
-
-	tRtaPosicion2 *pRtaPosicion = malloc(sizeof(tRtaPosicion2));
-	int offset   = 0;
-	int tmp_size = 0;
-
-	tmp_size = sizeof(pRtaPosicion->posX);
-	memcpy(&pRtaPosicion->posX, payload, tmp_size);
-
-	offset   = tmp_size;
-	tmp_size = sizeof(pRtaPosicion->posY);
-	memcpy(&pRtaPosicion->posY, payload + offset, tmp_size);
-
-	offset  += tmp_size;
-	tmp_size = sizeof(int32_t);
-	memcpy(&pRtaPosicion->RD, payload + offset, tmp_size);
-
-	return pRtaPosicion;
-}
-
 int serializarMovimientoPers(tMensaje tipoMensaje, tMovimientoPers movimientoPers, tPaquete* pPaquete){
 
 	int tmp_size = 0, offset = 0;
@@ -285,12 +242,11 @@ tSimbolo* deserializarSimbolo(char * payload) {
 
 	return pSimbolo;
 }
+
 tDesconexionPers* deserializarPersDesconect(char *payload){
 	int i,recs,offset=sizeof(tSimbolo);
 	tDesconexionPers* persDesconectado=malloc(sizeof(tDesconexionPers));
 	memcpy(&recs,payload+offset,sizeof(int8_t));
-	persDesconectado->recursos=malloc(sizeof(int8_t)*recs);
-
 	memcpy(&persDesconectado->simbolo,payload,sizeof(tSimbolo));
 	memcpy(&persDesconectado->lenghtRecursos,payload+offset,sizeof(int8_t));
 	offset+=sizeof(int8_t);

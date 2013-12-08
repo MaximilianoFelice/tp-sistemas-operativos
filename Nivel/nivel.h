@@ -76,8 +76,6 @@ void levantarArchivoConf(char*);
 void actualizarInfoNivel(char* argumento);
 void liberarRecsPersonaje(char);
 void liberarRecsPersonaje2(char id);
-int distancia(int posXPer, int posYPer, int posX, int posY);
-//void liberarRecursos(pers_t *personajeAux, int index_l_personajes);
 static void personaje_destroyer(pers_t *personaje);
 //static void recurso_destroyer(char *recurso);
 
