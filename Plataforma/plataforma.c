@@ -66,7 +66,6 @@ void confirmarMovimiento(tNivel *nivel, tPersonaje *pPersonajeActual);
 void muertePorDeadlockPersonaje(tNivel *pNivel, char *sPayload);
 int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexion, char *sPayload);
 char *liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel);
-bool seDesconectoElNivel(int iSocketConexion, int socketNivel);
 bool coordinarAccesoMultiplesPersonajes(tPersonaje *personajeActual, int socketConexion, bool valor);
 bool esElPersonajeQueTieneElTurno(int socketActual, int socketConexion);
 
@@ -881,7 +880,7 @@ int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexi
 
 	log_info(logger, "<<< Se detecta desconexion...");
 
-	if (seDesconectoElNivel(iSocketConexion, pNivel->socket)) {
+	if (iSocketConexion == pNivel->socket) {
 		log_error(logger, "Se desconecto el %s", pNivel->nombre);
 		pthread_mutex_lock(&mtxlNiveles);
 		int indiceNivel = existeNivel(listaNiveles, pNivel->nombre);
@@ -901,15 +900,17 @@ int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexi
 
 	if (iSocketConexion == (*pPersonajeActual)->socket) {
 		log_info(logger, "Se desconecto el personaje %c", (*pPersonajeActual)->simbolo);
+		int lenghtRecursos = list_size((*pPersonajeActual)->recursos);
 		char *recursosNoAsignados = liberarRecursos(*pPersonajeActual, pNivel);
 		tPaquete pkgDesconexionPers;
 		tDesconexionPers desconexionPersonaje;
 		desconexionPersonaje.simbolo = (*pPersonajeActual)->simbolo;
-		desconexionPersonaje.lenghtRecursos = strlen(recursosNoAsignados);
+		desconexionPersonaje.lenghtRecursos = lenghtRecursos;
 		memcpy(&desconexionPersonaje.recursos, recursosNoAsignados, desconexionPersonaje.lenghtRecursos);
 		serializarDesconexionPers(PL_DESCONEXION_PERSONAJE, desconexionPersonaje, &pkgDesconexionPers);
 		enviarPaquete(pNivel->socket, &pkgDesconexionPers, logger, "Se envia desconexion del personaje actual al nivel");
 		free(*pPersonajeActual);
+		free(recursosNoAsignados);
 		*pPersonajeActual = NULL;
 		return EXIT_SUCCESS;
 	}
@@ -917,15 +918,17 @@ int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexi
 	pPersonaje = sacarPersonajeDeListas(pNivel, iSocketConexion);
 	if (pPersonaje != NULL) {
 		log_info(logger, "Se desconecto el personaje %c", pPersonaje->simbolo);
-		char *recursosNoAsignados = liberarRecursos(*pPersonajeActual, pNivel);
+		int lenghtRecursos = list_size(pPersonaje->recursos);
+		char *recursosNoAsignados = liberarRecursos(pPersonaje, pNivel);
 		tPaquete pkgDesconexionPers;
 		tDesconexionPers desconexionPersonaje;
-		desconexionPersonaje.simbolo = (*pPersonajeActual)->simbolo;
-		desconexionPersonaje.lenghtRecursos = strlen(recursosNoAsignados);
+		desconexionPersonaje.simbolo = pPersonaje->simbolo;
+		desconexionPersonaje.lenghtRecursos = lenghtRecursos; //NO USAR strlen() ni ninguna funcion de strings
 		memcpy(&desconexionPersonaje.recursos, recursosNoAsignados, desconexionPersonaje.lenghtRecursos);
 		serializarDesconexionPers(PL_DESCONEXION_PERSONAJE, desconexionPersonaje, &pkgDesconexionPers);
 		enviarPaquete(pNivel->socket, &pkgDesconexionPers, logger, "Se envia desconexion del personaje al nivel");
 		free(pPersonaje);
+		free(recursosNoAsignados);
 		return EXIT_SUCCESS;
 	} else {
 		log_error(logger, "ERROR: no se encontró el personaje que salio en socket %d", iSocketConexion);
@@ -935,9 +938,6 @@ int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexi
 	return EXIT_FAILURE;
 }
 
-bool seDesconectoElNivel(int iSocketConexion, int socketNivel){
-	return (iSocketConexion == socketNivel);
-}
 
 /*
  * Se liberan los recursos que poseia el personaje en el nivel y en caso de que un personaje estaba bloqueado por uno de estos, se libera
@@ -999,7 +999,7 @@ char *getRecursosNoAsignados(t_list *recursos){
 	tSimbolo *pRecurso;
 	if(cantRecursosNoAsignados != 0){
 		//Aloco memoria en un string para mandarle al nivel con los recursos no asignados a nadie
-		char *recursosNoAsignados = malloc(cantRecursosNoAsignados*sizeof(char));
+		char *recursosNoAsignados = malloc(cantRecursosNoAsignados*sizeof(char)+1);
 
 		for(i = 0; i < cantRecursosNoAsignados; i++){
 			pRecurso = (tSimbolo*) list_get(recursos, i);
@@ -1010,6 +1010,7 @@ char *getRecursosNoAsignados(t_list *recursos){
 	}
 	return NULL;
 }
+
 
 /*
  * Verificar si el nivel existe, si existe devuelve el indice de su posicion, sino devuelve -1
