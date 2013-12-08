@@ -83,11 +83,12 @@ int main(int argc, char* argv[]) {
 	tMensaje tipoDeMensaje;
 	char* payload;
 	recibirPaquete(sockete,&tipoDeMensaje,&payload,logger,"recibe handshake de plataforma");
-	if(tipoDeMensaje==PL_NIVEL_YA_EXISTENTE){
-		log_error(logger,"ya existe nivel con ese nombre");
+	if (tipoDeMensaje==PL_NIVEL_YA_EXISTENTE) {
+		log_error(logger,"Ya se encuentra conectado un nivel con ese nombre");
+		nivel_gui_terminar();
 		exit(EXIT_FAILURE);
-	}else{
-		if(tipoDeMensaje!=PL_HANDSHAKE) {
+	} else {
+		if (tipoDeMensaje!=PL_HANDSHAKE) {
 			log_error(logger,"tipo de mensaje incorrecto -se esperaba PL_HANDSHAKE-");
 			exit(EXIT_FAILURE);
 		}
