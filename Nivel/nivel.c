@@ -774,11 +774,11 @@ void liberarRecsPersonaje(char id){
 	bool buscarPersonaje(pers_t* perso){return(perso->simbolo==id);}
 	//eliminar al personaje de list_personajes y devolverlo para desasignar sus recursos:
 	personaje=list_find(list_personajes,(void*)buscarPersonaje);
-	list_remove_by_condition(list_personajes,(void*)buscarPersonaje);
+	list_remove_by_condition(list_personajes,(void*)buscarPersonaje);//elimina el personaje de la lista list_personajes
 
-	void desasignar(char id1){
+	void desasignar(char* id1){
 		ITEM_NIVEL* itemAux;
-		bool buscarRecurso(ITEM_NIVEL* item1){return (item1->id==id1);}
+		bool buscarRecurso(ITEM_NIVEL* item1){return (item1->id==*id1);}
 		itemAux=list_find(list_items,(void*)buscarRecurso);
 		itemAux->quantity++;
 	}
