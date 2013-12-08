@@ -61,6 +61,7 @@ typedef struct PersonajeIndividual{
 	int posY;
 	int posRecursoX;
 	int posRecursoY;
+	tDirMovimiento ultimoMovimiento;
 	nivel_t *nivelQueJuego;
 
 } personajeIndividual_t;
@@ -108,7 +109,15 @@ void reintentarHandshake(int socketPlataforma, tPaquete* pkgHandshake);
 
 void cerrarConexiones(int * socketPlataforma);
 
-int calculaMovimiento(personajeIndividual_t personajePorNivel);
+void calculaMovimiento(personajeIndividual_t *personajePorNivel);
+
+bool tieneMovimientoVertical(personajeIndividual_t personajePorNivel);
+
+bool tieneMovimientoHorizontal(personajeIndividual_t personajePorNivel);
+
+void moverHorizontal(personajeIndividual_t *personajePorNivel);
+
+void moverVertical(personajeIndividual_t *personajePorNivel);
 
 void actualizaPosicion(tDirMovimiento* movimiento, personajeIndividual_t **personajePorNivel);
 
