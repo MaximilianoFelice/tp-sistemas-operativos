@@ -541,7 +541,11 @@ void *planificador(void * pvNivel) {
 
             case(DESCONEXION):
 				desconectar(pNivel, &pPersonajeActual, iSocketConexion, sPayload);
-            	iEnviarTurno = false;
+            	if(pPersonajeActual == NULL && cantidadListos == 1){
+            		iEnviarTurno = true;
+            	} else {
+            		iEnviarTurno = false;
+            	}
 				break;
 
             default:

@@ -36,7 +36,8 @@ void BorrarItem(t_list* items, char id) {
 		return item->id == id;
 	}
 
-	list_remove_by_condition(items, (void*) _search_by_id);
+	ITEM_NIVEL *item = list_remove_by_condition(items, (void*) _search_by_id);
+	free(item);
 }
 
 void BorrarPersonaje(t_list* items, char id) {

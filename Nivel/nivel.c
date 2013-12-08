@@ -314,13 +314,6 @@ int main(int argc, char* argv[]) {
 							}
 						}
 						list_iterate(list_personajes,(void*)agregaRecursoYbloquea);
-
-						/*pthread_mutex_lock(&semMSJ);
-						paquete->type=N_??????????? ;------->FALTA DEFINIR QUE LE MANDO
-						paquete->length=0;
-						// Envio mensaje donde confirmo la otorgacion del recurso pedido
-						enviarPaquete(sockete,paquete,logger,"enviando confirmacion de otorgamiento de recurso a plataforma");
-						pthread_mutex_unlock(&semMSJ);*/
 					}
 				break;
 				case PL_DESCONEXION_PERSONAJE:// Un personaje termino o murio y debo liberar instancias de recursos que tenia asignado
@@ -333,11 +326,12 @@ int main(int argc, char* argv[]) {
 					}
 					BorrarItem(list_items, persDesconectado->simbolo);
 					pthread_mutex_unlock(&semItems);
-					log_debug(logger, "Liberé recursos");
+					log_debug(logger, "Libere recursos");
 					//eliminar al personaje de list_personajes
 					bool buscarPersonaje(pers_t* perso){return(perso->simbolo==persDesconectado->simbolo);}
-					list_remove_by_condition(list_personajes,(void*)buscarPersonaje);
+					pers_t *personajeOut = list_remove_by_condition(list_personajes,(void*)buscarPersonaje);
 					free(persDesconectado);
+					personaje_destroyer(personajeOut);
 				break;
 				} //Fin del switch
 
@@ -622,6 +616,7 @@ void *enemigo(void * args) {
 		} //Fin de while(1)
 	pthread_exit(NULL );
 }
+
 void *deteccionInterbloqueo (void *parametro){
 	extern t_list* list_items;
 	extern tPaquete paquete;
@@ -755,6 +750,7 @@ void *deteccionInterbloqueo (void *parametro){
 	}
 	return 0;
 }
+
 void liberarRecsPersonaje2(char id){
 	pers_t *persDesconexion;
 
@@ -771,6 +767,7 @@ void liberarRecsPersonaje2(char id){
 	BorrarItem(list_items, id);
 	personaje_destroyer(persDesconexion);
 }
+
 void liberarRecsPersonaje(char id){
 	pers_t* personaje;
 
@@ -789,6 +786,7 @@ void liberarRecsPersonaje(char id){
 	BorrarPersonaje(list_items, id);
 	personaje_destroyer(personaje);
 }
+
 void actualizaPosicion(int *contMovimiento, int *posX, int *posY) {
 
 	switch (*contMovimiento) {
@@ -806,10 +804,12 @@ void actualizaPosicion(int *contMovimiento, int *posX, int *posY) {
 		break;
 	}
 }
+
 //--------------------------------------Señal SIGINT
 void cerrarForzado(int sig) {
 	cerrarNivel("Cerrado Forzoso Nivel.");
 }
+
 void cerrarNivel(char* msjLog) {
 	log_trace(logger, msjLog);
 	nivel_gui_terminar();
@@ -818,6 +818,8 @@ void cerrarNivel(char* msjLog) {
 }
 //--------------------------------------Señal SIGINT
 // Libera memoria de cada personaje de la lista
+
 static void personaje_destroyer(pers_t *personaje) {
+	list_destroy_and_destroy_elements(personaje->recursos, free);
 	free(personaje);
 }
