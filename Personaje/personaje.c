@@ -232,17 +232,12 @@ void *jugar(void *args) {
 
 			while (!conseguiRecurso(personajePorNivel) && !personajeEstaMuerto(murioPersonaje)) {
 
-				// TODO VEAN SI ES POSIBLE DIMINUIR LA CANTIDAD DE COSAS QUE LOCKEAN CUANDO HACEN ESTO
-//				/* El thread se va a mover, y no quiere que otro thread se mueva y pueda perder vidas */
-//				pthread_mutex_lock(&semMovement);
-
 				//Espera que el planificador le de el turno para moverse
 				recibirMensajeTurno(personajePorNivel.socketPlataforma);
 
 				//El personaje se mueve
 				moverAlPersonaje(&personajePorNivel);
 
-//				pthread_mutex_unlock(&semMovement);
 			}
 
 			//Espera que el planificador le de el turno para solicitar el recurso
@@ -298,14 +293,9 @@ void moverAlPersonaje(personajeIndividual_t* personajePorNivel){
 	mov = calcularYEnviarMovimiento(personajePorNivel);
 	//Actualizo mi posición y de acuerdo a eso armo mensaje de TURNO
 
+	pthread_mutex_lock(&semMovement);
 	actualizaPosicion(&mov, &personajePorNivel);
-
-	//Te lo saco porque este mensaje ya no es necesario. NO BORRAR POR LAS DUDAS, dejalo comentado mejor
-	//	log_debug(logger, "Le aviso a la plataforma que conclui mi turno");
-//	tPaquete pkgFinTurno;
-//	pkgFinTurno.type   = P_FIN_TURNO;
-//	pkgFinTurno.length = 0;
-//	enviarPaquete(personajePorNivel->socketPlataforma, &pkgFinTurno, logger, "Fin de turno del personaje");
+	pthread_mutex_unlock(&semMovement);
 
 }
 
