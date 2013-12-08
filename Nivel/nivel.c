@@ -584,16 +584,7 @@ void *enemigo(void * args) {
 						if(enemigo->posX==item->posx){//se esta en la misma posicion que la victima =>matarla
 							//un semaforo para que no mande mensaje al mismo tiempo que otros enemigos o el while principal
 							//otro semaforo para que no desasigne y se esten evaluando otros
-
-							pthread_mutex_lock(&semSockPaq);
-							paquete.type=N_MUERTO_POR_ENEMIGO;
-							memcpy(paquete.payload,&(item->id),sizeof(char));
-							paquete.length=sizeof(char);
-							enviarPaquete(sockete,&paquete,logger,"enviando notificacion de muerte de personaje a plataforma");
-							pthread_mutex_unlock(&semSockPaq);
-							pthread_mutex_lock(&semItems);
-							liberarRecsPersonaje(item->id); //TODO este me tiraba seg fault, por eso hice el liberarRecsPersonaje2
-							pthread_mutex_unlock(&semItems);
+							matarPersonaje(item);
 							victimaAsignada='0';
 						}
 					}else{ //acercarse por fila
@@ -606,6 +597,13 @@ void *enemigo(void * args) {
 					if ((iten->item_type==RECURSO_ITEM_TYPE)&&((iten->posx==enemigo->posX)&&(iten->posy==enemigo->posY))) enemigo->posX--;
 				}
 				list_iterate(list_items,(void*)esUnRec);
+				//TODO agregar si se llega a "chocar" con un personaje que no es su victima---------------->no habia contemplado este caso
+				void esUnPerso(ITEM_NIVEL *item){
+					if((item->item_type==PERSONAJE_ITEM_TYPE)&&((item->posx==enemigo->posX)&&(item->posy==enemigo->posY))){
+						matarPersonaje(item);
+					}
+				}
+				list_iterate(list_items,(void*)esUnPerso);
 			}
 		}
 		pthread_mutex_lock(&semItems);
@@ -615,6 +613,18 @@ void *enemigo(void * args) {
 		usleep(sleep_enemigos);
 		} //Fin de while(1)
 	pthread_exit(NULL );
+}
+void matarPersonaje(ITEM_NIVEL *item){
+	pthread_mutex_lock(&semSockPaq);
+	paquete.type=N_MUERTO_POR_ENEMIGO;
+	memcpy(paquete.payload,&(item->id),sizeof(char));
+	paquete.length=sizeof(char);
+	enviarPaquete(sockete,&paquete,logger,"enviando notificacion de muerte de personaje a plataforma");
+	pthread_mutex_unlock(&semSockPaq);
+	pthread_mutex_lock(&semItems);
+	liberarRecsPersonaje(item->id); //TODO este me tiraba seg fault, por eso hice el liberarRecsPersonaje2
+	pthread_mutex_unlock(&semItems);
+
 }
 
 void *deteccionInterbloqueo (void *parametro){

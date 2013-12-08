@@ -70,8 +70,7 @@ void *deteccionInterbloqueo (void *parametro);
 void actualizaPosicion(int *contMovimiento, int *posX, int *posY);
 
 //Nivel
-void *tirando2personajes (void* sinUso);
-
+void matarPersonaje(ITEM_NIVEL *item);
 void levantarArchivoConf(char*);
 void actualizarInfoNivel(char* argumento);
 void liberarRecsPersonaje(char);
