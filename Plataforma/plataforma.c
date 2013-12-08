@@ -147,7 +147,7 @@ void cerrarTodoSignal() {
 }
 
 void cerrarTodo() {
-	system("killall -SIGINT nivel &> /dev/null 2>&1"); //No me digas si no hay nada!!!
+	system("killall -SIGINT nivel &> /dev/null 2>&1");
 	system("killall -SIGINT personaje &> /dev/null 2>&1");
 	log_trace(logger, "Proceso Finalizado.");
 }
@@ -199,7 +199,7 @@ void *orquestador(void *vPuerto) {
 				break;
 
 			default:
-				log_debug(logger, "ORQUESTADOR: Estoy en el case por default");
+				log_debug(logger, "ORQUESTADOR: %s", enumToString(tipoMensaje));
 				break;
 			}
 		}
@@ -462,7 +462,7 @@ void *planificador(void * pvNivel) {
 
     bool primerIntento = true;
     pPersonajeActual = NULL;
-    iEnviarTurno	 = true; //Lo inicializo en 1 para que de el primer turno
+    iEnviarTurno	 = true;
 
     // Ciclo donde se multiplexa para escuchar personajes que se conectan
     while (1) {
@@ -535,14 +535,15 @@ void *planificador(void * pvNivel) {
             default:
             	log_error(logger, "Mensaje no esperado");
                 break;
-            } //Fin de switch
 
+            } //Fin de switch
 
         } //Fin del if
 
     } //Fin del while
 
     pthread_exit(NULL);
+
 }
 
 
@@ -743,7 +744,7 @@ void muertePorDeadlockPersonaje(tNivel *pNivel, char *sPayload){
 	char *personajeDeadlock = sPayload;
 	tPaquete paquete;
 
-	log_debug(logger, "El nivel %s mato al personaje %c para resolver interbloqueo", pNivel->nombre, *personajeDeadlock);
+	log_debug(logger, "<<< El nivel %s mato al personaje %c para resolver interbloqueo", pNivel->nombre, *personajeDeadlock);
 
 	tPersonajeBloqueado *persBlock = getPersonajeBlock(pNivel->lBloqueados, *personajeDeadlock, bySymbol);
 
@@ -773,12 +774,10 @@ void confirmarMovimiento(tNivel *nivel, tPersonaje *pPersonajeActual) {
 		pPersonajeActual->remainingDistance--;
 	} else {
 		pPersonajeActual->remainingDistance--;
-		log_debug(logger, "\n \t Remaining Distance: %d \n \t Recurso Actual = (%d, %d)", pPersonajeActual->remainingDistance, pPersonajeActual->posRecurso.posX, pPersonajeActual->posRecurso.posY);
 	}
 	tPaquete pkgConfirmacionMov;
 	pkgConfirmacionMov.type    = PL_CONFIRMACION_MOV;
 	pkgConfirmacionMov.length  = 0;
-	log_trace(logger, "Personaje %c con socket %d >>> Confirmacion movimiento", pPersonajeActual->simbolo, pPersonajeActual->socket);
 	enviarPaquete(sockPersonaje, &pkgConfirmacionMov, logger, "Se envia confirmacion de movimiento al personaje");
 
 }
@@ -786,12 +785,10 @@ void confirmarMovimiento(tNivel *nivel, tPersonaje *pPersonajeActual) {
 int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNivel, tPersonaje *pPersonajeActual, t_log* logger) {
 	tInfoNivel* pInfoNivel;
 	pInfoNivel = deserializarInfoNivel(sPayload);
-	log_info(logger, "Se recibe nueva informacion del nivel");
+	log_info(logger, "<<< Se recibe nueva informacion del nivel");
 
 	pNivel->quantum   = pInfoNivel->quantum;
 	pNivel->delay     = pInfoNivel->delay;
-//	pNivel->rdDefault = 20; // TODO Actualizar cuando lo incorpore cesar
-	//TODO para mi el rdDefault no se actualiza, solo el quantum delay y algoritmo; no le veo mucho sentido actualizar esto
 
 	if (pNivel->algoritmo != pInfoNivel->algoritmo) {
 		log_info(logger, "Se ha cambiado el algoritmo de planificacion");
@@ -818,7 +815,7 @@ void solicitudRecursoPersonaje(int iSocketConexion, char *sPayload, tNivel *pNiv
 
     tSimbolo *recurso;
     recurso = deserializarSimbolo(sPayload);
-    log_info(logger, "El personaje %c solicita el recurso %c", (*pPersonaje)->simbolo, *recurso);
+    log_info(logger, "<<< El personaje %c solicita el recurso %c", (*pPersonaje)->simbolo, *recurso);
 
     tPersonajeBloqueado *pPersonajeBloqueado =  createPersonajeBlock(*pPersonaje, *recurso);
     list_add(pNivel->lBloqueados, pPersonajeBloqueado);
@@ -836,7 +833,7 @@ void recepcionRecurso(tNivel *pNivel, char *sPayload, t_log *logger) {
 	tPersonaje *pPersonaje;
 
 	pSimbolo = deserializarSimbolo(sPayload);
-	log_info(logger, "Se recibe el recurso %c", *pSimbolo);
+	log_info(logger, "<<< Se recibe el recurso %c", *pSimbolo);
 	pPersonaje = desbloquearPersonaje(pNivel->lBloqueados, *pSimbolo);
 
 	if (pPersonaje != NULL) {
@@ -865,6 +862,8 @@ void recepcionRecurso(tNivel *pNivel, char *sPayload, t_log *logger) {
 int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexion, char *sPayload) {
 	tPersonaje *pPersonaje;
 
+	log_info(logger, "<<< Se detecta desconexion...");
+
 	if (seDesconectoElNivel(iSocketConexion, pNivel->socket)) {
 		log_error(logger, "Se desconecto el %s", pNivel->nombre);
 		pthread_mutex_lock(&mtxlNiveles);
@@ -875,7 +874,6 @@ int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexi
 		return EXIT_FAILURE;
 	}
 
-	log_info(logger, "Se detecta desconexion...");
 	nroConexiones--; //Bajo el contador
 
 	if (iSocketConexion == (*pPersonajeActual)->socket) {
@@ -919,7 +917,6 @@ char *liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel) {
 
 	if ((iCantidadBloqueados == 0) || (iCantidadRecursos == 0)) {
 		/* No hay nada que liberar */
-		log_debug(logger, "Personaje %c -> Cantidad de recursos asignados = %d", pPersMuerto->simbolo, list_size(pPersMuerto->recursos));
 		log_info(logger, "No se reasignarán recursos con la muerte de %c", pPersMuerto->simbolo);
 		return getRecursosNoAsignados(pPersMuerto->recursos);
 	} else {
