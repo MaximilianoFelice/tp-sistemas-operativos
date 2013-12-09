@@ -190,6 +190,8 @@ int main(int argc, char* argv[]) {
 					if(personaG==NULL){
 						pjNew.simbolo  = movPersonaje.simbolo;
 						pjNew.bloqueado  = false;
+						pjNew.muerto = false;
+						pjNew.ready = false;
 						pjNew.recursos = list_create();
 						list_add_new(list_personajes,(void*)&pjNew,sizeof(pers_t));
 						char symbol=(char) movPersonaje.simbolo;
@@ -216,10 +218,12 @@ int main(int argc, char* argv[]) {
 					movPersonaje.direccion=(tDirMovimiento)*(payload+sizeof(int8_t));
 					log_debug(logger, "<<< El personaje %c solicito moverse", movPersonaje.simbolo);
 					bool buscaPer(pers_t* perso){
-//						log_debug(logger,"perso.simbolo:%c movPerso.simbolo:%c",perso->simbolo,movPersonaje.simbolo);
 						return (perso->simbolo==movPersonaje.simbolo);
 					}
 					personaG=(pers_t *)list_find(list_personajes,(void*)buscaPer);
+					if(personaG->muerto){
+						break;
+					}
 					if(personaG==NULL){
 						pthread_mutex_lock(&semSockPaq);
 						paquete.type=N_PERSONAJE_INEXISTENTE;
@@ -228,6 +232,7 @@ int main(int argc, char* argv[]) {
 						pthread_mutex_unlock(&semSockPaq);
 					}else{
 						personaG->bloqueado=false;//si era true se pone en false porque planificador lo desbloqueo asignandole un recurso---->ULTIMA DESICION
+						personaG->ready = true; //Lo pongo en true para que los enemigos lo empiecen a perseguir
 						char symbol=(char) movPersonaje.simbolo;
 						// Busco la posicion actual del personaje
 						getPosPersonaje(list_items,symbol, &posX, &posY);
@@ -459,12 +464,12 @@ void *enemigo(void * args) {
 		enemigo->posX=1+(rand() % maxCols);
 		enemigo->posY=1+(rand() % maxRows);
 	}
-	pthread_mutex_lock(&semItems);//????
+	pthread_mutex_lock(&semItems);
 	CreateEnemy(list_items,enemigo->num_enemy,enemigo->posX,enemigo->posY);
-	pthread_mutex_unlock(&semItems);//????
+	pthread_mutex_unlock(&semItems);
 
 	while (1) {
-		bool personajeBloqueado(pers_t* personaje){return(personaje->bloqueado==false);}
+		bool personajeBloqueado(pers_t* personaje){return(personaje->bloqueado==false && personaje->muerto==false && personaje->ready==true);}
 		cantPersonajesActivos=list_count_satisfying(list_personajes,(void*)personajeBloqueado);
 		if (cantPersonajesActivos == 0) {
 			/* para hacer el movimiento de caballo uso la var ultimoMov que puede ser:
@@ -576,11 +581,6 @@ void *enemigo(void * args) {
 				if(persVictima->bloqueado==true){//ver si el personaje que estaba persiguiendo se bloqueo en un recurso=>habra que elegir otra victima
 					victimaAsignada='0';
 				}else{
-					//ITEM_NIVEL* item=malloc(sizeof(ITEM_NIVEL));
-					/*bool esElPersonaje(ITEM_NIVEL* personaje){
-						return(personaje->id==victimaAsignada);
-					}
-					item=list_find(list_items,(void*)esElPersonaje);*/
 					//cambie de la manera de arriba a esta por lo mismo de antes
 					j=0;
 					for(i=0;i<list_size(list_items);i++){
@@ -589,9 +589,14 @@ void *enemigo(void * args) {
 					}
 					item=list_get(list_items,j);
 
+					//Elijo el eje por el que me voy a acercar
 					if(enemigo->posY==item->posy){
-						if(enemigo->posX<item->posx){contMovimiento=1;}
-						if(enemigo->posX>item->posx){contMovimiento=3;}
+						if(enemigo->posX<item->posx){
+							contMovimiento=1;
+						}
+						if(enemigo->posX>item->posx){
+							contMovimiento=3;
+						}
 						if(enemigo->posX==item->posx){//se esta en la misma posicion que la victima =>matarla
 							//un semaforo para que no mande mensaje al mismo tiempo que otros enemigos o el while principal
 							//otro semaforo para que no desasigne y se esten evaluando otros
@@ -605,16 +610,30 @@ void *enemigo(void * args) {
 				}
 				actualizaPosicion(&contMovimiento, &(enemigo->posX),&(enemigo->posY));
 				void esUnRec(ITEM_NIVEL *iten){
-					if ((iten->item_type==RECURSO_ITEM_TYPE)&&((iten->posx==enemigo->posX)&&(iten->posy==enemigo->posY))) enemigo->posX--;
+					if ((iten->item_type==RECURSO_ITEM_TYPE)&&((iten->posx==enemigo->posX)&&(iten->posy==enemigo->posY)))
+						enemigo->posX--;
 				}
 				list_iterate(list_items,(void*)esUnRec);
 				//TODO agregar si se llega a "chocar" con un personaje que no es su victima---------------->no habia contemplado este caso
-				void esUnPerso(ITEM_NIVEL *item){
-					if((item->item_type==PERSONAJE_ITEM_TYPE)&&((item->posx==enemigo->posX)&&(item->posy==enemigo->posY))){
-						matarPersonaje(item);
+
+				bool esUnPerso(ITEM_NIVEL *item){
+					return (item->item_type==PERSONAJE_ITEM_TYPE)&&((item->posx==enemigo->posX)&&(item->posy==enemigo->posY));
+				}
+				ITEM_NIVEL *personajeItem = list_find(list_items, (void *)esUnPerso);
+				if(personajeItem!= NULL){
+					int contPj;
+					pers_t *unPersonaje;
+					for(contPj = 0; contPj < list_size(list_personajes); contPj++){
+						unPersonaje = list_get(list_personajes, contPj);
+						if(unPersonaje->simbolo == (tSimbolo)personajeItem->id){
+							break;
+						}
+					}
+					if(!unPersonaje->muerto){
+						unPersonaje->muerto = true;
+						matarPersonaje(personajeItem);
 					}
 				}
-				list_iterate(list_items,(void*)esUnPerso);
 			}
 		}
 		pthread_mutex_lock(&semItems);
