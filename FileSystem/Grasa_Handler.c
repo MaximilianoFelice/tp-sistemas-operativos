@@ -107,23 +107,23 @@ int split_path(const char* path, char** super_path, char** name){
 int get_node(void){
 	t_bitarray *bitarray;
 	int i, res;
-	struct grasa_file_t *node = bitmap_start, *data_block = &node[BITMAP_BLOCK_SIZE + NODE_TABLE_SIZE];
+	int bitmap_size_in_bits = BITMAP_SIZE_BITS;
 
 	bitarray = bitarray_create((char*) bitmap_start, BITMAP_SIZE_B);
 
 	// Encuentra el primer bit libre en la tabla de nodos.
-	for (i = 0; (i <= BITMAP_SIZE_BITS) & (bitarray_test_bit(bitarray,i) == 1); i++);
+	for (i = 0; (i <= bitmap_size_in_bits) & (bitarray_test_bit(bitarray,i) == 1); i++);
+	if(i > BITMAP_SIZE_BITS) {
+		res = -ENOSPC;
+		goto finalizar;
+	}
 	res = i;
 
 	// Setea en 1 el bitmap.
 	bitarray_set_bit(bitarray, i);
 	bitmap_free_blocks--;
 
-	// Limpia el contenido del nodo.
-	i -= (GHEADERBLOCKS + BITMAP_BLOCK_SIZE + NODE_TABLE_SIZE);
-	node = &data_block[i];
-//	memset(node, 0, BLOCKSIZE);
-
+	finalizar:
 	// Cierra el bitmap
 	bitarray_destroy(bitarray);
 	return res;
@@ -146,9 +146,11 @@ int add_node(struct grasa_file_t *file_data, int node_number){
 	int new_pointer_block;
 	ptrGBloque *nodo_punteros;
 
+
 	// Ubica el ultimo nodo escrito y se posiciona en el mismo.
-	for (node_pointer_number = 0; (tam >= (BLOCKSIZE * 1024)); tam -= (BLOCKSIZE * 1024), node_pointer_number++);
-	for (position = 0; (tam >= BLOCKSIZE); tam -= BLOCKSIZE, position++);
+	set_position(&node_pointer_number, &position, 0, tam);
+
+	if((node_pointer_number == BLKINDIRECT-1) & (position == PTRGBLOQUE_SIZE-1)) return -ENOSPC;
 
 	// Si es el primer nodo del archivo y esta escrito, debe escribir el segundo.
 	// Se sabe que el primer nodo del archivo esta escrito siempre que el primer puntero a bloque punteros del nodo sea distinto de 0 (file_data->blk_indirect[0] != 0)
@@ -162,6 +164,7 @@ int add_node(struct grasa_file_t *file_data, int node_number){
 	// Si es el ultimo nodo en el bloque de punteros, pasa al siguiente
 	if (position == 0){
 		new_pointer_block = get_node();
+		if(new_pointer_block < 0) return new_pointer_block; /* Si sucede que sea menor a 0, contendra el codigo de error */
 		memset((char*)&(header_start[new_pointer_block]), 0, BLOCKSIZE);
 		file_data->blk_indirect[node_pointer_number] = new_pointer_block;
 		// Cuando crea un bloque, settea al siguente como 0, dejando una marca.
@@ -221,7 +224,7 @@ int get_new_space (struct grasa_file_t *file_data, int size){
 	space_in_block = BLOCKSIZE - space_in_block; // Calcula cuanto tamanio le queda para ocupar en el bloque
 
 	// Si no hay suficiente espacio, retorna error.
-	if ((bitmap_free_blocks*BLOCKSIZE) < (size - space_in_block)) return -1;
+	if ((bitmap_free_blocks*BLOCKSIZE) < (size - space_in_block)) return -ENOSPC;
 
 	// Actualiza el file size al tamanio que le corresponde:
 	if (space_in_block >= size){

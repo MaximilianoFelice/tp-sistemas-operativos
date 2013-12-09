@@ -28,27 +28,18 @@ int grasa_mkdir (const char *path, mode_t mode){
 	char *nombre = malloc(strlen(path) + 1), *nom_to_free = nombre;
 	char *dir_padre = malloc(strlen(path) + 1), *dir_to_free = dir_padre;
 
+	if (determinar_nodo(path) != -1) return -EEXIST;
+
 	split_path(path, &dir_padre, &nombre);
 
-	// Ubica el nodo correspondiente. Si es el raiz, lo marca como 0, Si es menor a 0, lo crea (mismos permisos).
+	// Ubica el nodo correspondiente. Si es el raiz, lo marca como 0. Si no existe, lo informa.
 	if (strcmp(dir_padre, "/") == 0){
 		nodo_padre = 0;
 	} else if ((nodo_padre = determinar_nodo(dir_padre)) < 0){
-		grasa_mkdir(path, mode);
+		return -ENOENT;
 	}
 
 	node = node_table_start;
-
-	// Busca si existe algun otro directorio con ese nombre. Caso afirmativo, se lo avisa a FUSE con -EEXIST.
-	for (i=0; i < NODE_TABLE_SIZE ;i++){
-		if ((&node_table_start[i])->state != DIRECTORY_T) continue;
-		char *fname;
-		fname = (char*) &((&node_table_start[i])->fname);
-		if ((node_table_start[i].parent_dir_block == nodo_padre) &(strcmp(fname, nombre) == 0)) { /* Lazy evaluation: Es importante el orden, le agrega performance */
-			res = -EEXIST;
-			goto finalizar;
-		}
-	}
 
 	// Toma un lock de escritura.
 			log_lock_trace(logger, "Mkdir: Pide lock escritura. Escribiendo: %d. En cola: %d.", rwlock.__data.__writer, rwlock.__data.__nr_writers_queued);
@@ -97,7 +88,7 @@ int grasa_mkdir (const char *path, mode_t mode){
 int grasa_rmdir (const char* path){
 			log_trace(logger, "Rmdir: Path: %s", path);
 	int nodo_padre = determinar_nodo(path), i, res = 0;
-	if (nodo_padre < 0) return -ENOENT;
+	if (nodo_padre == -1) return -ENOENT;
 	struct grasa_file_t *node;
 
 	// Toma un lock de escritura.
@@ -142,9 +133,11 @@ int grasa_rmdir (const char* path){
  */
 int grasa_truncate (const char *path, off_t new_size){
 			log_info(logger, "Truncate: Path: %s - New size: %d", path, new_size);
+	if (new_size < 0) return -EINVAL; /* New File Size negativo */
 	int nodo_padre = determinar_nodo(path);
-	if (nodo_padre < 0) return -ENOENT;
+	if (nodo_padre == -1) return -ENOENT;
 	struct grasa_file_t *node;
+	int res = 0;
 
 	// Toma un lock de escritura.
 			log_lock_trace(logger, "Truncate: Pide lock escritura. Escribiendo: %d. En cola: %d.", rwlock.__data.__writer, rwlock.__data.__nr_writers_queued);
@@ -157,7 +150,8 @@ int grasa_truncate (const char *path, off_t new_size){
 
 	// Si el nuevo size es mayor, se deben reservar los nodos correspondientes:
 	if (new_size > node->file_size){
-		get_new_space(node, (new_size - node->file_size));
+		res = get_new_space(node, (new_size - node->file_size));
+		if (res != 0) goto finalizar;
 
 	} else {	// Si no, se deben borrar los nodos hasta ese punto.
 		int pointer_to_delete;
@@ -165,23 +159,19 @@ int grasa_truncate (const char *path, off_t new_size){
 
 		set_position(&pointer_to_delete, &data_to_delete, 0, new_size);
 
-		delete_nodes_upto(node, pointer_to_delete, data_to_delete);
+		res = delete_nodes_upto(node, pointer_to_delete, data_to_delete);
+		if(res != 0) goto finalizar;
 	}
 
 	node->file_size = new_size; // Aca le dice su nuevo size.
 
-	// Como el truncar borra todos los nodos si tiene tamanio 0, se le debe asignar un nuevo nodo para que pueda abrir correctamente.
-	if (new_size == 0){
-		int new_node = get_node();
-		add_node(node, new_node);
-	}
 
-
+	finalizar:
 	// Cierra, ponele la alarma y se va para su casa. Mejor dicho, retorna 0 :D
 	// Devuelve el lock de escritura.
 	pthread_rwlock_wrlock(&rwlock);
 			log_lock_trace(logger, "Truncate: Devuelve lock escritura. En cola: %d", rwlock.__data.__nr_writers_queued);
-	return 0;
+	return res;
 }
 
 int contadorDeWrites = 0;
@@ -206,6 +196,7 @@ int grasa_write (const char *path, const char *buf, size_t size, off_t offset, s
 			log_trace(logger, "Writing: Path: %s - Size: %d - Offset %d", path, size, offset);
 	(void) fi;
 	int nodo = determinar_nodo(path);
+	if (nodo == -1) return -ENOENT;
 	int new_free_node;
 	struct grasa_file_t *node;
 	char *data_block;
@@ -213,17 +204,18 @@ int grasa_write (const char *path, const char *buf, size_t size, off_t offset, s
 	off_t off = offset;
 	int *n_pointer_block = malloc(sizeof(int)), *n_data_block = malloc(sizeof(int));
 	ptrGBloque *pointer_block;
+	int res = size;
+
+	// Ubica el nodo correspondiente al archivo
+	node = &(node_table_start[nodo-1]);
+	file_size = node->file_size;
+
+	if ((file_size + size) >= THELARGESTFILE) return -EFBIG;
 
 	// Toma un lock de escritura.
 			log_lock_trace(logger, "Write: Pide lock escritura. Escribiendo: %d. En cola: %d.", rwlock.__data.__writer, rwlock.__data.__nr_writers_queued);
 	pthread_rwlock_wrlock(&rwlock);
 			log_lock_trace(logger, "Write: Recibe lock escritura.");
-	// Abrir conexion y traer directorios, guarda el bloque de inicio para luego liberar memoria
-	node = node_table_start;
-
-	// Ubica el nodo correspondiente al archivo
-	node = &(node[nodo-1]);
-	file_size = node->file_size;
 
 	// Guarda tantas veces como sea necesario, consigue nodos y actualiza el archivo.
 	while (tam != 0){
@@ -245,9 +237,11 @@ int grasa_write (const char *path, const char *buf, size_t size, off_t offset, s
 
 			// Obtiene un bloque libre para escribir.
 			new_free_node = get_node();
+			if (new_free_node < 0) goto finalizar;
 
 			// Agrega el nodo al archivo.
-			add_node(node, new_free_node);
+			res = add_node(node, new_free_node);
+			if (res != 0) goto finalizar;
 
 			// Lo relativiza al data block.
 			new_free_node -= (GHEADERBLOCKS + NODE_TABLE_SIZE + BITMAP_BLOCK_SIZE);
@@ -292,12 +286,15 @@ int grasa_write (const char *path, const char *buf, size_t size, off_t offset, s
 
 	node->m_date= time(NULL);
 
+	res = size;
+
+	finalizar:
 	// Devuelve el lock de escritura.
 	pthread_rwlock_unlock(&rwlock);
 			log_lock_trace(logger, "Write: Devuelve lock escritura. En cola: %d", rwlock.__data.__nr_writers_queued);
 
 			log_trace(logger, "Terminada escritura.");
-	return size;
+	return res;
 
 }
 
@@ -314,6 +311,7 @@ int grasa_write (const char *path, const char *buf, size_t size, off_t offset, s
  *  	Devuelve 0 si le sale OK, num negativo si no.
  */
 int grasa_mknod (const char* path, mode_t mode, dev_t dev){
+	if (determinar_nodo(path) != -1) return -EEXIST;
 		log_info(logger, "Mknod: Path: %s", path);
 	int nodo_padre, i, res = 0;
 	int new_free_node;
@@ -325,25 +323,11 @@ int grasa_mknod (const char* path, mode_t mode, dev_t dev){
 	split_path(path, &dir_padre, &nombre);
 
 	// Ubica el nodo correspondiente. Si es el raiz, lo marca como 0, Si es menor a 0, lo crea (mismos permisos).
-	if (strcmp(dir_padre, "/") == 0){
-		nodo_padre = 0;
-	} else if ((nodo_padre = determinar_nodo(dir_padre)) < 0){
-		grasa_mkdir(path, mode);
-	}
+	if (strcmp(dir_padre, "/") == 0) nodo_padre = 0;
+	else if ((nodo_padre = determinar_nodo(dir_padre)) < 0) return -ENOENT;
 
 
 	node = node_table_start;
-
-	// Busca si existe algun otro directorio con ese nombre. Caso afirmativo, se lo avisa a FUSE con -EEXIST.
-	for (i=0; i < NODE_TABLE_SIZE ;i++){
-		if ((&node_table_start[i])->state != FILE_T) continue;
-		char *fname;
-		fname = (char*) &((&node_table_start[i])->fname);
-		if ((node_table_start[i].parent_dir_block == nodo_padre) & (strcmp(fname, nombre) == 0)) {/* Lazy evaluation: Es importante el orden, le agrega performance */
-			res = -EEXIST;
-			goto finalizar;
-		}
-	}
 
 	// Toma un lock de escritura.
 			log_lock_trace(logger, "Mknod: Pide lock escritura. Escribiendo: %d. En cola: %d.", rwlock.__data.__writer, rwlock.__data.__nr_writers_queued);
@@ -429,7 +413,7 @@ int grasa_unlink (const char* path){
  *
  */
 int grasa_rename (const char* oldpath, const char* newpath){
-
+	if (determinar_nodo(oldpath) == -1) return -ENOENT;
 			log_info(logger, "Rename: Moviendo archivo. From: %s - To: %s", oldpath, newpath);
 	char* newroute = malloc(strlen(newpath) + 1);
 	char* newname = malloc(GFILENAMELENGTH + 1);
@@ -437,6 +421,7 @@ int grasa_rename (const char* oldpath, const char* newpath){
 	char* tofree2 = newname;
 	split_path(newpath, &newroute, &newname);
 	int old_node = determinar_nodo(oldpath), new_parent_node = determinar_nodo(newroute);
+
 
 	// Toma un lock de escritura.
 			log_lock_trace(logger, "Rename: Pide lock escritura. Escribiendo: %d. En cola: %d.", rwlock.__data.__writer, rwlock.__data.__nr_writers_queued);
@@ -504,6 +489,7 @@ int grasa_setxattr(const char* path, const char* name, const char* value, size_t
  */
 int grasa_utime(const char *path, struct utimbuf *timeBuf){
 	int node_number = determinar_nodo(path);
+	if (node_number == -1) return -ENOENT;
 	struct grasa_file_t *node = &(node_table_start[node_number]);
 
 	/* Si el buffer es nulo, entonces ambos tiempos deben ser cargados con la hora actual */

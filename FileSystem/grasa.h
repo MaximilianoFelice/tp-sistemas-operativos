@@ -29,6 +29,9 @@
 #define GHEADERBLOCKS 1
 #define BLKINDIRECT 1000
 #define BLOCKSIZE 4096
+#define PTRGBLOQUE_SIZE 1024
+
+#define THELARGESTFILE (BLKINDIRECT*PTRGBLOQUE_SIZE*BLOCKSIZE)
 
 // Macros que definen los tamanios de los bloques.
 #define NODE_TABLE_SIZE 1024
@@ -69,7 +72,7 @@ int bitmap_free_blocks;
 
 typedef uint32_t ptrGBloque;
 
-typedef ptrGBloque pointer_data_block [1024];
+typedef ptrGBloque pointer_data_block [PTRGBLOQUE_SIZE];
 
 
 typedef struct grasa_header_t { // un bloque

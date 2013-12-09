@@ -145,7 +145,8 @@ int main (int argc, char *argv[]){
 	if (runtime_options.define_disc_path != NULL){
 		strcpy(fuse_disc_path, runtime_options.define_disc_path);
 	} else{
-		strcpy(fuse_disc_path, "/home/utnso/tp-2013-2c-c-o-no-ser/FileSystem/Testdisk/disk.bin");
+		printf("Mountpoint not specified: Unloading modules.");
+		sig_term_handler(SIGTERM);
 	}
 
 	// Settea el log level del disco:

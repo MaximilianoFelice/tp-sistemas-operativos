@@ -23,10 +23,10 @@
  *
  * 	@PERMISOS
  * 		Si es un directorio debe tener los permisos:
- * 			stbuf->st_mode = S_IFDIR | 0755;
+ * 			stbuf->st_mode = S_IFDIR | 0777;
  * 			stbuf->st_nlink = 2;
  * 		Si es un archivo:
- * 			stbuf->st_mode = S_IFREG | 0444;
+ * 			stbuf->st_mode = S_IFREG | 0777;
  * 			stbuf->st_nlink = 1;
  * 			stbuf->st_size = [TAMANIO];
  *
@@ -37,6 +37,8 @@ int grasa_getattr(const char *path, struct stat *stbuf) {
 	if (nodo < 0) return -ENOENT;
 	struct grasa_file_t *node;
 	memset(stbuf, 0, sizeof(struct stat));
+
+	if (nodo == -1) return -ENOENT;
 
 	if (strcmp(path, "/") == 0){
 		stbuf->st_mode = S_IFDIR | 0777;
@@ -102,7 +104,6 @@ int grasa_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t off
 
 	if (nodo == -1) return  -ENOENT;
 
-
 	node = node_table_start;
 
 	// "." y ".." obligatorios.
@@ -153,6 +154,8 @@ int grasa_read(const char *path, char *buf, size_t size, off_t offset, struct fu
 	char *data_block;
 	size_t tam = size;
 	int res;
+
+	if (nodo == -1) return -ENOENT;
 
 	node = node_table_start;
 
