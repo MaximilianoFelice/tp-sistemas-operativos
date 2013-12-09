@@ -42,11 +42,10 @@ void cerrarTodo();
 /*
  * Funciones privadas orquestador
  */
-int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOrquestador, t_list *lPlanificadores, int *nroConexiones);
-int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char* sPayload, int *nroConexiones);
+int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOrquestador);
+int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char* sPayload);
 bool avisoConexionANivel(int sockNivel,char *sPayload, tSimbolo simbolo);
 void sendConnectionFail(int sockPersonaje, tMensaje typeMsj, char *msjInfo);
-void crearHiloPlanificador(pthread_t *pPlanificador, tNivel *nivelNuevo, t_list *lPlanificadores);
 
 
 /*
@@ -147,8 +146,8 @@ void cerrarTodoSignal() {
 }
 
 void cerrarTodo() {
-	system("killall -SIGINT nivel &> /dev/null 2>&1");
-	system("killall -SIGINT personaje &> /dev/null 2>&1");
+	system("killall -SIGINT nivel > /dev/null 2>&1");
+	system("killall -SIGINT personaje > /dev/null 2>&1");
 	log_trace(logger, "Proceso Finalizado.");
 }
 
@@ -193,17 +192,17 @@ void *orquestador(void *vPuerto) {
 	nroConexiones = 0;
 
 	while (1) {
-		iSocketComunicacion = getConnection(&setSocketsOrquestador, &iSocketMaximoOrquestador, iSocketEscucha, &tipoMensaje, &sPayload, logger);
+		iSocketComunicacion = getConnection(&setSocketsOrquestador, &iSocketMaximoOrquestador, iSocketEscucha, &tipoMensaje, &sPayload, &nroConexiones, logger);
 
 		if (iSocketComunicacion != -1) {
 
 			switch (tipoMensaje) {
 			case N_HANDSHAKE: // Un nuevo nivel se conecta
-				conexionNivel(iSocketComunicacion, sPayload, &setSocketsOrquestador, lPlanificadores, &nroConexiones);
+				conexionNivel(iSocketComunicacion, sPayload, &setSocketsOrquestador);
 				break;
 
 			case P_HANDSHAKE:
-				conexionPersonaje(iSocketComunicacion, &setSocketsOrquestador, sPayload, &nroConexiones);
+				conexionPersonaje(iSocketComunicacion, &setSocketsOrquestador, sPayload);
 				break;
 
 			case DESCONEXION:
@@ -225,8 +224,8 @@ void orquestadorTerminaJuego() {
 	int cantidadNiveles;
 	tNivel *nivelLevantador;
 
-	log_debug(logger, "Verificando niveles...");
 	pthread_mutex_lock(&mtxlNiveles);
+	log_debug(logger, "Verificando niveles...");
 	cantidadNiveles = list_size(listaNiveles);
 	bool noHayPersonajes = (cantidadNiveles == 0 ? false : true);
 	nroConexiones--; //Me llego una desconexion, resto.
@@ -242,14 +241,16 @@ void orquestadorTerminaJuego() {
 		}
 		log_debug(logger, "El %s esta vacio", nivelLevantador->nombre);
 	}
-	pthread_mutex_unlock(&mtxlNiveles);
+
 
 	if (noHayPersonajes && soloQuedanNiveles()) {
 		log_debug(logger, "No hay tipitos jugando entonces ejecuto koopa y cierro todo");
 		cerrarTodo();
 		executeKoopa(pathKoopa, pathScript);
+		pthread_mutex_unlock(&mtxlNiveles);
 		exit(EXIT_FAILURE);
 	}
+	pthread_mutex_unlock(&mtxlNiveles);
 }
 
 bool nivelVacio(tNivel* nivel) {
@@ -258,14 +259,12 @@ bool nivelVacio(tNivel* nivel) {
 
 bool soloQuedanNiveles() {
 	bool bSoloNiveles;
-	pthread_mutex_lock(&mtxlNiveles);
+	//Saco de aqui los semaforos y los pongo en orquestadorTerminaJuego();
 	bSoloNiveles = ((nroConexiones - list_size(listaNiveles)) == 0);
-	pthread_mutex_unlock(&mtxlNiveles);
-
 	return bSoloNiveles;
 }
 
-int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOrquestador, t_list *lPlanificadores, int *nroConexiones) {
+int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOrquestador) {
 
 	int iIndiceNivel;
 
@@ -304,8 +303,7 @@ int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOr
 	if (tipoMensaje == N_DATOS) {
 
 		crearNivel(listaNiveles, pNivelNuevo, iSocketComunicacion, sNombreNivel, pInfoNivel);
-		nroConexiones++; //TODO revisr
-		crearHiloPlanificador(pPlanificador, pNivelNuevo, lPlanificadores);
+		crearHiloPlanificador(pPlanificador, pNivelNuevo);
 		delegarConexion(&pNivelNuevo->masterfds, pSetSocketsOrquestador, iSocketComunicacion, &pNivelNuevo->maxSock);
 		log_debug(logger, "Nuevo planificador del nivel: '%s' y planifica con: %i", pNivelNuevo->nombre, pNivelNuevo->algoritmo);
 
@@ -320,7 +318,7 @@ int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOr
 }
 
 
-int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char* sPayload, int *nroConexiones) {
+int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char* sPayload) {
 	tHandshakePers* pHandshakePers;
 	pHandshakePers = deserializarHandshakePers(sPayload);
 	int iIndiceNivel;
@@ -344,7 +342,6 @@ int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char*
 
 		if (rta_nivel) {
 			agregarPersonaje(pNivelPedido, pHandshakePers->simbolo, iSocketComunicacion);
-			nroConexiones++;
 			delegarConexion(&pNivelPedido->masterfds, socketsOrquestador, iSocketComunicacion, &pNivelPedido->maxSock);
 
 			pthread_cond_signal(&(pNivelPedido->hayPersonajes));
@@ -443,7 +440,7 @@ void agregarPersonaje(tNivel *pNivel, tSimbolo simbolo, int socket) {
 }
 
 
-void crearHiloPlanificador(pthread_t *pPlanificador, tNivel *nivelNuevo, t_list *lPlanificadores) {
+void crearHiloPlanificador(pthread_t *pPlanificador, tNivel *nivelNuevo){
 
     if (pthread_create(pPlanificador, NULL, planificador, (void *)nivelNuevo)) {
         log_error(logger, "crearHiloPlanificador :: pthread_create: %s", strerror(errno));
@@ -879,7 +876,6 @@ void recepcionRecurso(tNivel *pNivel, char *sPayload, t_log *logger) {
 	free(sPayload);
 }
 
-
 int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexion, char *sPayload) {
 	tPersonaje *pPersonaje;
 
@@ -901,14 +897,14 @@ int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexi
 		return EXIT_FAILURE;
 	}
 
-	nroConexiones--; //Bajo el contador
-
 	if (iSocketConexion == (*pPersonajeActual)->socket) {
 		log_info(logger, "Se desconecto el personaje %c", (*pPersonajeActual)->simbolo);
-		int lenghtRecursos = list_size((*pPersonajeActual)->recursos);
-		char *recursosNoAsignados = liberarRecursos(*pPersonajeActual, pNivel);
+		int lenghtRecursos;
+		char *recursosNoAsignados;
 		tPaquete pkgDesconexionPers;
 		tDesconexionPers desconexionPersonaje;
+		lenghtRecursos = list_size((*pPersonajeActual)->recursos);
+		recursosNoAsignados = liberarRecursos(*pPersonajeActual, pNivel);
 		desconexionPersonaje.simbolo = (*pPersonajeActual)->simbolo;
 		desconexionPersonaje.lenghtRecursos = lenghtRecursos;
 		memcpy(&desconexionPersonaje.recursos, recursosNoAsignados, desconexionPersonaje.lenghtRecursos);
@@ -917,16 +913,19 @@ int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexi
 		free(*pPersonajeActual);
 		free(recursosNoAsignados);
 		*pPersonajeActual = NULL;
+		orquestadorTerminaJuego(); //Lo agrego porque como ahora modificamos los semaforos y a veces la caga. Que verifique siempre que sale uno
 		return EXIT_SUCCESS;
 	}
 
 	pPersonaje = sacarPersonajeDeListas(pNivel, iSocketConexion);
 	if (pPersonaje != NULL) {
 		log_info(logger, "Se desconecto el personaje %c", pPersonaje->simbolo);
-		int lenghtRecursos = list_size(pPersonaje->recursos);
-		char *recursosNoAsignados = liberarRecursos(pPersonaje, pNivel);
+		int lenghtRecursos;
+		char *recursosNoAsignados;
 		tPaquete pkgDesconexionPers;
 		tDesconexionPers desconexionPersonaje;
+		recursosNoAsignados = liberarRecursos(pPersonaje, pNivel);
+		lenghtRecursos = list_size(pPersonaje->recursos);
 		desconexionPersonaje.simbolo = pPersonaje->simbolo;
 		desconexionPersonaje.lenghtRecursos = lenghtRecursos; //NO USAR strlen() ni ninguna funcion de strings
 		memcpy(&desconexionPersonaje.recursos, recursosNoAsignados, desconexionPersonaje.lenghtRecursos);
@@ -934,6 +933,7 @@ int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexi
 		enviarPaquete(pNivel->socket, &pkgDesconexionPers, logger, "Se envia desconexion del personaje al nivel");
 		free(pPersonaje);
 		free(recursosNoAsignados);
+		orquestadorTerminaJuego(); //Lo agrego porque como ahora modificamos los semaforos y a veces la caga. Que verifique siempre que sale uno
 		return EXIT_SUCCESS;
 	} else {
 		log_error(logger, "ERROR: no se encontró el personaje que salio en socket %d", iSocketConexion);
