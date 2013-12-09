@@ -328,16 +328,12 @@ void solicitarRecurso(int socketPlataforma, char *recurso){
 		}
 		case PL_MUERTO_POR_ENEMIGO:{
 			log_info(logger, "El personaje se murio por enemigos");
-			restarVida();
-			if (personaje.vidas>0)
-				solicitarRecurso(socketPlataforma, recurso);
+			seMuereSinSenal(socketPlataforma);
 			break;
 		}
 		case PL_MUERTO_POR_DEADLOCK:{
 			log_info(logger, "El personaje se murio por deadlock");
-			restarVida();
-			if (personaje.vidas>0)
-				solicitarRecurso(socketPlataforma, recurso);
+			seMuereSinSenal(socketPlataforma);
 			break;
 		}
 		default: {
@@ -348,6 +344,27 @@ void solicitarRecurso(int socketPlataforma, char *recurso){
 			break;
 		}
 	}
+
+}
+
+void seMuereSinSenal(int socketPlataforma){
+	/*
+	 * se desconecta de la plataforma
+	 * */
+	if (personaje.vidas>0){
+		/*
+		 * baja una vida
+ 	 	 vuelve a conectarse con la plataforma(planificador)
+ 	 	 reinicia SOLO ese nivel, como?:
+ 	 	 mata el hilo
+ 	 	 reinicia los objetivos de ese nivel
+ 	 	 vuelve a tirar ese hilo
+
+ 	 	 		 * */
+	}else{
+		reiniciarJuego();
+	}
+
 
 }
 
@@ -375,12 +392,12 @@ tDirMovimiento calcularYEnviarMovimiento(personajeIndividual_t *personajePorNive
 	switch(tipoMensaje){
 		case PL_MUERTO_POR_ENEMIGO:{
 			log_info(logger, "El personaje se murio por enemigos");
-			restarVida();
+			seMuereSinSenal(socketPlataforma);
 			break;
 		}
 		case PL_MUERTO_POR_DEADLOCK:{
 			log_info(logger, "El personaje se murio por deadlock");
-			restarVida();
+			seMuereSinSenal(socketPlataforma);
 			break;
 		}
 		case PL_CONFIRMACION_MOV:{
@@ -414,12 +431,12 @@ void recibirMensajeTurno(int socketPlataforma){
 
 			case PL_MUERTO_POR_ENEMIGO:
 				log_info(logger, "El personaje se murio por enemigos");
-				restarVida();
+				seMuereSinSenal(socketPlataforma);
 				break;
 
 			case PL_MUERTO_POR_DEADLOCK:
 				log_info(logger, "El personaje se murio por deadlock");
-				restarVida();
+				seMuereSinSenal(socketPlataforma);
 				break;
 
 			default:
@@ -669,11 +686,17 @@ void restarVida() {
 	personaje.vidas--;
 
 	if (personaje.vidas <= 0) {
+		/*TODO
+		desconectar de plataforma
+		matar hilos
+		pregunta si quiere reiniciar
+		*/
 		reiniciarJuego();
 	}
 	pthread_mutex_unlock(&semModificadorDeVidas);
 	log_debug(logger, "Se le ha restado una vida.");
 }
+
 
 void muertoPorSenial(){
 
@@ -731,6 +754,7 @@ void reiniciarJuego(){
 	matarHilosYDesconectar();
 	log_debug(logger, "Ya se desconecto de la plataforma");
 
+	//todo mostrar la cantidad de reintentos que lleva
 	printf("\n ¿Desea volver a intentar? (Y/N) ");
 
 	n = getchar();
@@ -741,7 +765,21 @@ void reiniciarJuego(){
 		printf("\n ¿Desea volver a intentar? (Y/N) ");
 	}
 
-	if (n == 'Y') continuar = true;
-	if (n == 'N') continuar = false;
+	if (n == 'Y'){
+		/*todo
+		 *
+		 *incrementar reintentos
+		 *reinicia los objetivos
+		 *reinicia vuelve a tirar todos los hilos
+		 *
+		 */
+		continuar =true;
+		personaje.vidas = personaje.vidasMaximas;
+
+	}
+
+	if (n == 'N')
+		continuar = false; //cierra el personaje
+
 
 }
