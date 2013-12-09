@@ -11,6 +11,7 @@
 pthread_mutex_t mtxlPersPorNivel;
 pthread_mutex_t semMovement;
 pthread_mutex_t semModificadorDeVidas;
+pthread_mutex_t semTerminoBien;
 bool continuar = false;
 
 personajeGlobal_t personaje;
@@ -33,6 +34,7 @@ int main(int argc, char*argv[]) {
 	pthread_mutex_init(&semMovement, NULL);
 	pthread_mutex_init(&semModificadorDeVidas, NULL);
 	pthread_mutex_init(&mtxlPersPorNivel, NULL);
+	pthread_mutex_init(&semTerminoBien, NULL);
 
 	// Inicializa el log.
 	logger = logInit(argv, "PERSONAJE");
@@ -63,19 +65,25 @@ int main(int argc, char*argv[]) {
 
 	crearTodosLosHilos();
 
+	/*do{
+		char *join_return = tirarTodosLosHilos();
+		if(join_return != NULL)
+			log_debug(logger, "El personaje %c %s", personaje.simbolo, join_return);
+	}while(!(personaje.vidas>0)||!(terminoBienTodosLosNiveles()));
+*/
+
 	char *join_return = tirarTodosLosHilos();
+
+	if(join_return != NULL)
+		log_debug(logger, "El personaje %c %s", personaje.simbolo, join_return);
 
 	if ((personaje.vidas>0) && terminoBienTodosLosNiveles())//Termino t0do el plan de niveles correctamente
 	{
 		notificarFinPlanNiveles();//Le avisa al orquestador que se termino correctamente el plan de todos los niveles
-
 	}
 
 	cerrarConexiones(&socketOrquestador);
 	log_debug(logger, "El personaje se desconecto del orquestador");
-
-	if(join_return != NULL)
-		log_debug(logger, "El personaje %c %s", personaje.simbolo, join_return);
 
 
 	log_destroy(logger);
@@ -248,9 +256,13 @@ void *jugar(void *args) {
 
 	if (!murioPersonaje){
 		log_info(logger, "El personaje ha completado el nivel correctamente.");
+		pthread_mutex_lock(&semTerminoBien);
 		personajePorNivel.bienTerminado=true;
+		pthread_mutex_unlock(&semTerminoBien);
 	}else{
+		pthread_mutex_lock(&semTerminoBien);
 		personajePorNivel.bienTerminado=false;
+		pthread_mutex_unlock(&semTerminoBien);
 	}
 
 	manejarDesconexiones(&personajePorNivel, murioPersonaje);
@@ -324,13 +336,17 @@ void solicitarRecurso(personajeIndividual_t* personajePorNivel, char *recurso){
 		}
 		case PL_MUERTO_POR_ENEMIGO:{
 			log_info(logger, "El personaje se murio por enemigos");
+			pthread_mutex_lock(&semTerminoBien);
 			(*personajePorNivel).bienTerminado=false;
+			pthread_mutex_unlock(&semTerminoBien);
 			seMuereSinSenal(personajePorNivel);
 			break;
 		}
 		case PL_MUERTO_POR_DEADLOCK:{
 			log_info(logger, "El personaje se murio por deadlock");
+			pthread_mutex_lock(&semTerminoBien);
 			(*personajePorNivel).bienTerminado=false;
+			pthread_mutex_unlock(&semTerminoBien);
 			seMuereSinSenal(personajePorNivel);
 			break;
 		}
@@ -457,13 +473,17 @@ tDirMovimiento calcularYEnviarMovimiento(personajeIndividual_t *personajePorNive
 	switch(tipoMensaje){
 		case PL_MUERTO_POR_ENEMIGO:{
 			log_info(logger, "El personaje se murio por enemigos mientra que calculaba movimiento");
+			pthread_mutex_lock(&semTerminoBien);
 			(*personajePorNivel).bienTerminado=false;
+			pthread_mutex_unlock(&semTerminoBien);
 			seMuereSinSenal(personajePorNivel);
 			break;
 		}
 		case PL_MUERTO_POR_DEADLOCK:{
 			log_info(logger, "El personaje se murio por deadlock");
+			pthread_mutex_lock(&semTerminoBien);
 			(*personajePorNivel).bienTerminado=false;
+			pthread_mutex_unlock(&semTerminoBien);
 			seMuereSinSenal(personajePorNivel);
 			break;
 		}
@@ -498,13 +518,17 @@ void recibirMensajeTurno(personajeIndividual_t *personajePorNivel){
 
 			case PL_MUERTO_POR_ENEMIGO:
 				log_info(logger, "El personaje se murio por enemigos mientra que recibia turno");
+				pthread_mutex_lock(&semTerminoBien);
 				(*personajePorNivel).bienTerminado=false;
+				pthread_mutex_unlock(&semTerminoBien);
 				seMuereSinSenal(personajePorNivel);
 				break;
 
 			case PL_MUERTO_POR_DEADLOCK:
 				log_info(logger, "El personaje se murio por deadlock");
+				pthread_mutex_lock(&semTerminoBien);
 				(*personajePorNivel).bienTerminado=false;
+				pthread_mutex_unlock(&semTerminoBien);
 				seMuereSinSenal(personajePorNivel);
 				break;
 
@@ -758,6 +782,8 @@ void restarVida(){
 		desconectarPersonajeDeTodoNivel();
 		matarHilos();
 		reiniciarJuego();
+	}else{
+		continuar=true;
 	}
 
 	pthread_mutex_unlock(&semModificadorDeVidas);
