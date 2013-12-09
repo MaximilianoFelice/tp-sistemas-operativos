@@ -126,15 +126,19 @@ int main(int argc, char* argv[]) {
 	uDescriptores[1].events=POLLIN;
 
 	////CREANDO Y LANZANDO HILOS ENEMIGOS
-	threadEnemy_t *hilosEnemigos;
-	hilosEnemigos = calloc(cant_enemigos, sizeof(threadEnemy_t));
-	for (i = 0; i < cant_enemigos; i++) {
-		hilosEnemigos[i].enemy.num_enemy = i + 1; //El numero o id de enemigo
-		hilosEnemigos[i].enemy.sockP = sockete;
-		if (pthread_create(&hilosEnemigos[i].thread_enemy, NULL, enemigo,(void*) &hilosEnemigos[i].enemy)) {
-			log_error(logger, "pthread_create: %s", strerror(errno));
-			exit(EXIT_FAILURE);
+	if(cant_enemigos > 0){
+		threadEnemy_t *hilosEnemigos;
+		hilosEnemigos = calloc(cant_enemigos, sizeof(threadEnemy_t));
+		for (i = 0; i < cant_enemigos; i++) {
+			hilosEnemigos[i].enemy.num_enemy = i + 1; //El numero o id de enemigo
+			hilosEnemigos[i].enemy.sockP = sockete;
+			if (pthread_create(&hilosEnemigos[i].thread_enemy, NULL, enemigo,(void*) &hilosEnemigos[i].enemy)) {
+				log_error(logger, "pthread_create: %s", strerror(errno));
+				exit(EXIT_FAILURE);
+			}
 		}
+	} else {
+		nivel_gui_dibujar(list_items, nom_nivel);
 	}
 
 	//LANZANDO EL HILO DETECTOR DE INTERBLOQUEO
@@ -377,7 +381,7 @@ void levantarArchivoConf(char* argumento){
 	    posXCaja=atoi(lineaCaja[3]);
 		posYCaja=atoi(lineaCaja[4]);
 		if (posYCaja > maxRows || posXCaja > maxCols || posYCaja < 1 || posXCaja < 1) {
-			sprintf(messageLimitErr, "La caja %s excede los limites de la pantalla. (%d,%d) - (%d,%d)",clave,posXCaja,posYCaja,maxRows,maxCols);
+			sprintf(messageLimitErr, "La caja %s excede los limites de la pantalla. CajaPos=(%d,%d) - Limites=(%d,%d)",clave,posXCaja,posYCaja,maxCols, maxRows);
 			cerrarNivel(messageLimitErr);
 			exit(EXIT_FAILURE);
 		}
@@ -392,13 +396,14 @@ void levantarArchivoConf(char* argumento){
 	recovery       = config_get_int_value(configNivel, "Recovery");
 	cant_enemigos  = config_get_int_value(configNivel, "Enemigos");
 	sleep_enemigos = config_get_int_value(configNivel, "Sleep_Enemigos");
-	algoritmoAux   = config_get_string_value(configNivel, "algoritmo");
+	algoritmoAux   = config_get_string_value(configNivel, "Algoritmo");
 	char* rr="RR";
 	if(strcmp(algoritmoAux,rr)==0)algoritmo=RR;else algoritmo=SRDF;
-	quantum 	   = config_get_int_value(configNivel, "quantum");
-	retardo 	   = config_get_int_value(configNivel, "retardo");
+	quantum 	   = config_get_int_value(configNivel, "Quantum");
+	retardo 	   = config_get_int_value(configNivel, "Retardo");
 	timeCheck      = config_get_int_value(configNivel, "TiempoChequeoDeadlock");
 	dir_plataforma = config_get_string_value(configNivel, "Plataforma");
+	//TODO ya no tiene que levantar el ip y puerto de un archivo de configuracion
 	dirYpuerto     = string_split(dir_plataforma,":");
 	ip_plataforma  = string_duplicate(dirYpuerto[0]);
 	port_orq 	   = atoi(dirYpuerto[1]);

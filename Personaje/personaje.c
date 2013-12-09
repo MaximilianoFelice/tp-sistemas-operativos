@@ -128,7 +128,7 @@ bool terminoBienTodosLosNiveles(){
 void cargarArchivoConfiguracion(char* archivoConfiguracion){
 
 	//valida que los campos basicos esten en el archivo
-	configPersonaje = config_try_create(archivoConfiguracion, "nombre,simbolo,planDeNiveles,vidas,orquestador");
+	configPersonaje = config_try_create(archivoConfiguracion, "nombre,simbolo,Plan de Niveles,Vidas,orquestador");
 
 	// Obtenemos el nombre del personaje - global de solo lectura
 	personaje.nombre = config_get_string_value(configPersonaje, "nombre");
@@ -138,14 +138,14 @@ void cargarArchivoConfiguracion(char* archivoConfiguracion){
 	// Obtenemos el simbolo - global de solo lectura
 	personaje.simbolo = config_get_string_value(configPersonaje, "simbolo")[0];
 
-	personaje.vidasMaximas = config_get_int_value(configPersonaje, "vidas"); //Obtenemos las vidas
+	personaje.vidasMaximas = config_get_int_value(configPersonaje, "Vidas"); //Obtenemos las vidas
 
 	// Obetenemos los datos del orquestador
 	char * dir_orq = config_get_string_value(configPersonaje, "orquestador");
 	obtenerIpYPuerto(dir_orq, ip_plataforma, puerto_orq);
 
 	//Obtenemos el plan de niveles
-	char** niveles = config_try_get_array_value(configPersonaje, "planDeNiveles");
+	char** niveles = config_try_get_array_value(configPersonaje, "Plan de Niveles");
 	t_list* listaObjetivos;
 	personaje.listaNiveles = list_create();
 	int j, i = 0;
@@ -159,7 +159,7 @@ void cargarArchivoConfiguracion(char* archivoConfiguracion){
 	//Armamos lista de niveles con sus listas de objetivos del config
 	while (niveles[i] != NULL ) {  //Cicla los niveles
 
-		sprintf(stringABuscar, "obj[%s]", niveles[i]); //Arma el string a buscar
+		sprintf(stringABuscar, "Obj[%s]", niveles[i]); //Arma el string a buscar
 
 		char** objetivos = config_try_get_array_value(configPersonaje, stringABuscar);
 
