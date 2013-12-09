@@ -248,6 +248,9 @@ void *jugar(void *args) {
 
 	if (!murioPersonaje){
 		log_info(logger, "El personaje ha completado el nivel correctamente.");
+		personajePorNivel.bienTerminado=true;
+	}else{
+		personajePorNivel.bienTerminado=false;
 	}
 
 	manejarDesconexiones(&personajePorNivel, murioPersonaje);
@@ -321,11 +324,13 @@ void solicitarRecurso(personajeIndividual_t* personajePorNivel, char *recurso){
 		}
 		case PL_MUERTO_POR_ENEMIGO:{
 			log_info(logger, "El personaje se murio por enemigos");
+			(*personajePorNivel).bienTerminado=false;
 			seMuereSinSenal(personajePorNivel);
 			break;
 		}
 		case PL_MUERTO_POR_DEADLOCK:{
 			log_info(logger, "El personaje se murio por deadlock");
+			(*personajePorNivel).bienTerminado=false;
 			seMuereSinSenal(personajePorNivel);
 			break;
 		}
@@ -452,11 +457,13 @@ tDirMovimiento calcularYEnviarMovimiento(personajeIndividual_t *personajePorNive
 	switch(tipoMensaje){
 		case PL_MUERTO_POR_ENEMIGO:{
 			log_info(logger, "El personaje se murio por enemigos mientra que calculaba movimiento");
+			(*personajePorNivel).bienTerminado=false;
 			seMuereSinSenal(personajePorNivel);
 			break;
 		}
 		case PL_MUERTO_POR_DEADLOCK:{
 			log_info(logger, "El personaje se murio por deadlock");
+			(*personajePorNivel).bienTerminado=false;
 			seMuereSinSenal(personajePorNivel);
 			break;
 		}
@@ -491,11 +498,13 @@ void recibirMensajeTurno(personajeIndividual_t *personajePorNivel){
 
 			case PL_MUERTO_POR_ENEMIGO:
 				log_info(logger, "El personaje se murio por enemigos mientra que recibia turno");
+				(*personajePorNivel).bienTerminado=false;
 				seMuereSinSenal(personajePorNivel);
 				break;
 
 			case PL_MUERTO_POR_DEADLOCK:
 				log_info(logger, "El personaje se murio por deadlock");
+				(*personajePorNivel).bienTerminado=false;
 				seMuereSinSenal(personajePorNivel);
 				break;
 
