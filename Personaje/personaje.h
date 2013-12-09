@@ -103,6 +103,8 @@ tDirMovimiento calcularYEnviarMovimiento(personajeIndividual_t *personajePorNive
 
 void crearTodosLosHilos();
 
+void crearHiloPersonajePorNivel(personajeIndividual_t* personajePorNivel);
+
 void recibirMensajeTurno(personajeIndividual_t *personajePorNivel);
 
 void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurso);
@@ -131,7 +133,7 @@ void seMuereSinSenal(personajeIndividual_t *personajePorNivel);
 
 void matarHilo(personajeIndividual_t personajePorNivel);
 
-pthread_t devolverThread(nivel_t* nivelABuscar);
+threadNivel_t* devolverThread(nivel_t* nivelABuscar);
 
 void reiniciarObjetivosNivel(personajeIndividual_t* personajePorNivel);
 

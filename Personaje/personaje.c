@@ -12,7 +12,7 @@ pthread_mutex_t mtxlPersPorNivel;
 pthread_mutex_t semMovement;
 pthread_mutex_t semModificadorDeVidas;
 pthread_mutex_t semTerminoBien;
-bool continuar = false;
+bool continuar = true;
 
 personajeGlobal_t personaje;
 t_config *configPersonaje;
@@ -31,6 +31,7 @@ int cantidadNiveles;
 
 int main(int argc, char*argv[]) {
 
+	//todo destruir bien todos los semaforos
 	pthread_mutex_init(&semMovement, NULL);
 	pthread_mutex_init(&semModificadorDeVidas, NULL);
 	pthread_mutex_init(&mtxlPersPorNivel, NULL);
@@ -63,19 +64,14 @@ int main(int argc, char*argv[]) {
 	socketOrquestador= connectToServer(ip_plataforma, atoi(puerto_orq), logger);
 	log_debug(logger, "El personaje se conecto con el orquestador");
 
-	crearTodosLosHilos();
 
-	/*do{
+	while(continuar && !(terminoBienTodosLosNiveles())){
+		crearTodosLosHilos();
 		char *join_return = tirarTodosLosHilos();
+
 		if(join_return != NULL)
 			log_debug(logger, "El personaje %c %s", personaje.simbolo, join_return);
-	}while(!(personaje.vidas>0)||!(terminoBienTodosLosNiveles()));
-*/
-
-	char *join_return = tirarTodosLosHilos();
-
-	if(join_return != NULL)
-		log_debug(logger, "El personaje %c %s", personaje.simbolo, join_return);
+	}
 
 	if ((personaje.vidas>0) && terminoBienTodosLosNiveles())//Termino t0do el plan de niveles correctamente
 	{
@@ -375,7 +371,9 @@ void seMuereSinSenal(personajeIndividual_t *personajePorNivel){
 		(*personajePorNivel).socketPlataforma = connectToServer(ip_plataforma, atoi(puerto_orq), logger);
 		handshake_plataforma(personajePorNivel);
 		reiniciarObjetivosNivel(personajePorNivel);
-
+		continuar=false;
+		//Reiniciar hilos
+		crearHiloPersonajePorNivel(personajePorNivel);
 		char *join_return = tirarHiloPersonajePorNivel(personajePorNivel);
 		if(join_return != NULL)
 			log_debug(logger, "El personaje %c, ha devuelto '%s' al tirar el hilo del personaje", personaje.simbolo, join_return);
@@ -422,13 +420,18 @@ void crearTodosLosHilos(){
 	}
 }
 
+void crearHiloPersonajePorNivel(personajeIndividual_t* personajePorNivel){
+	threadNivel_t* threadAReiniciar =devolverThread(personajePorNivel->nivelQueJuego);//FIXME
+	pthread_create(&(*threadAReiniciar).thread, NULL, jugar, (void *) &(*threadAReiniciar).nivel);
+}
+
 char* tirarHiloPersonajePorNivel(personajeIndividual_t* personajePorNivel){
 	//Tirar el hilo del nivel que esta jugando el personajePorNivel
 	char *join_return;
 
-	pthread_t threadAEliminar =devolverThread((*personajePorNivel).nivelQueJuego);
-	if(threadAEliminar != -1)
-		pthread_join(threadAEliminar, (void**)&join_return);
+	threadNivel_t* threadAEliminar =devolverThread((*personajePorNivel).nivelQueJuego);
+	if(threadAEliminar != NULL)
+		pthread_join((*threadAEliminar).thread, (void**)&join_return);
 
 	return join_return;
 }
@@ -832,19 +835,19 @@ void muertoPorSenial(){
 
 void matarHilo(personajeIndividual_t personajePorNivel){
 
-	pthread_t threadAEliminar =devolverThread(personajePorNivel.nivelQueJuego);
-	if(threadAEliminar != -1)
-		pthread_cancel(threadAEliminar);
+	threadNivel_t* threadAEliminar =devolverThread(personajePorNivel.nivelQueJuego);
+	if(threadAEliminar != NULL)
+		pthread_cancel((*threadAEliminar).thread);
 }
 
-pthread_t devolverThread(nivel_t* nivelABuscar){
+threadNivel_t* devolverThread(nivel_t* nivelABuscar){
 
 	int i;
 	for (i = 0; i < cantidadNiveles; i++) {
 		if(nivelABuscar->nomNivel==(hilosNiv[i]).nivel.nomNivel)
-			return (hilosNiv[i]).thread;
+			return &hilosNiv[i];
 	}
-	return -1;
+	return NULL;
 }
 
 void matarHilos(){
@@ -884,7 +887,8 @@ void reiniciarJuego(){
 		personaje.reintentos++;
 		reiniciarObjetivosTodosLosNiveles();
 
-		char *join_return = tirarTodosLosHilos();
+		crearTodosLosHilos();//corre los hilos
+		char *join_return = tirarTodosLosHilos();//devuelve el estado de los hilos
 		if(join_return != NULL)
 			log_debug(logger, "El personaje %c, ha devuelto '%s' al tirar todos los hilos", personaje.simbolo, join_return);
 
