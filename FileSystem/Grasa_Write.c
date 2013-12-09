@@ -222,9 +222,6 @@ int grasa_write (const char *path, const char *buf, size_t size, off_t offset, s
 		if (space_in_block == BLOCKSIZE) (space_in_block = 0); // Porque significa que el bloque esta lleno.
 		if (file_size == 0) space_in_block = BLOCKSIZE; /* Significa que el archivo esta recien creado y ya tiene un bloque de datos asignado */
 
-		// Ubica a que nodo le corresponderia guardar el dato
-		set_position(n_pointer_block, n_data_block, file_size, off);
-
 		// Si el offset es mayor que el tamanio del archivo mas el resto del bloque libre, significa que hay que pedir un bloque nuevo
 		// file_size == 0 indica que es un archivo que recien se comienza a escribir, por lo que tiene un tratamiento distinto (ya tiene un bloque de datos asignado).
 		if ((off >= (file_size + space_in_block)) & (file_size != 0)){
@@ -248,6 +245,9 @@ int grasa_write (const char *path, const char *buf, size_t size, off_t offset, s
 			space_in_block = BLOCKSIZE;
 
 		} else {
+			// Ubica a que nodo le corresponderia guardar el dato
+			set_position(n_pointer_block, n_data_block, file_size, off);
+
 			//Ubica el nodo a escribir.
 			*n_pointer_block = node->blk_indirect[*n_pointer_block];
 			*n_pointer_block -= (GHEADERBLOCKS + NODE_TABLE_SIZE + BITMAP_BLOCK_SIZE);
