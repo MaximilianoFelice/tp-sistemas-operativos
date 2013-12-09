@@ -174,7 +174,6 @@ int grasa_truncate (const char *path, off_t new_size){
 	return res;
 }
 
-int contadorDeWrites = 0;
 
 /*
  * 	@DESC
@@ -191,8 +190,6 @@ int contadorDeWrites = 0;
  * 		Devuelve la cantidad de bytes escritos, siempre y cuando este OK. Caso contrario, numero negativo tipo -ENOENT.
  */
 int grasa_write (const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi){
-
-	contadorDeWrites++;
 			log_trace(logger, "Writing: Path: %s - Size: %d - Offset %d", path, size, offset);
 	(void) fi;
 	int nodo = determinar_nodo(path);
@@ -292,7 +289,6 @@ int grasa_write (const char *path, const char *buf, size_t size, off_t offset, s
 	// Devuelve el lock de escritura.
 	pthread_rwlock_unlock(&rwlock);
 			log_lock_trace(logger, "Write: Devuelve lock escritura. En cola: %d", rwlock.__data.__nr_writers_queued);
-
 			log_trace(logger, "Terminada escritura.");
 	return res;
 
