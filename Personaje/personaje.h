@@ -57,11 +57,12 @@ typedef struct PersonajeGlobal{
 
 typedef struct PersonajeIndividual{
 	int socketPlataforma;
-	tSimbolo recursoActual; //objetivo actual
+	tSimbolo recursoActual; //el numero del recurso actual basandonos en la lista de recursos por nivel
 	int posX;
 	int posY;
 	int posRecursoX;
 	int posRecursoY;
+	bool bienTerminado;
 	tDirMovimiento ultimoMovimiento;
 	nivel_t *nivelQueJuego;
 
@@ -75,6 +76,8 @@ void notificarFinPlanNiveles();
 void enviarPaqueteFinPlan(personajeIndividual_t* personajePorNivel);
 
 void destruirArchivoConfiguracion(t_config *configPersonaje);
+
+bool terminoBienTodosLosNiveles();
 
 void cargarArchivoConfiguracion(char* archivoConfiguracion);
 
@@ -97,6 +100,8 @@ void moverAlPersonaje(personajeIndividual_t* personajePorNivel);
 void solicitarRecurso(personajeIndividual_t* personajePorNivel, char *recurso);
 
 tDirMovimiento calcularYEnviarMovimiento(personajeIndividual_t *personajePorNivel);
+
+void crearTodosLosHilos();
 
 void recibirMensajeTurno(personajeIndividual_t *personajePorNivel);
 
@@ -130,11 +135,11 @@ pthread_t devolverThread(nivel_t* nivelABuscar);
 
 void reiniciarObjetivosNivel(personajeIndividual_t* personajePorNivel);
 
-void tirarHiloPersonajePorNivel(personajeIndividual_t* personajePorNivel);
+char* tirarHiloPersonajePorNivel(personajeIndividual_t* personajePorNivel);
 
 void reiniciarObjetivosTodosLosNiveles();
 
-void tirarTodosLosHilos();
+char* tirarTodosLosHilos();
 
 void sig_aumentar_vidas();
 
