@@ -687,11 +687,10 @@ void restarVida(){
 
 	if (personaje.vidas <= 0) {
 		desconectarPersonajeDeTodoNivel();
-
-		//TODO 	matar hilos
-
+		matarHilos();
 		reiniciarJuego();
 	}
+
 	pthread_mutex_unlock(&semModificadorDeVidas);
 	log_debug(logger, "Se le ha restado una vida.");
 }
@@ -713,7 +712,8 @@ void muertoPorSenial(){
 
 	log_info(logger, "El personaje ha muerto por la senal kill");
 
-	matarHilosYDesconectar();
+	matarHilos();
+	desconectarPersonajeDeTodoNivel();
 
 	continuar=false;
 	pthread_mutex_unlock(&semModificadorDeVidas);
@@ -735,20 +735,12 @@ void muertoPorSenial(){
 	exit(EXIT_FAILURE);
 }
 
-void matarHilosYDesconectar(){
-	personajeIndividual_t* unPersonaje;
+void matarHilos(){
+	/* matar a todos los threads */
 
 	int i;
-
-	/* matar a todos los threads */
 	for (i = 0; i < cantidadNiveles; i++) {
 		pthread_cancel(hilosNiv->thread);
-
-		unPersonaje = dictionary_get(listaPersonajePorNiveles, hilosNiv->nivel.nomNivel);
-
-		if (unPersonaje->socketPlataforma != 0) {
-			desconectarPersonaje(unPersonaje);
-		}
 	}
 
 }
@@ -759,7 +751,8 @@ void reiniciarJuego(){
 	log_info(logger, "El personaje murio por quedarse sin vidas.");
 	log_debug(logger, "Se procede a desconectarse de la plataforma");
 
-	matarHilosYDesconectar();
+	matarHilos();
+	desconectarPersonajeDeTodoNivel();
 	log_debug(logger, "Ya se desconecto de la plataforma");
 
 	//todo mostrar la cantidad de reintentos que lleva

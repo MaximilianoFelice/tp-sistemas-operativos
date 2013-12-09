@@ -125,11 +125,11 @@ void seMuereSinSenal(personajeIndividual_t *personajePorNivel);
 
 void sig_aumentar_vidas();
 
-void restarVida(personajeIndividual_t* personajePorNivel);
+void restarVida();
 
 void muertoPorSenial();
 
-void matarHilosYDesconectar();
+void matarHilos();
 
 void reiniciarJuego();
 
