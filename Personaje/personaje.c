@@ -133,6 +133,8 @@ void cargarArchivoConfiguracion(char* archivoConfiguracion){
 	// Obtenemos el nombre del personaje - global de solo lectura
 	personaje.nombre = config_get_string_value(configPersonaje, "nombre");
 
+	personaje.reintentos = 0;
+
 	// Obtenemos el simbolo - global de solo lectura
 	personaje.simbolo = config_get_string_value(configPersonaje, "simbolo")[0];
 
@@ -353,7 +355,7 @@ void seMuereSinSenal(personajeIndividual_t *personajePorNivel){
 	if (personaje.vidas>0){
 		restarVida();
 		/*
-
+		todo
  	 	 vuelve a conectarse con la plataforma(planificador)
  	 	 reinicia SOLO ese nivel, como?:
  	 	 mata el hilo
@@ -755,8 +757,7 @@ void reiniciarJuego(){
 	desconectarPersonajeDeTodoNivel();
 	log_debug(logger, "Ya se desconecto de la plataforma");
 
-	//todo mostrar la cantidad de reintentos que lleva
-	printf("\n ¿Desea volver a intentar? (Y/N) ");
+	printf("\n ¿Ya tiene %d reintentos, Desea volver a intentar? (Y/N) ", personaje.reintentos);
 
 	n = getchar();
 
@@ -767,11 +768,11 @@ void reiniciarJuego(){
 	}
 
 	if (n == 'Y'){
+		personaje.reintentos++;
+
 		/*todo
-		 *
-		 *incrementar reintentos
 		 *reinicia los objetivos
-		 *reinicia vuelve a tirar todos los hilos
+		 *vuelve a tirar todos los hilos
 		 *
 		 */
 		continuar =true;

@@ -45,6 +45,7 @@ typedef struct ThreadNivel{
 
 typedef struct PersonajeGlobal{
 	tSimbolo simbolo;
+	int reintentos; //cantidad de reintentos de jugadas
 	int vidas;
 	int vidasMaximas;
 	unsigned short puertoOrquestador;
