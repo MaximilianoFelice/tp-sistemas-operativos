@@ -564,6 +564,7 @@ void cerrarConexiones(int * socketPlataforma){
 	log_debug(logger, "La conexion con la plataforma ha sido cerrada.");
 }
 
+
 void calculaMovimiento(personajeIndividual_t *personajePorNivel){
 
 	if(!conseguiRecurso(*personajePorNivel)){
@@ -575,8 +576,6 @@ void calculaMovimiento(personajeIndividual_t *personajePorNivel){
 					moverVertical(personajePorNivel);
 				else if(tieneMovimientoHorizontal(*personajePorNivel))
 					moverHorizontal(personajePorNivel);
-				/*else 				FIXME ver si se puede hacer aca la solicitud del recurso
-					solicitarRecurso(personajePorNivel);*/
 
 				break;
 
@@ -598,19 +597,7 @@ void calculaMovimiento(personajeIndividual_t *personajePorNivel){
 					moverHorizontal(personajePorNivel);
 				else if(tieneMovimientoVertical(*personajePorNivel))
 					moverVertical(personajePorNivel);
-				/*
-				//ver si se puede mover para derecha o izquierda
-				if (personajePorNivel->posX < personajePorNivel->posRecursoX)
-					personajePorNivel->ultimoMovimiento = derecha;
-				else if (personajePorNivel->posX > personajePorNivel->posRecursoX)
-					personajePorNivel->ultimoMovimiento = izquierda;
 
-				//ver si se puede mover para abajo o arriba
-				if (personajePorNivel->posY < personajePorNivel->posRecursoY)
-					personajePorNivel->ultimoMovimiento = abajo;
-				else if (personajePorNivel->posY > personajePorNivel->posRecursoY)
-					personajePorNivel->ultimoMovimiento = arriba;
-					*/
 				break;
 
 			default:
@@ -631,21 +618,21 @@ bool tieneMovimientoHorizontal(personajeIndividual_t personajePorNivel){
 }
 
 void moverHorizontal(personajeIndividual_t *personajePorNivel){
-	log_info(logger,  "entra en mover horizontal");
+
 	if (personajePorNivel->posX < personajePorNivel->posRecursoX)
 		(*personajePorNivel).ultimoMovimiento = derecha;
 	else if (personajePorNivel->posX > personajePorNivel->posRecursoX)
 		(*personajePorNivel).ultimoMovimiento = izquierda;
-	log_info(logger,  "sale de mover horizontal");
+
 }
 
 void moverVertical(personajeIndividual_t *personajePorNivel){
-	log_info(logger,  "entra en mover vertical");
+
 	if (personajePorNivel->posY < personajePorNivel->posRecursoY)
 		personajePorNivel->ultimoMovimiento = abajo;
 	else if (personajePorNivel->posY > personajePorNivel->posRecursoY)
 		personajePorNivel->ultimoMovimiento = arriba;
-	log_info(logger,  "sale de mover vertical");
+
 }
 
 void actualizaPosicion(tDirMovimiento* movimiento, personajeIndividual_t **personajePorNivel) {
