@@ -294,7 +294,7 @@ int delete_nodes_upto (struct grasa_file_t *file_data, int pointer_upto, int dat
 	if((pointer_upto != 0) | (data_upto != 0)) DISABLE_DELETE_MODE;
 
 	// Borra hasta que los nodos de posicion coincidan con los nodos especificados.
-	while( (data_pos != data_upto) | (pointer_pos != pointer_upto) ){  // | ((data_pos == 0) & (pointer_pos == 0)) ){
+	while( (data_pos != data_upto) | (pointer_pos != pointer_upto) | (DELETE_MODE == 1) ){  // | ((data_pos == 0) & (pointer_pos == 0)) ){
 		if ((data_pos < 0) | (pointer_pos < 0)) break;
 
 		// localiza el puntero de datos a borrar.
@@ -323,8 +323,6 @@ int delete_nodes_upto (struct grasa_file_t *file_data, int pointer_upto, int dat
 			pointer_pos--;
 			data_pos = 1023;
 		}
-
-		/* Si hay que borrar el pointer 0 y data 0, lo borra */
 
 	}
 
