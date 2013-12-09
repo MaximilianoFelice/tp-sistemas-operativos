@@ -353,7 +353,7 @@ void seMuereSinSenal(personajeIndividual_t *personajePorNivel){
 	if (personaje.vidas>0){
 		restarVida();
 		/*
-		 * baja una vida
+
  	 	 vuelve a conectarse con la plataforma(planificador)
  	 	 reinicia SOLO ese nivel, como?:
  	 	 mata el hilo
@@ -680,23 +680,31 @@ void sig_aumentar_vidas() {
 	log_debug(logger, "Se le ha agregado una vida por senal.");
 }
 
-void restarVida() {
+void restarVida(){
 
 	pthread_mutex_lock(&semModificadorDeVidas);
 	personaje.vidas--;
 
 	if (personaje.vidas <= 0) {
-		/*TODO
-		desconectar de plataforma
-		matar hilos
-		pregunta si quiere reiniciar
-		*/
+		desconectarPersonajeDeTodoNivel();
+
+		//TODO 	matar hilos
+
 		reiniciarJuego();
 	}
 	pthread_mutex_unlock(&semModificadorDeVidas);
 	log_debug(logger, "Se le ha restado una vida.");
 }
 
+void desconectarPersonajeDeTodoNivel(){
+	//desconecta a todos los personajes por nivel
+
+	void _desconectarPersonaje(char* key, personajeIndividual_t* personajePorNivel) {
+		desconectarPersonaje(personajePorNivel);
+	}
+
+	dictionary_iterator(listaPersonajePorNiveles, (void*) _desconectarPersonaje);
+}
 
 void muertoPorSenial(){
 

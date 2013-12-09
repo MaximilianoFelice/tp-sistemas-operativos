@@ -67,7 +67,7 @@ typedef struct PersonajeIndividual{
 } personajeIndividual_t;
 
 
-void desconectarPersonajeFinPlan();
+void desconectarPersonajeDeTodoNivel();
 
 void notificarFinPlanNiveles();
 
@@ -125,7 +125,7 @@ void seMuereSinSenal(personajeIndividual_t *personajePorNivel);
 
 void sig_aumentar_vidas();
 
-void restarVida();
+void restarVida(personajeIndividual_t* personajePorNivel);
 
 void muertoPorSenial();
 
