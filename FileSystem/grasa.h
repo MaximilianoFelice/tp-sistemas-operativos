@@ -51,6 +51,12 @@
 #define FILE_T ((int) 1)
 #define DIRECTORY_T ((int) 2)
 
+// Se utiliza esta variable para saber si se encuentra en modo "borrar". Esto afecta, principalmente, al delete_nodes_upto
+#define DELETE_MODE _del_mode
+#define ENABLE_DELETE_MODE _del_mode=1
+#define DISABLE_DELETE_MODE _del_mode=0
+int _del_mode;
+
 
 // Se guardara aqui la ruta al disco. Tiene un tamanio maximo.
 char fuse_disc_path[1000];

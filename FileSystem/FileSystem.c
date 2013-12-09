@@ -8,6 +8,7 @@
 //#include "Grasa_Handlers.c"
 
 
+
 struct t_runtime_options {
 	char* welcome_msg;
 	char* define_disc_path;
@@ -79,7 +80,6 @@ static struct fuse_opt fuse_options[] = {
 // Dentro de los argumentos que recibe nuestro programa obligatoriamente
 // debe estar el path al directorio donde vamos a montar nuestro FS
 fuse_fill_dir_t* functi_filler(void *buf, const char *name,const struct stat *stbuf, off_t off){
-	//printf("Recibi carpeta: %s\n", name);
 	return 0;
 }
 
@@ -88,7 +88,7 @@ void sig_int_handler(int sig){
 	if (sig == SIGUSR1) {
 		printf("\n%d\n", obtain_free_blocks());
 	}
-	log_trace(logger, "SIGUSR1 res: %d", bitmap_free_blocks);
+	log_info(logger, "SIGUSR1 res: %d", bitmap_free_blocks);
 }
 
 void sig_term_handler(int sig){
@@ -113,6 +113,8 @@ void sig_term_handler(int sig){
 }
 
 int main (int argc, char *argv[]){
+
+	DISABLE_DELETE_MODE;
 
 	signal(SIGUSR1, sig_int_handler);
 	signal(SIGTERM, sig_term_handler);

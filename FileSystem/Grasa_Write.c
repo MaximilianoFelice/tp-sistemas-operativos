@@ -151,9 +151,9 @@ int grasa_truncate (const char *path, off_t new_size){
 	pthread_rwlock_wrlock(&rwlock);
 			log_lock_trace(logger, "Truncate: Recibe lock escritura.");
 	// Abre conexiones y levanta la tabla de nodos en memoria.
-	node = bitmap_start;
+	node = node_table_start;
 
-	node = &(node[nodo_padre]);
+	node = &(node[nodo_padre-1]);
 
 	// Si el nuevo size es mayor, se deben reservar los nodos correspondientes:
 	if (new_size > node->file_size){
@@ -273,6 +273,7 @@ int grasa_write (const char *path, const char *buf, size_t size, off_t offset, s
 			buf += BLOCKSIZE;
 			off += BLOCKSIZE;
 			tam -= BLOCKSIZE;
+			offset_in_block = 0;
 		} else if (tam <= space_in_block){ /*Hay lugar suficiente en ese bloque para escribir el resto del archivo */
 			memcpy(data_block + offset_in_block, buf, tam);
 			if (node->file_size <= off) file_size = node->file_size += tam;
@@ -284,6 +285,7 @@ int grasa_write (const char *path, const char *buf, size_t size, off_t offset, s
 			buf += space_in_block;
 			off += space_in_block;
 			tam -= space_in_block;
+			offset_in_block = 0;
 		}
 
 	}
@@ -403,6 +405,8 @@ int grasa_unlink (const char* path){
 	struct grasa_file_t* file_data;
 	int node = determinar_nodo(path);
 
+	ENABLE_DELETE_MODE;
+
 	file_data = &(node_table_start[node - 1]);
 
 	// Toma un lock de escritura.
@@ -416,6 +420,7 @@ int grasa_unlink (const char* path){
 	pthread_rwlock_unlock(&rwlock);
 			log_lock_trace(logger, "Ulink: Devuelve lock escritura. En cola: %d", rwlock.__data.__nr_writers_queued);
 
+	DISABLE_DELETE_MODE;
 
 	return grasa_rmdir(path);
 	}

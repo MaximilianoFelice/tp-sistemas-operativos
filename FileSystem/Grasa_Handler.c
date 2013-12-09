@@ -144,7 +144,6 @@ int add_node(struct grasa_file_t *file_data, int node_number){
 	int node_pointer_number, position;
 	size_t tam = file_data->file_size;
 	int new_pointer_block;
-	struct grasa_file_t *node = data_block_start;
 	ptrGBloque *nodo_punteros;
 
 	// Ubica el ultimo nodo escrito y se posiciona en el mismo.
@@ -171,8 +170,8 @@ int add_node(struct grasa_file_t *file_data, int node_number){
 		new_pointer_block = file_data->blk_indirect[node_pointer_number]; //Se usa como auxiliar para encontrar el numero del bloque de punteros
 	}
 
-	// Ubica el nodo de punteros en *node, relativo al bloque de datos.
-	nodo_punteros = (ptrGBloque*) &node[new_pointer_block - (GHEADERBLOCKS + NODE_TABLE_SIZE + BITMAP_BLOCK_SIZE)];
+	// Ubica el nodo de punteros, relativo al bloque de datos.
+	nodo_punteros = (ptrGBloque*) &data_block_start[new_pointer_block - (GHEADERBLOCKS + NODE_TABLE_SIZE + BITMAP_BLOCK_SIZE)];
 
 	// Hace que dicho puntero, en la posicion ya obtenida, apunte al nodo indicado.
 	nodo_punteros[position] = node_number;
@@ -279,7 +278,7 @@ int set_position (int *pointer_block, int *data_block, size_t size, off_t offset
 int delete_nodes_upto (struct grasa_file_t *file_data, int pointer_upto, int data_upto){
 	t_bitarray *bitarray;
 	size_t file_size = file_data->file_size;
-	int node_to_delete, node_pointer_to_delete;
+	int node_to_delete, node_pointer_to_delete, delete_upto;
 	ptrGBloque *aux; // Auxiliar utilizado para saber que nodo redireccionar
 	int data_pos, pointer_pos;
 
@@ -287,39 +286,45 @@ int delete_nodes_upto (struct grasa_file_t *file_data, int pointer_upto, int dat
 	set_position(&pointer_pos, &data_pos, 0, file_size);
 
 	// Crea el bitmap
-	printf("\n %d \n", BITMAP_SIZE_B);
 	bitarray = bitarray_create((char*) bitmap_start, BITMAP_SIZE_B);
 
+	// Activa el DELETE_MODE. Este modo NO debe activarse cuando se hacen operaciones que
+	// dejen al archivo con un solo nodo. Por ejemplo, truncate -s 0.
+	// Deberia estar activo en otro momento.
+	if((pointer_upto != 0) | (data_upto != 0)) DISABLE_DELETE_MODE;
+
 	// Borra hasta que los nodos de posicion coincidan con los nodos especificados.
-	while( (data_pos != data_upto) | (pointer_pos != pointer_upto) | ((data_pos == 0) & (pointer_pos == 0)) ){
+	while( (data_pos != data_upto) | (pointer_pos != pointer_upto) ){  // | ((data_pos == 0) & (pointer_pos == 0)) ){
 		if ((data_pos < 0) | (pointer_pos < 0)) break;
-		if (data_pos != 0){
-			// Ubica y borra el nodo correspondiente
-			aux = &(file_data->blk_indirect[pointer_pos]);
+
+		// localiza el puntero de datos a borrar.
+		node_pointer_to_delete = file_data->blk_indirect[pointer_pos];
+		aux = (ptrGBloque*) &(header_start[node_pointer_to_delete]);
+
+		// Indica hasta que nodo debe borrar.
+		if (pointer_pos == pointer_upto){
+			delete_upto = data_upto;
+		} else {
+			delete_upto = 0;
+		}
+
+		// Borra los nodos de datos que sean necesarios.
+		while ((data_pos + DELETE_MODE) != delete_upto){
 			node_to_delete = aux[data_pos];
 			bitarray_clean_bit(bitarray, node_to_delete);
 			bitmap_free_blocks++;
-
-			// Reubica el offset
 			data_pos--;
 		}
 
-		// Si el data_offset es 0, debe borrar la estructura de punteros
-		else if (data_pos == 0){
-//			if ((data_pos == 0) & (pointer_pos ==0)) return 0;
-
-			node_pointer_to_delete = file_data->blk_indirect[pointer_pos]; // Ubica el numero de nodo de punteros a borrar.
-			aux = (ptrGBloque *) &(header_start[node_pointer_to_delete]); // Entra a dicho nodo de punteros.
-			node_to_delete = aux[0];	// Selecciona el nodo 0 de dicho bloque de punteros.
+		// Si es necesario, borra el nodo de punteros.
+		if ((pointer_pos + DELETE_MODE) != pointer_upto){
 			bitarray_clean_bit(bitarray, node_pointer_to_delete);
-			bitarray_clean_bit(bitarray, node_to_delete);
-			file_data->blk_indirect[pointer_pos] = 0; // Se utiliza el 0 como referencia a bloque no indicado.
-
-			// Reubica el offset
-			data_pos = 1023;
+			file_data->blk_indirect[pointer_pos] = 0;
 			pointer_pos--;
+			data_pos = 1023;
 		}
 
+		/* Si hay que borrar el pointer 0 y data 0, lo borra */
 
 	}
 
