@@ -128,6 +128,14 @@ void matarHilo(personajeIndividual_t personajePorNivel);
 
 pthread_t devolverThread(nivel_t* nivelABuscar);
 
+void reiniciarObjetivosNivel(personajeIndividual_t* personajePorNivel);
+
+void tirarHiloPersonajePorNivel(personajeIndividual_t* personajePorNivel);
+
+void reiniciarObjetivosTodosLosNiveles();
+
+void tirarTodosLosHilos();
+
 void sig_aumentar_vidas();
 
 void restarVida();

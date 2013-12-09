@@ -222,7 +222,6 @@ void *jugar(void *args) {
 
 		log_info(logger, "Vidas de %c: %d", personaje.simbolo, personaje.vidas);
 
-		// Por cada objetivo del nivel, fixme, revisar si hace falta q controle si esta o no muerto
 		for (personajePorNivel.recursoActual=0; (personajePorNivel.recursoActual < list_size(personajePorNivel.nivelQueJuego->Objetivos)) && (!personajeEstaMuerto(murioPersonaje)); personajePorNivel.recursoActual++) {
 
 			//Espera que el planificador le de el turno para pedir la posicion del recurso
@@ -360,12 +359,8 @@ void seMuereSinSenal(personajeIndividual_t *personajePorNivel){
 		//Se vuelve a conectar con la plataforma
 		(*personajePorNivel).socketPlataforma = connectToServer(ip_plataforma, atoi(puerto_orq), logger);
 		handshake_plataforma(personajePorNivel);
-
-		/*
-		todo
- 	 	reiniciar los objetivos de ese nivel
- 	 	volver a tirar ese hilo
- 	 	 */
+		reiniciarObjetivosNivel(personajePorNivel);
+		tirarHiloPersonajePorNivel(personajePorNivel);
 
 	}else{
 		reiniciarJuego();
@@ -373,6 +368,28 @@ void seMuereSinSenal(personajeIndividual_t *personajePorNivel){
 
 
 }
+
+void reiniciarObjetivosNivel(personajeIndividual_t* personajePorNivel){
+
+	//TODO 	reiniciar los objetivos de ese nivel
+
+}
+
+void tirarHiloPersonajePorNivel(personajeIndividual_t* personajePorNivel){
+
+	//TODO 	tirar el hilo del nivel que esta jugando el personajePorNivel
+}
+
+
+void reiniciarObjetivosTodosLosNiveles(){ //TODO
+	// Reinicia todos los objetivos de todos los niveles
+
+
+}
+void tirarTodosLosHilos(){ //TODO
+	//vuelve a tirar todos los hilos por todos los niveles
+}
+
 
 tDirMovimiento calcularYEnviarMovimiento(personajeIndividual_t *personajePorNivel){
 	tMensaje tipoMensaje;
@@ -744,7 +761,8 @@ void muertoPorSenial(){
 void matarHilo(personajeIndividual_t personajePorNivel){
 
 	pthread_t threadAEliminar =devolverThread(personajePorNivel.nivelQueJuego);
-	pthread_cancel(threadAEliminar);
+	if(threadAEliminar != -1)
+		pthread_cancel(threadAEliminar);
 }
 
 pthread_t devolverThread(nivel_t* nivelABuscar){
@@ -754,7 +772,7 @@ pthread_t devolverThread(nivel_t* nivelABuscar){
 		if(nivelABuscar->nomNivel==(hilosNiv[i]).nivel.nomNivel)
 			return (hilosNiv[i]).thread;
 	}
-
+	return -1;
 }
 
 void matarHilos(){
@@ -788,13 +806,10 @@ void reiniciarJuego(){
 	}
 
 	if (n == 'Y'){
-		personaje.reintentos++;
 
-		/*todo
-		 *reinicia los objetivos
-		 *vuelve a tirar todos los hilos
-		 *
-		 */
+		personaje.reintentos++;
+		reiniciarObjetivosTodosLosNiveles();
+		tirarTodosLosHilos();
 		continuar =true;
 		personaje.vidas = personaje.vidasMaximas;
 
