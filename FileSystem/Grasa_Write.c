@@ -184,6 +184,8 @@ int grasa_truncate (const char *path, off_t new_size){
 	return 0;
 }
 
+int contadorDeWrites = 0;
+
 /*
  * 	@DESC
  * 		Funcion que escribe archivos en fuse. Tiene la posta.
@@ -199,6 +201,8 @@ int grasa_truncate (const char *path, off_t new_size){
  * 		Devuelve la cantidad de bytes escritos, siempre y cuando este OK. Caso contrario, numero negativo tipo -ENOENT.
  */
 int grasa_write (const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi){
+
+	contadorDeWrites++;
 			log_trace(logger, "Writing: Path: %s - Size: %d - Offset %d", path, size, offset);
 	(void) fi;
 	int nodo = determinar_nodo(path);
@@ -220,16 +224,20 @@ int grasa_write (const char *path, const char *buf, size_t size, off_t offset, s
 	// Ubica el nodo correspondiente al archivo
 	node = &(node[nodo-1]);
 	file_size = node->file_size;
-	space_in_block = BLOCKSIZE - (file_size % BLOCKSIZE);
-	if (space_in_block == BLOCKSIZE) (space_in_block = 0); // Porque significa que el bloque esta lleno.
 
 	// Guarda tantas veces como sea necesario, consigue nodos y actualiza el archivo.
 	while (tam != 0){
+
+		// Actualiza los valores de espacio restante en bloque.
+		space_in_block = BLOCKSIZE - (file_size % BLOCKSIZE);
+		if (space_in_block == BLOCKSIZE) (space_in_block = 0); // Porque significa que el bloque esta lleno.
+		if (file_size == 0) space_in_block = BLOCKSIZE; /* Significa que el archivo esta recien creado y ya tiene un bloque de datos asignado */
 
 		// Ubica a que nodo le corresponderia guardar el dato
 		set_position(n_pointer_block, n_data_block, file_size, off);
 
 		// Si el offset es mayor que el tamanio del archivo mas el resto del bloque libre, significa que hay que pedir un bloque nuevo
+		// file_size == 0 indica que es un archivo que recien se comienza a escribir, por lo que tiene un tratamiento distinto (ya tiene un bloque de datos asignado).
 		if ((off >= (file_size + space_in_block)) & (file_size != 0)){
 
 			// Si no hay espacio en el disco, retorna error.
@@ -238,12 +246,15 @@ int grasa_write (const char *path, const char *buf, size_t size, off_t offset, s
 			// Obtiene un bloque libre para escribir.
 			new_free_node = get_node();
 
-			// Actualiza la informacion del archivo.
+			// Agrega el nodo al archivo.
 			add_node(node, new_free_node);
 
 			// Lo relativiza al data block.
 			new_free_node -= (GHEADERBLOCKS + NODE_TABLE_SIZE + BITMAP_BLOCK_SIZE);
 			data_block = (char*) &(data_block_start[new_free_node]);
+
+			// Actualiza el espacio libre en bloque.
+			space_in_block = BLOCKSIZE;
 
 		} else {
 			//Ubica el nodo a escribir.
@@ -259,13 +270,20 @@ int grasa_write (const char *path, const char *buf, size_t size, off_t offset, s
 		if (tam >= BLOCKSIZE){
 			memcpy(data_block, buf, BLOCKSIZE);
 			if ((node->file_size) <= (off)) file_size = node->file_size += BLOCKSIZE;
+			buf += BLOCKSIZE;
 			off += BLOCKSIZE;
 			tam -= BLOCKSIZE;
-		} else {
+		} else if (tam <= space_in_block){ /*Hay lugar suficiente en ese bloque para escribir el resto del archivo */
 			memcpy(data_block + offset_in_block, buf, tam);
 			if (node->file_size <= off) file_size = node->file_size += tam;
 			else if (node->file_size <= (off + tam)) file_size = node->file_size += (off + tam - node->file_size);
 			tam = 0;
+		} else { /* Como no hay lugar suficiente, llena el bloque y vuelve a buscar uno nuevo */
+			memcpy(data_block + offset_in_block, buf, space_in_block);
+			file_size = node->file_size += space_in_block;
+			buf += space_in_block;
+			off += space_in_block;
+			tam -= space_in_block;
 		}
 
 	}
