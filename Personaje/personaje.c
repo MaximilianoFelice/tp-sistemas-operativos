@@ -352,17 +352,21 @@ void solicitarRecurso(personajeIndividual_t* personajePorNivel, char *recurso){
 void seMuereSinSenal(personajeIndividual_t *personajePorNivel){
 
 	desconectarPersonaje(personajePorNivel);
+
 	if (personaje.vidas>0){
+
 		restarVida();
+		matarHilo(*personajePorNivel);
+		//Se vuelve a conectar con la plataforma
+		(*personajePorNivel).socketPlataforma = connectToServer(ip_plataforma, atoi(puerto_orq), logger);
+		handshake_plataforma(personajePorNivel);
+
 		/*
 		todo
- 	 	 vuelve a conectarse con la plataforma(planificador)
- 	 	 reinicia SOLO ese nivel, como?:
- 	 	 mata el hilo
- 	 	 reinicia los objetivos de ese nivel
- 	 	 vuelve a tirar ese hilo
+ 	 	reiniciar los objetivos de ese nivel
+ 	 	volver a tirar ese hilo
+ 	 	 */
 
- 	 	 		 * */
 	}else{
 		reiniciarJuego();
 	}
@@ -737,12 +741,28 @@ void muertoPorSenial(){
 	exit(EXIT_FAILURE);
 }
 
+void matarHilo(personajeIndividual_t personajePorNivel){
+
+	pthread_t threadAEliminar =devolverThread(personajePorNivel.nivelQueJuego);
+	pthread_cancel(threadAEliminar);
+}
+
+pthread_t devolverThread(nivel_t* nivelABuscar){
+
+	int i;
+	for (i = 0; i < cantidadNiveles; i++) {
+		if(nivelABuscar->nomNivel==(hilosNiv[i]).nivel.nomNivel)
+			return (hilosNiv[i]).thread;
+	}
+
+}
+
 void matarHilos(){
 	/* matar a todos los threads */
 
 	int i;
 	for (i = 0; i < cantidadNiveles; i++) {
-		pthread_cancel(hilosNiv->thread);
+		pthread_cancel((hilosNiv[i]).thread);
 	}
 
 }

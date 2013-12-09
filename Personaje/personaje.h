@@ -124,6 +124,10 @@ void actualizaPosicion(tDirMovimiento* movimiento, personajeIndividual_t **perso
 
 void seMuereSinSenal(personajeIndividual_t *personajePorNivel);
 
+void matarHilo(personajeIndividual_t personajePorNivel);
+
+pthread_t devolverThread(nivel_t* nivelABuscar);
+
 void sig_aumentar_vidas();
 
 void restarVida();
