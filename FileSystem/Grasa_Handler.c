@@ -262,12 +262,13 @@ int get_new_space (struct grasa_file_t *file_data, int size){
  */
 int set_position (int *pointer_block, int *data_block, size_t size, off_t offset){
 	div_t divi;
-	divi = div(offset, (BLOCKSIZE*1024));
+	divi = div(offset, (BLOCKSIZE*PTRGBLOQUE_SIZE));
 	*pointer_block = divi.quot;
 	*data_block = divi.rem / BLOCKSIZE;
 	return 0;
 }
 
+// FIXME Hay un caso especial donde borra el header. Analizarlo.
 /*
  *	@DESC
  *		Borra los nodos hasta la estructura correspondiente (upto:hasta) especificadas. EXCLUSIVE.
@@ -287,6 +288,11 @@ int delete_nodes_upto (struct grasa_file_t *file_data, int pointer_upto, int dat
 
 	// Ubica cual es el ultimo nodo del archivo
 	set_position(&pointer_pos, &data_pos, 0, file_size);
+	if (file_size%(BLOCKSIZE*PTRGBLOQUE_SIZE) == 0) {
+		pointer_pos--;
+		data_pos = PTRGBLOQUE_SIZE-1;
+	}
+	else if (file_size%BLOCKSIZE == 0) data_pos--;
 
 	// Crea el bitmap
 	bitarray = bitarray_create((char*) bitmap_start, BITMAP_SIZE_B);
@@ -302,6 +308,11 @@ int delete_nodes_upto (struct grasa_file_t *file_data, int pointer_upto, int dat
 
 		// localiza el puntero de datos a borrar.
 		node_pointer_to_delete = file_data->blk_indirect[pointer_pos];
+//		if (node_pointer_to_delete == 0) { /* Hay un caso especial donde sucede esto: Cuando un archivo termina justo de cargar un nodo hasta el final. */
+//			pointer_pos--;
+//			data_pos = PTRGBLOQUE_SIZE-1;
+//			continue;
+//		}
 		aux = (ptrGBloque*) &(header_start[node_pointer_to_delete]);
 
 		// Indica hasta que nodo debe borrar.
