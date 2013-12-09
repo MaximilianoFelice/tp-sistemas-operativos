@@ -45,6 +45,7 @@ typedef struct ThreadNivel{
 
 typedef struct PersonajeGlobal{
 	tSimbolo simbolo;
+	int reintentos; //cantidad de reintentos de jugadas
 	int vidas;
 	int vidasMaximas;
 	unsigned short puertoOrquestador;
@@ -61,12 +62,13 @@ typedef struct PersonajeIndividual{
 	int posY;
 	int posRecursoX;
 	int posRecursoY;
+	tDirMovimiento ultimoMovimiento;
 	nivel_t *nivelQueJuego;
 
 } personajeIndividual_t;
 
 
-void desconectarPersonajeFinPlan();
+void desconectarPersonajeDeTodoNivel();
 
 void notificarFinPlanNiveles();
 
@@ -92,11 +94,11 @@ bool conseguiRecurso(personajeIndividual_t personajePorNivel);
 
 void moverAlPersonaje(personajeIndividual_t* personajePorNivel);
 
-void solicitarRecurso(int socketPlataforma, char *recurso);
+void solicitarRecurso(personajeIndividual_t* personajePorNivel, char *recurso);
 
 tDirMovimiento calcularYEnviarMovimiento(personajeIndividual_t *personajePorNivel);
 
-void recibirMensajeTurno(int socketPlataforma);
+void recibirMensajeTurno(personajeIndividual_t *personajePorNivel);
 
 void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurso);
 
@@ -108,9 +110,19 @@ void reintentarHandshake(int socketPlataforma, tPaquete* pkgHandshake);
 
 void cerrarConexiones(int * socketPlataforma);
 
-int calculaMovimiento(personajeIndividual_t personajePorNivel);
+void calculaMovimiento(personajeIndividual_t *personajePorNivel);
+
+bool tieneMovimientoVertical(personajeIndividual_t personajePorNivel);
+
+bool tieneMovimientoHorizontal(personajeIndividual_t personajePorNivel);
+
+void moverHorizontal(personajeIndividual_t *personajePorNivel);
+
+void moverVertical(personajeIndividual_t *personajePorNivel);
 
 void actualizaPosicion(tDirMovimiento* movimiento, personajeIndividual_t **personajePorNivel);
+
+void seMuereSinSenal(personajeIndividual_t *personajePorNivel);
 
 void sig_aumentar_vidas();
 
@@ -118,7 +130,7 @@ void restarVida();
 
 void muertoPorSenial();
 
-void matarHilosYDesconectar();
+void matarHilos();
 
 void reiniciarJuego();
 

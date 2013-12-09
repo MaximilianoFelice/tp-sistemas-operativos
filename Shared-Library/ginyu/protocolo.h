@@ -93,7 +93,8 @@ typedef enum {
 	arriba,
 	abajo,
 	derecha,
-	izquierda
+	izquierda,
+	vacio
 } tDirMovimiento;
 
 typedef enum {
