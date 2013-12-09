@@ -27,7 +27,7 @@ char *pathScript;
 tPersonaje* desbloquearPersonaje(t_list* lBloqueados, tSimbolo recurso);
 tPersonaje *sacarPersonajeDeListas(tNivel *pNivel, int iSocket);
 char *getRecursosNoAsignados(t_list *recursos);
-void waitPersonajes(bool *primerIntento, tNivel *pNivel);
+void waitPersonajes(tNivel *pNivel, tPersonaje *personajeActual, bool *iEnviarTurno);
 
 /*
  * Funciones privadas plataforma
@@ -253,9 +253,11 @@ void orquestadorTerminaJuego() {
 	pthread_mutex_unlock(&mtxlNiveles);
 }
 
+
 bool nivelVacio(tNivel* nivel) {
 	return ((list_size(nivel->cListos->elements)==0) && (list_size(nivel->lBloqueados) == 0));
 }
+
 
 bool soloQuedanNiveles() {
 	bool bSoloNiveles;
@@ -263,6 +265,7 @@ bool soloQuedanNiveles() {
 	bSoloNiveles = ((nroConexiones - list_size(listaNiveles)) == 0);
 	return bSoloNiveles;
 }
+
 
 int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOrquestador) {
 
@@ -469,14 +472,12 @@ void *planificador(void * pvNivel) {
     tPersonaje* pPersonajeActual;
     char* sPayload;
 
-    bool primerIntento = true;
     pPersonajeActual = NULL;
-    iEnviarTurno	 = true;
 
     // Ciclo donde se multiplexa para escuchar personajes que se conectan
     while (1) {
 
-       	waitPersonajes(&primerIntento, pNivel);
+       	waitPersonajes(pNivel, pPersonajeActual, &iEnviarTurno);
 
        	seleccionarJugador(&pPersonajeActual, pNivel, iEnviarTurno);
 
@@ -1327,13 +1328,14 @@ void imprimirConexiones(fd_set *master_planif, int maxSock, char* host) {
 }
 
 
-void waitPersonajes(bool *primerIntento, tNivel *pNivel) {
+void waitPersonajes(tNivel *pNivel, tPersonaje *personajeActual, bool *iEnviarTurno) {
 
-	if (*primerIntento) {
+	if (nivelVacio(pNivel) && personajeActual==NULL) {
+		log_debug(logger, "En el primer intento");
 		pthread_mutex_lock(&semNivel);
-		pthread_cond_wait(&(pNivel->hayPersonajes), &semNivel);
+		pthread_cond_wait(&pNivel->hayPersonajes, &semNivel);
 		pthread_mutex_unlock(&semNivel);
-		*primerIntento = false;
+	    *iEnviarTurno	 = true;
 	}
 }
 
