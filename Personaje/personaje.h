@@ -45,6 +45,7 @@ typedef struct ThreadNivel{
 
 typedef struct PersonajeGlobal{
 	tSimbolo simbolo;
+	int reintentos; //cantidad de reintentos de jugadas
 	int vidas;
 	int vidasMaximas;
 	unsigned short puertoOrquestador;
@@ -56,24 +57,27 @@ typedef struct PersonajeGlobal{
 
 typedef struct PersonajeIndividual{
 	int socketPlataforma;
-	tSimbolo recursoActual; //objetivo actual
+	tSimbolo recursoActual; //el numero del recurso actual basandonos en la lista de recursos por nivel
 	int posX;
 	int posY;
 	int posRecursoX;
 	int posRecursoY;
+	bool bienTerminado;
 	tDirMovimiento ultimoMovimiento;
 	nivel_t *nivelQueJuego;
 
 } personajeIndividual_t;
 
 
-void desconectarPersonajeFinPlan();
+void desconectarPersonajeDeTodoNivel();
 
 void notificarFinPlanNiveles();
 
 void enviarPaqueteFinPlan(personajeIndividual_t* personajePorNivel);
 
 void destruirArchivoConfiguracion(t_config *configPersonaje);
+
+bool terminoBienTodosLosNiveles();
 
 void cargarArchivoConfiguracion(char* archivoConfiguracion);
 
@@ -93,11 +97,13 @@ bool conseguiRecurso(personajeIndividual_t personajePorNivel);
 
 void moverAlPersonaje(personajeIndividual_t* personajePorNivel);
 
-void solicitarRecurso(int socketPlataforma, char *recurso);
+void solicitarRecurso(personajeIndividual_t* personajePorNivel, char *recurso);
 
 tDirMovimiento calcularYEnviarMovimiento(personajeIndividual_t *personajePorNivel);
 
-void recibirMensajeTurno(int socketPlataforma);
+void crearTodosLosHilos();
+
+void recibirMensajeTurno(personajeIndividual_t *personajePorNivel);
 
 void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurso);
 
@@ -121,13 +127,27 @@ void moverVertical(personajeIndividual_t *personajePorNivel);
 
 void actualizaPosicion(tDirMovimiento* movimiento, personajeIndividual_t **personajePorNivel);
 
+void seMuereSinSenal(personajeIndividual_t *personajePorNivel);
+
+void matarHilo(personajeIndividual_t personajePorNivel);
+
+pthread_t devolverThread(nivel_t* nivelABuscar);
+
+void reiniciarObjetivosNivel(personajeIndividual_t* personajePorNivel);
+
+char* tirarHiloPersonajePorNivel(personajeIndividual_t* personajePorNivel);
+
+void reiniciarObjetivosTodosLosNiveles();
+
+char* tirarTodosLosHilos();
+
 void sig_aumentar_vidas();
 
 void restarVida();
 
 void muertoPorSenial();
 
-void matarHilosYDesconectar();
+void matarHilos();
 
 void reiniciarJuego();
 
