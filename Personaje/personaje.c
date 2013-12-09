@@ -224,7 +224,7 @@ void *jugar(void *args) {
 		for (personajePorNivel.recursoActual=0; (personajePorNivel.recursoActual < list_size(personajePorNivel.nivelQueJuego->Objetivos)) && (!personajeEstaMuerto(murioPersonaje)); personajePorNivel.recursoActual++) {
 
 			//Espera que el planificador le de el turno para pedir la posicion del recurso
-			recibirMensajeTurno(personajePorNivel.socketPlataforma);
+			recibirMensajeTurno(&personajePorNivel);
 
 			//agarra un recurso de la lista de objetivos del nivel
 			char* recurso = (char*) list_get(personajePorNivel.nivelQueJuego->Objetivos, personajePorNivel.recursoActual);
@@ -234,7 +234,7 @@ void *jugar(void *args) {
 			while (!conseguiRecurso(personajePorNivel) && !personajeEstaMuerto(murioPersonaje)) {
 
 				//Espera que el planificador le de el turno para moverse
-				recibirMensajeTurno(personajePorNivel.socketPlataforma);
+				recibirMensajeTurno(&personajePorNivel);
 
 				//El personaje se mueve
 				moverAlPersonaje(&personajePorNivel);
@@ -242,10 +242,10 @@ void *jugar(void *args) {
 			}
 
 			//Espera que el planificador le de el turno para solicitar el recurso
-			recibirMensajeTurno(personajePorNivel.socketPlataforma);
+			recibirMensajeTurno(&personajePorNivel);
 
 			if (!personajeEstaMuerto(murioPersonaje))
-				solicitarRecurso(personajePorNivel.socketPlataforma, recurso);
+				solicitarRecurso(&personajePorNivel, recurso);
 
 		} //Fin de for de objetivos
 
@@ -300,7 +300,7 @@ void moverAlPersonaje(personajeIndividual_t* personajePorNivel){
 
 }
 
-void solicitarRecurso(int socketPlataforma, char *recurso){
+void solicitarRecurso(personajeIndividual_t* personajePorNivel, char *recurso){
 
 	tMensaje tipoMensaje;
 	tPregPosicion recursoSolicitado;
@@ -311,10 +311,10 @@ void solicitarRecurso(int socketPlataforma, char *recurso){
 	serializarPregPosicion(P_SOLICITUD_RECURSO, recursoSolicitado, &pkgSolicitudRecurso);
 
 	log_debug(logger, "Se envia solicitud del recurso a la plataforma");
-	enviarPaquete(socketPlataforma, &pkgSolicitudRecurso, logger, "El personaje le envia la solicitud del recurso a la plataforma");
+	enviarPaquete(personajePorNivel->socketPlataforma, &pkgSolicitudRecurso, logger, "El personaje le envia la solicitud del recurso a la plataforma");
 
 	char* sPayload;
-	recibirPaquete(socketPlataforma, &tipoMensaje, &sPayload, logger, "El personaje recibe respuesta de la solicitud del recurso a la plataforma");
+	recibirPaquete(personajePorNivel->socketPlataforma, &tipoMensaje, &sPayload, logger, "El personaje recibe respuesta de la solicitud del recurso a la plataforma");
 
 	switch(tipoMensaje){
 		case PL_RECURSO_OTORGADO:{
@@ -328,12 +328,12 @@ void solicitarRecurso(int socketPlataforma, char *recurso){
 		}
 		case PL_MUERTO_POR_ENEMIGO:{
 			log_info(logger, "El personaje se murio por enemigos");
-			seMuereSinSenal(socketPlataforma);
+			seMuereSinSenal(personajePorNivel);
 			break;
 		}
 		case PL_MUERTO_POR_DEADLOCK:{
 			log_info(logger, "El personaje se murio por deadlock");
-			seMuereSinSenal(socketPlataforma);
+			seMuereSinSenal(personajePorNivel);
 			break;
 		}
 		default: {
@@ -347,11 +347,11 @@ void solicitarRecurso(int socketPlataforma, char *recurso){
 
 }
 
-void seMuereSinSenal(int socketPlataforma){
-	/*
-	 * se desconecta de la plataforma
-	 * */
+void seMuereSinSenal(personajeIndividual_t *personajePorNivel){
+
+	desconectarPersonaje(personajePorNivel);
 	if (personaje.vidas>0){
+		restarVida();
 		/*
 		 * baja una vida
  	 	 vuelve a conectarse con la plataforma(planificador)
@@ -392,12 +392,12 @@ tDirMovimiento calcularYEnviarMovimiento(personajeIndividual_t *personajePorNive
 	switch(tipoMensaje){
 		case PL_MUERTO_POR_ENEMIGO:{
 			log_info(logger, "El personaje se murio por enemigos");
-			seMuereSinSenal(socketPlataforma);
+			seMuereSinSenal(personajePorNivel);
 			break;
 		}
 		case PL_MUERTO_POR_DEADLOCK:{
 			log_info(logger, "El personaje se murio por deadlock");
-			seMuereSinSenal(socketPlataforma);
+			seMuereSinSenal(personajePorNivel);
 			break;
 		}
 		case PL_CONFIRMACION_MOV:{
@@ -417,12 +417,12 @@ tDirMovimiento calcularYEnviarMovimiento(personajeIndividual_t *personajePorNive
 
 }
 
-void recibirMensajeTurno(int socketPlataforma){
+void recibirMensajeTurno(personajeIndividual_t *personajePorNivel){
 	tMensaje tipoMensaje;
 	char* sPayload;
 
 	do {
-		recibirPaquete(socketPlataforma, &tipoMensaje, &sPayload, logger, "Espero turno");
+		recibirPaquete(personajePorNivel->socketPlataforma, &tipoMensaje, &sPayload, logger, "Espero turno");
 
 		switch (tipoMensaje) {
 			case PL_OTORGA_TURNO:
@@ -431,12 +431,12 @@ void recibirMensajeTurno(int socketPlataforma){
 
 			case PL_MUERTO_POR_ENEMIGO:
 				log_info(logger, "El personaje se murio por enemigos");
-				seMuereSinSenal(socketPlataforma);
+				seMuereSinSenal(personajePorNivel);
 				break;
 
 			case PL_MUERTO_POR_DEADLOCK:
 				log_info(logger, "El personaje se murio por deadlock");
-				seMuereSinSenal(socketPlataforma);
+				seMuereSinSenal(personajePorNivel);
 				break;
 
 			default:

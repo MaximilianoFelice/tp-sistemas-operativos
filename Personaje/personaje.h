@@ -93,11 +93,11 @@ bool conseguiRecurso(personajeIndividual_t personajePorNivel);
 
 void moverAlPersonaje(personajeIndividual_t* personajePorNivel);
 
-void solicitarRecurso(int socketPlataforma, char *recurso);
+void solicitarRecurso(personajeIndividual_t* personajePorNivel, char *recurso);
 
 tDirMovimiento calcularYEnviarMovimiento(personajeIndividual_t *personajePorNivel);
 
-void recibirMensajeTurno(int socketPlataforma);
+void recibirMensajeTurno(personajeIndividual_t *personajePorNivel);
 
 void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurso);
 
@@ -120,6 +120,8 @@ void moverHorizontal(personajeIndividual_t *personajePorNivel);
 void moverVertical(personajeIndividual_t *personajePorNivel);
 
 void actualizaPosicion(tDirMovimiento* movimiento, personajeIndividual_t **personajePorNivel);
+
+void seMuereSinSenal(personajeIndividual_t *personajePorNivel);
 
 void sig_aumentar_vidas();
 
