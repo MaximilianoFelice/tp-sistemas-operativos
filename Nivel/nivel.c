@@ -297,8 +297,10 @@ int main(int argc, char* argv[]) {
 				break;
 				} //Fin del switch
 
+				pthread_mutex_lock(&semItems);
 				nivel_gui_dibujar(list_items, nom_nivel);
 				if(tipoMsj==PL_MOV_PERSONAJE) personaG->ready = true;
+				pthread_mutex_unlock(&semItems);
 			}
 		}
 	}
