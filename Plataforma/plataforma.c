@@ -55,15 +55,21 @@ int seleccionarJugador(tPersonaje** pPersonaje, tNivel* nivel, bool iEnviarTurno
 tPersonaje* planificacionSRDF(tNivel *nivel);
 void obtenerDistanciaFaltante(tPersonaje *pPersonajeActual, char * sPayload);
 void enviarTurno(tPersonaje *pPersonaje, int delay);
-void solicitudRecursoPersonaje(int iSocketConexion, char *sPayload, tNivel *pNivel, tPersonaje **pPersonajeActual, t_log *logger);
-void movimientoPersonaje(int iSocketConexion, char* sPayload, tNivel *pNivel, tPersonaje* pPersonaje, t_log* logger);
+void solicitudRecursoPersonaje(int iSocketConexion, char *sPayload, tNivel *pNivel, tPersonaje **pPersonajeActual);
+void movimientoPersonaje(int iSocketConexion, char* sPayload, tNivel *pNivel, tPersonaje** pPersonajeActual);
 void posicionRecursoPersonaje(tNivel *pNivel, tPersonaje *personajeActual, int iSocketConexion, char* sPayload, int socketNivel, t_log* logger);
-int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNivel, tPersonaje *pPersonajeActual, t_log* logger);
-void muertePorEnemigoPersonaje(tNivel *pNivel, tPersonaje* pPersonaje, int iSocketConexion, char* sPayload);
-void recepcionRecurso(tNivel *pNivel, char *sPayload, t_log *logger);
+int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNivel, tPersonaje *pPersonajeActual);
+void recepcionRecurso(tNivel *pNivel, char *sPayload);
 void confirmarMovimiento(tNivel *nivel, tPersonaje *pPersonajeActual);
+void muertePorEnemigoPersonaje(tNivel *pNivel, tPersonaje** pPersonaje, int iSocketConexion, char* sPayload);
+int avisarAlPersonajeDeMuerte(int socketPersonajeMuerto, tSimbolo simbolo);
 void muertePorDeadlockPersonaje(tNivel *pNivel, char *sPayload);
-int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexion, char *sPayload);
+int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexion);
+int desconectarNivel(tNivel *pNivel);
+int desconectarPersonaje(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexion);
+
+int eliminarPersonaje(tNivel *pNivel, tPersonaje *pPersonaje);
+void avisarDesconexionAlNivel(tNivel *pNivel, tPersonaje *pPersonaje, char *recursosLiberados);
 char *liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel);
 bool coordinarAccesoMultiplesPersonajes(tPersonaje *personajeActual, int socketConexion, bool valor);
 bool esElPersonajeQueTieneElTurno(int socketActual, int socketConexion);
@@ -429,13 +435,14 @@ void agregarPersonaje(tNivel *pNivel, tSimbolo simbolo, int socket) {
 	tPersonaje *pPersonajeNuevo;
 	pPersonajeNuevo = malloc(sizeof(tPersonaje));
 
-	pPersonajeNuevo->simbolo  	  	 = simbolo;
-	pPersonajeNuevo->socket 	  	 = socket;
-	pPersonajeNuevo->recursos 	  	 = list_create();
-	pPersonajeNuevo->posRecurso.posX = 0; // Solo se usa en SRDF
-	pPersonajeNuevo->posRecurso.posY = 0; // Solo se usa en SRDF
-	pPersonajeNuevo->quantumUsado = 0;
+	pPersonajeNuevo->simbolo  	  	   = simbolo;
+	pPersonajeNuevo->socket 	  	   = socket;
+	pPersonajeNuevo->recursos 	  	   = list_create();
+	pPersonajeNuevo->posRecurso.posX   = 0; // Solo se usa en SRDF
+	pPersonajeNuevo->posRecurso.posY   = 0; // Solo se usa en SRDF
+	pPersonajeNuevo->quantumUsado      = 0;
 	pPersonajeNuevo->remainingDistance = pNivel->rdDefault;
+	pPersonajeNuevo->muertoEnemigos    = false;
 
 	queue_push(pNivel->cListos, pPersonajeNuevo);
 	log_debug(logger, "Se agrego personaje a la cola de listos");
@@ -494,12 +501,15 @@ void *planificador(void * pvNivel) {
                 break;
 
             case(P_MOVIMIENTO):
-                movimientoPersonaje(iSocketConexion, sPayload, pNivel, pPersonajeActual, logger);
+                movimientoPersonaje(iSocketConexion, sPayload, pNivel, &pPersonajeActual);
             	iEnviarTurno = coordinarAccesoMultiplesPersonajes(pPersonajeActual, iSocketConexion, false);
+            	if(pPersonajeActual == NULL){ //Significa que estaba muerto, entonces lo mate
+            		iEnviarTurno = true;
+            	}
                 break;
 
             case(P_SOLICITUD_RECURSO):
-                solicitudRecursoPersonaje(iSocketConexion, sPayload, pNivel, &pPersonajeActual, logger);
+                solicitudRecursoPersonaje(iSocketConexion, sPayload, pNivel, &pPersonajeActual);
             	cantidadListos = queue_size(pNivel->cListos);
 
             	if (cantidadListos == 0 || cantidadListos == 1) {
@@ -511,11 +521,11 @@ void *planificador(void * pvNivel) {
 
 			/* Mensajes que puede mandar el nivel */
             case(N_ACTUALIZACION_CRITERIOS):
-                actualizacionCriteriosNivel(iSocketConexion, sPayload, pNivel, pPersonajeActual, logger);
+                actualizacionCriteriosNivel(iSocketConexion, sPayload, pNivel, pPersonajeActual);
                 break;
 
             case(N_MUERTO_POR_ENEMIGO):
-				muertePorEnemigoPersonaje(pNivel, pPersonajeActual, iSocketConexion, sPayload);
+				muertePorEnemigoPersonaje(pNivel, &pPersonajeActual, iSocketConexion, sPayload);
             	break;
 
             case(N_MUERTO_POR_DEADLOCK):
@@ -523,7 +533,7 @@ void *planificador(void * pvNivel) {
 				break;
 
             case(N_ENTREGA_RECURSO):
-				recepcionRecurso(pNivel, sPayload, logger);
+				recepcionRecurso(pNivel, sPayload);
              	cantidadListos = queue_size(pNivel->cListos);
             	if (cantidadListos == 0 || cantidadListos == 1) {
 					iEnviarTurno = true;
@@ -538,7 +548,7 @@ void *planificador(void * pvNivel) {
 				break;
 
             case(DESCONEXION):
-				desconectar(pNivel, &pPersonajeActual, iSocketConexion, sPayload);
+				desconectar(pNivel, &pPersonajeActual, iSocketConexion);
             	if(pPersonajeActual == NULL && cantidadListos == 1){
             		iEnviarTurno = true;
             	} else {
@@ -719,6 +729,7 @@ void posicionRecursoPersonaje(tNivel *pNivel, tPersonaje *pPersonajeActual, int 
     	enviarPaquete(iSocketConexion, &pkgPosRecurso, logger, "Envio de posicion de recurso al personaje");
 
     } else {
+    	log_debug(logger, "Nos llego %s cuando debia llegar N_POS_RECURSO", enumToString(tipoMensaje));
         pkgPosRecurso.type    = NO_SE_OBTIENE_RESPUESTA;
         pkgPosRecurso.length  = 0;
         enviarPaquete(iSocketConexion, &pkgPosRecurso, logger, "WARN: No se obtiene respuesta esperada del nivel");
@@ -742,24 +753,29 @@ void obtenerDistanciaFaltante(tPersonaje *pPersonajeActual, char * sPayload) {
 	free(pPosicion);
 }
 
-void muertePorEnemigoPersonaje(tNivel *pNivel, tPersonaje* pPersonaje, int iSocketConexion, char* sPayload) {
-
-	tPaquete pkgMuertePers;
+void muertePorEnemigoPersonaje(tNivel *pNivel, tPersonaje** pPersonajeActual, int iSocketConexion, char* sPayload) {
 	tSimbolo *simbolo = deserializarSimbolo(sPayload);
 	tPersonaje *personajeMuerto;
 	log_debug(logger, "<<< Me llego la muerte del personaje %c por un enemigo", *simbolo);
-	if(pPersonaje!=NULL){
-		if(pPersonaje->simbolo==*simbolo){
-			personajeMuerto = pPersonaje;
-		} else{
-			personajeMuerto = getPersonaje(pNivel->cListos->elements, *simbolo, byName);
-		}
-	} else {
-		personajeMuerto = getPersonaje(pNivel->cListos->elements, *simbolo, byName);
+
+	//Lo saco y lo marco como muerto. Cuando se quiera volver a mover ahi lo mato
+	if(*pPersonajeActual!=NULL && ((*pPersonajeActual)->simbolo==*simbolo)){ //Si el personaje que tenia el turno
+		(*pPersonajeActual)->muertoEnemigos = true;
 	}
-	serializarSimbolo(PL_MUERTO_POR_ENEMIGO, *simbolo, &pkgMuertePers);
-	enviarPaquete(personajeMuerto->socket, &pkgMuertePers, logger, "Envio mensaje de muerte por personaje");
+	else { //Es un personaje que no tenia el turno
+		personajeMuerto = getPersonaje(pNivel->cListos->elements, *simbolo, byName);
+		personajeMuerto->muertoEnemigos = true;
+	}
+
 	free(simbolo);
+	free(sPayload);
+}
+
+int avisarAlPersonajeDeMuerte(int socketPersonajeMuerto, tSimbolo simbolo){
+	tPaquete pkgMuertePers;
+	serializarSimbolo(PL_MUERTO_POR_ENEMIGO, simbolo, &pkgMuertePers);
+	enviarPaquete(socketPersonajeMuerto, &pkgMuertePers, logger, "Envio mensaje de muerte por personaje");
+	return EXIT_SUCCESS;
 }
 
 void muertePorDeadlockPersonaje(tNivel *pNivel, char *sPayload){
@@ -778,12 +794,24 @@ void muertePorDeadlockPersonaje(tNivel *pNivel, char *sPayload){
 	free(sPayload);
 }
 
-void movimientoPersonaje(int iSocketConexion, char* sPayload, tNivel *pNivel, tPersonaje* pPersonaje, t_log* logger) {
-    tPaquete pkgMovimientoPers;
-    tMovimientoPers *movPers = deserializarMovimientoPers(sPayload);
-    serializarMovimientoPers(PL_MOV_PERSONAJE, *movPers, &pkgMovimientoPers);
+void movimientoPersonaje(int iSocketConexion, char* sPayload, tNivel *pNivel, tPersonaje** pPersonajeActual) {
 
-    enviarPaquete(pNivel->socket, &pkgMovimientoPers, logger, "Envio movimiento del personaje");
+    tMovimientoPers *movPers = deserializarMovimientoPers(sPayload);
+
+    //Si no esta muerto, le doy el movimiento
+    if(!(*pPersonajeActual)->muertoEnemigos){
+
+		tPaquete pkgMovimientoPers;
+		serializarMovimientoPers(PL_MOV_PERSONAJE, *movPers, &pkgMovimientoPers);
+		enviarPaquete(pNivel->socket, &pkgMovimientoPers, logger, "Envio movimiento del personaje");
+
+    } else { //Esta muerto, no puede moverse debe morir
+
+		int socketPersonaje = (*pPersonajeActual)->socket;
+		eliminarPersonaje(pNivel, *pPersonajeActual);
+		avisarAlPersonajeDeMuerte(socketPersonaje, movPers->simbolo);
+		*pPersonajeActual = NULL;
+    }
 
 	free(sPayload);
 	free(movPers);
@@ -805,7 +833,7 @@ void confirmarMovimiento(tNivel *nivel, tPersonaje *pPersonajeActual) {
 
 }
 
-int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNivel, tPersonaje *pPersonajeActual, t_log* logger) {
+int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNivel, tPersonaje *pPersonajeActual) {
 	tInfoNivel* pInfoNivel;
 	pInfoNivel = deserializarInfoNivel(sPayload);
 	log_debug(logger, "<<< Recibe actualizacion de criterios del nivel");
@@ -837,7 +865,7 @@ int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNi
 	return EXIT_SUCCESS;
 }
 
-void solicitudRecursoPersonaje(int iSocketConexion, char *sPayload, tNivel *pNivel, tPersonaje **pPersonaje, t_log *logger) {
+void solicitudRecursoPersonaje(int iSocketConexion, char *sPayload, tNivel *pNivel, tPersonaje **pPersonaje) {
     tPaquete pkgSolicituRecurso;
     pkgSolicituRecurso.type    = PL_SOLICITUD_RECURSO;
     pkgSolicituRecurso.length  = sizeof(tSimbolo) + sizeof(tSimbolo);
@@ -858,7 +886,7 @@ void solicitudRecursoPersonaje(int iSocketConexion, char *sPayload, tNivel *pNiv
     enviarPaquete(pNivel->socket, &pkgSolicituRecurso, logger, "Solicitud de recurso");
 }
 
-void recepcionRecurso(tNivel *pNivel, char *sPayload, t_log *logger) {
+void recepcionRecurso(tNivel *pNivel, char *sPayload) {
 	tSimbolo *pSimbolo;
 	tPersonaje *pPersonaje;
 
@@ -889,71 +917,80 @@ void recepcionRecurso(tNivel *pNivel, char *sPayload, t_log *logger) {
 	free(sPayload);
 }
 
-int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexion, char *sPayload) {
-	tPersonaje *pPersonaje;
-
-	log_info(logger, "<<< Se detecta desconexion...");
-
-	if (iSocketConexion == pNivel->socket) {
-		log_error(logger, "Se desconecto el %s", pNivel->nombre);
-		pthread_mutex_lock(&mtxlNiveles);
-		int indiceNivel = existeNivel(listaNiveles, pNivel->nombre);
-		if(indiceNivel == -1){
-			log_error(logger, "No se encontro el nivel desconectado");
-			exit(EXIT_FAILURE);
-		}
-		pNivel = list_remove(listaNiveles, indiceNivel);
-		destroyNivel(pNivel);
-		pthread_mutex_unlock(&mtxlNiveles);
-		pthread_t *pPlanificador = list_remove(lPlanificadores, indiceNivel);
-		destroyPlanificador(pPlanificador);
-		return EXIT_FAILURE;
+int desconectarNivel(tNivel *pNivel){
+	log_error(logger, "Se desconecto el %s", pNivel->nombre);
+	pthread_mutex_lock(&mtxlNiveles);
+	int indiceNivel = existeNivel(listaNiveles, pNivel->nombre);
+	if(indiceNivel == -1){
+		log_error(logger, "No se encontro el nivel desconectado");
+		exit(EXIT_FAILURE);
 	}
+	pNivel = list_remove(listaNiveles, indiceNivel);
+	destroyNivel(pNivel);
+	pthread_mutex_unlock(&mtxlNiveles);
+	pthread_t *pPlanificador = list_remove(lPlanificadores, indiceNivel);
+	destroyPlanificador(pPlanificador);
+	return EXIT_FAILURE;
+}
+
+int desconectarPersonaje(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexion){
+	tPersonaje *pPersonaje;
+	int socketPersonajeQueSalio;
 
 	if (iSocketConexion == (*pPersonajeActual)->socket) {
-		log_info(logger, "Se desconecto el personaje %c", (*pPersonajeActual)->simbolo);
-		int lenghtRecursos;
-		char *recursosNoAsignados;
-		tPaquete pkgDesconexionPers;
-		tDesconexionPers desconexionPersonaje;
-		lenghtRecursos = list_size((*pPersonajeActual)->recursos);
-		recursosNoAsignados = liberarRecursos(*pPersonajeActual, pNivel);
-		desconexionPersonaje.simbolo = (*pPersonajeActual)->simbolo;
-		desconexionPersonaje.lenghtRecursos = lenghtRecursos;
-		memcpy(&desconexionPersonaje.recursos, recursosNoAsignados, desconexionPersonaje.lenghtRecursos);
-		serializarDesconexionPers(PL_DESCONEXION_PERSONAJE, desconexionPersonaje, &pkgDesconexionPers);
-		enviarPaquete(pNivel->socket, &pkgDesconexionPers, logger, "Se envia desconexion del personaje actual al nivel");
-		free(*pPersonajeActual);
-		free(recursosNoAsignados);
+		socketPersonajeQueSalio = iSocketConexion;
+		eliminarPersonaje(pNivel, *pPersonajeActual);
 		*pPersonajeActual = NULL;
-		return EXIT_SUCCESS;
+		return socketPersonajeQueSalio;
 	}
 
 	pPersonaje = sacarPersonajeDeListas(pNivel, iSocketConexion);
 	if (pPersonaje != NULL) {
-		log_info(logger, "Se desconecto el personaje %c", pPersonaje->simbolo);
-		int lenghtRecursos;
-		char *recursosNoAsignados;
-		tPaquete pkgDesconexionPers;
-		tDesconexionPers desconexionPersonaje;
-		recursosNoAsignados = liberarRecursos(pPersonaje, pNivel);
-		lenghtRecursos = list_size(pPersonaje->recursos);
-		desconexionPersonaje.simbolo = pPersonaje->simbolo;
-		desconexionPersonaje.lenghtRecursos = lenghtRecursos; //NO USAR strlen() ni ninguna funcion de strings
-		memcpy(&desconexionPersonaje.recursos, recursosNoAsignados, desconexionPersonaje.lenghtRecursos);
-		serializarDesconexionPers(PL_DESCONEXION_PERSONAJE, desconexionPersonaje, &pkgDesconexionPers);
-		enviarPaquete(pNivel->socket, &pkgDesconexionPers, logger, "Se envia desconexion del personaje al nivel");
-		free(pPersonaje);
-		free(recursosNoAsignados);
-		return EXIT_SUCCESS;
+		socketPersonajeQueSalio = pPersonaje->socket;
+		eliminarPersonaje(pNivel, pPersonaje);
+		return socketPersonajeQueSalio;
 	} else {
-		log_error(logger, "ERROR: no se encontró el personaje que salio en socket %d", iSocketConexion);
-		return EXIT_FAILURE;
+		log_error(logger, "No se encontró el personaje que salio en socket %d", iSocketConexion);
+		return iSocketConexion;
 	}
-
-	return EXIT_FAILURE;
 }
 
+int eliminarPersonaje(tNivel *pNivel, tPersonaje *pPersonaje){
+	char *recursosNoAsignados;
+	log_info(logger, "Se desconecto el personaje %c", pPersonaje->simbolo);
+	recursosNoAsignados = liberarRecursos(pPersonaje, pNivel);
+	avisarDesconexionAlNivel(pNivel, pPersonaje, recursosNoAsignados);
+	free(pPersonaje);
+	free(recursosNoAsignados);
+	return EXIT_SUCCESS;
+}
+
+void avisarDesconexionAlNivel(tNivel *pNivel, tPersonaje *pPersonaje, char *recursosLiberados){
+	int lenghtRecursos;
+	tPaquete pkgDesconexionPers;
+	tDesconexionPers desconexionPersonaje;
+
+	lenghtRecursos = list_size(pPersonaje->recursos);
+	desconexionPersonaje.simbolo = pPersonaje->simbolo;
+	desconexionPersonaje.lenghtRecursos = lenghtRecursos; //
+	memcpy(&desconexionPersonaje.recursos, recursosLiberados, desconexionPersonaje.lenghtRecursos);
+	serializarDesconexionPers(PL_DESCONEXION_PERSONAJE, desconexionPersonaje, &pkgDesconexionPers);
+
+	enviarPaquete(pNivel->socket, &pkgDesconexionPers, logger, "Se envia desconexion del personaje al nivel");
+}
+
+int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexion) {
+
+	log_info(logger, "<<< Se detecta desconexion...");
+
+	if (iSocketConexion == pNivel->socket) {
+		desconectarNivel(pNivel);
+	} else {
+		desconectarPersonaje(pNivel, pPersonajeActual, iSocketConexion);
+	}
+
+	return EXIT_SUCCESS;
+}
 
 /*
  * Se liberan los recursos que poseia el personaje en el nivel y en caso de que un personaje estaba bloqueado por uno de estos, se libera
@@ -1026,7 +1063,6 @@ char *getRecursosNoAsignados(t_list *recursos){
 	}
 	return NULL;
 }
-
 
 /*
  * Verificar si el nivel existe, si existe devuelve el indice de su posicion, sino devuelve -1
@@ -1315,12 +1351,10 @@ void delegarConexion(fd_set *conjuntoDestino, fd_set *conjuntoOrigen, int iSocke
 	}
 }
 
-
 void inicializarConexion(fd_set *master_planif, int *maxSock, int *sock) {
 	FD_ZERO(master_planif);
 	*maxSock = *sock;
 }
-
 
 void imprimirConexiones(fd_set *master_planif, int maxSock, char* host) {
 	int i;
@@ -1337,7 +1371,6 @@ void imprimirConexiones(fd_set *master_planif, int maxSock, char* host) {
 	log_debug(logger, "La cantidad de sockets totales del %s es %d", host, cantSockets);
 }
 
-
 void waitPersonajes(tNivel *pNivel, tPersonaje *personajeActual, bool *iEnviarTurno) {
 	if (nivelVacio(pNivel) && personajeActual==NULL) {
 		pthread_mutex_lock(&semNivel);
@@ -1346,7 +1379,6 @@ void waitPersonajes(tNivel *pNivel, tPersonaje *personajeActual, bool *iEnviarTu
 	    *iEnviarTurno	 = true;
 	}
 }
-
 
 /*
  * Crea estructura de personaje bloqueado y alocando memoria y returna un puntero al personaje creado
@@ -1357,7 +1389,6 @@ tPersonajeBloqueado *createPersonajeBlock(tPersonaje *personaje, tSimbolo recurs
 	 memcpy(&pPersonajeBloqueado->recursoEsperado, &recurso, sizeof(tSimbolo));
 	 return pPersonajeBloqueado;
 }
-
 
 /*
  * Retorna un puntero a un personaje de la lista de bloqueados y libera memoria

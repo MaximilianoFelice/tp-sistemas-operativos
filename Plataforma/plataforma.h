@@ -37,6 +37,7 @@ typedef struct {
 	int quantumUsado;
 	int remainingDistance;
 	tRtaPosicion posRecurso;
+	bool muertoEnemigos;
 } tPersonaje;
 
 typedef struct {

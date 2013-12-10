@@ -20,7 +20,6 @@ int maxRows=0, maxCols=0;
 //Variables del archivo config
 int cant_enemigos;
 int sleep_enemigos;
-int hayQueAsesinar = true;
 int recovery;
 tAlgoritmo algoritmo;
 int quantum;
@@ -52,7 +51,6 @@ int main(int argc, char* argv[]) {
 
 	int8_t tipoMsj;
 	tRtaPosicion posRespondida;
-//	tMovimientoPers movPersonaje;
 
 	//LOG
 	logger = logInit(argv, "NIVEL");
@@ -185,85 +183,39 @@ int main(int argc, char* argv[]) {
 				switch(tipoMsj){
 				case PL_CONEXION_PERS:
 					movPersonaje.simbolo=(int8_t)*payload;
-					bool buscaPersonaje(pers_t* perso){return (perso->simbolo==movPersonaje.simbolo);}
-					personaG=list_find(list_personajes,(void*)buscaPersonaje);
+
+					personaG = getPersonajeBySymbol(movPersonaje.simbolo);
+
 					if(personaG==NULL){
-						pjNew.simbolo  = movPersonaje.simbolo;
-						pjNew.bloqueado  = false;
-						pjNew.muerto = false;
-						pjNew.ready = false;
-						pjNew.recursos = list_create();
-						list_add_new(list_personajes,(void*)&pjNew,sizeof(pers_t));
-						char symbol=(char) movPersonaje.simbolo;
-						pthread_mutex_unlock(&semItems);
-						CrearPersonaje(list_items,symbol, INI_X, INI_Y);
-						pthread_mutex_unlock(&semItems);
-						// Logueo el personaje recien agregado
-						log_info(logger, "<<< Se agrego al personaje %c a la lista", (char) pjNew.simbolo);
-						pthread_mutex_lock(&semSockPaq);
-						paquete.type=N_CONEXION_EXITOSA;
-						paquete.length=0;
-						enviarPaquete(sockete,&paquete,logger,"notificando a plataforma personaje nuevo aceptado");
-						pthread_mutex_unlock(&semSockPaq);
+						CrearNuevoPersonaje(&pjNew, movPersonaje.simbolo);
+						confirmacionPlataforma(&paquete, N_CONEXION_EXITOSA, "Notificando a plataforma personaje nuevo aceptado");
 					}else {//se encontro=>el personaje ya existe
-						pthread_mutex_lock(&semSockPaq);
-						paquete.type=N_PERSONAJE_YA_EXISTENTE;
-						paquete.length=0;
-						enviarPaquete(sockete,&paquete,logger,"notificando a plataforma personaje ya existente");
-						pthread_mutex_unlock(&semSockPaq);
+						solicitudError(&paquete, N_PERSONAJE_YA_EXISTENTE, "Notificando a plataforma personaje ya existente");
 					}
 				break;
 				case PL_MOV_PERSONAJE:
 					movPersonaje.simbolo=(int8_t)*payload;
 					movPersonaje.direccion=(tDirMovimiento)*(payload+sizeof(int8_t));
 					log_debug(logger, "<<< El personaje %c solicito moverse", movPersonaje.simbolo);
-					bool buscaPer(pers_t* perso){
-						return (perso->simbolo==movPersonaje.simbolo);
-					}
-					personaG=(pers_t *)list_find(list_personajes,(void*)buscaPer);
-					if(personaG->muerto){
-						break;
-					}
-					if(personaG==NULL){
-						pthread_mutex_lock(&semSockPaq);
-						paquete.type=N_PERSONAJE_INEXISTENTE;
-						paquete.length=0;
-						enviarPaquete(sockete,&paquete,logger,"notificando a plataforma personaje no existe");
-						pthread_mutex_unlock(&semSockPaq);
-					}else{
-						personaG->bloqueado=false;//si era true se pone en false porque planificador lo desbloqueo asignandole un recurso---->ULTIMA DESICION
-						personaG->ready = true; //Lo pongo en true para que los enemigos lo empiecen a perseguir
+
+					personaG = getPersonajeBySymbol(movPersonaje.simbolo);
+
+					if(personaG != NULL && !personaG->muerto){
+						personaG->bloqueado=false;
+
 						char symbol=(char) movPersonaje.simbolo;
-						// Busco la posicion actual del personaje
 						getPosPersonaje(list_items,symbol, &posX, &posY);
-						log_debug(logger, "Posicion actual del personaje %c: (%d,%d)", symbol, posX, posY);
-						// calculo el movimiento
-						switch (movPersonaje.direccion) {
-							case arriba:
-								if (posY > 1) posY--;
-							break;
-							case abajo:
-								if (posY < maxRows) posY++;
-							break;
-							case izquierda:
-								if (posX > 1) posX--;
-							break;
-							case derecha:
-								if (posX < maxCols) posX++;
-							break;
-							default:
-								log_error(logger, "ERROR: no detecto una direccion de movimiento valida: %d", movPersonaje.direccion);
-							break;
-						}
-					pthread_mutex_lock(&semItems);
-					MoverPersonaje(list_items,symbol, posX, posY);
-					pthread_mutex_unlock(&semItems);
-					pthread_mutex_lock(&semSockPaq);
-					paquete.type = N_CONFIRMACION_MOV;
-					paquete.length = 0;
-					enviarPaquete(sockete,&paquete,logger,"notificando a plataforma personaje movido correctamente");
-					pthread_mutex_unlock(&semSockPaq);
+						calcularMovimiento(movPersonaje.direccion, &posX, &posY);
+
+						pthread_mutex_lock(&semItems);
+						MoverPersonaje(list_items,symbol, posX, posY);
+						pthread_mutex_unlock(&semItems);
+						confirmacionPlataforma(&paquete, N_CONFIRMACION_MOV, "Notificando a plataforma personaje movido correctamente");
 					}
+					else {
+						solicitudError(&paquete, N_PERSONAJE_INEXISTENTE, "Notificando a plataforma personaje no existe");
+					}
+
 				break;
 				case PL_POS_RECURSO:
 					posConsultada = deserializarPregPosicion(payload);
@@ -282,11 +234,7 @@ int main(int argc, char* argv[]) {
 						enviarPaquete(sockete,&paquete,logger,"enviando pos de recurso a plataforma");
 						pthread_mutex_unlock(&semSockPaq);
 					}else{
-						pthread_mutex_lock(&semSockPaq);
-						paquete.type=N_RECURSO_INEXISTENTE;
-						paquete.length=0;
-						enviarPaquete(sockete,&paquete,logger,"el recurso solicitado no existe");
-						pthread_mutex_unlock(&semSockPaq);
+						solicitudError(&paquete, N_RECURSO_INEXISTENTE, "El recurso solicitado no existe");
 					}
 				break;
 				case PL_SOLICITUD_RECURSO:
@@ -296,10 +244,11 @@ int main(int argc, char* argv[]) {
 					pthread_mutex_lock(&semItems);
 					int cantInstancias = restarInstanciasRecurso(list_items,posConsultada->recurso);
 					pthread_mutex_unlock(&semItems);
-					if (cantInstancias >= 0) {
+					if (cantInstancias >= 0) { //SE LO OTORGO EL RECURSO PEDIDO
 						log_info(logger, "Al personaje %c se le dio el recurso %c",posConsultada->simbolo,posConsultada->recurso);
-						bool buscarPersonaje(pers_t* personaje){return (personaje->simbolo==posConsultada->simbolo);}
-						personaG=list_find(list_personajes,(void*)buscarPersonaje);
+
+						personaG = getPersonajeBySymbol(posConsultada->simbolo);
+
 						//Agrego el recurso a la lista de recursos del personaje y lo desbloquea si estaba bloqueado
 						void agregaRecursoYdesboquea(pers_t *personaje){
 							if(personaje->simbolo==personaG->simbolo){
@@ -313,11 +262,10 @@ int main(int argc, char* argv[]) {
 						// Envio mensaje donde confirmo la otorgacion del recurso pedido
 						enviarPaquete(sockete,&paquete,logger,"enviando confirmacion de otorgamiento de recurso a plataforma");
 						pthread_mutex_unlock(&semSockPaq);
-					} else {
-						bool buscPers(pers_t* personaje){return (personaje->simbolo==posConsultada->simbolo);}
-						personaG=list_find(list_personajes,(void*)buscPers);
-						personaG->recursos=list_create();
-						// Logueo el bloqueo del personaje/
+					}
+					else { //ESTA BLOQUEADO
+						personaG = getPersonajeBySymbol(posConsultada->simbolo);
+
 						log_info(logger,"El personaje %c se bloqueo por el recurso %c",posConsultada->simbolo,posConsultada->recurso);
 						//Agrego el recurso a la lista de recursos del personaje y lo bloqueo
 						void agregaRecursoYbloquea(pers_t *personaje){
@@ -332,23 +280,25 @@ int main(int argc, char* argv[]) {
 				case PL_DESCONEXION_PERSONAJE:// Un personaje termino o murio y debo liberar instancias de recursos que tenia asignado
 					persDesconectado = deserializarDesconexionPers(payload);
 					log_debug(logger, "<<< El personaje %c se desconecto", persDesconectado->simbolo);
+					//eliminar al personaje de list_personajes
+					bool buscarPersonaje(pers_t* perso){return(perso->simbolo==persDesconectado->simbolo);}
+					pers_t *personajeOut = list_remove_by_condition(list_personajes,(void*)buscarPersonaje);
 					pthread_mutex_lock(&semItems);
 					//agrego una instancia a list_items de todos los recursos que me manda planificador (que son todos los que no reasigno)
 					for(i=0;i<persDesconectado->lenghtRecursos;i++){
 						sumarRecurso(list_items,persDesconectado->recursos[i]);
 					}
-					BorrarItem(list_items, persDesconectado->simbolo);
+					if(!personajeOut->muerto) //Si no esta muerto, sacalo
+						BorrarItem(list_items, persDesconectado->simbolo);
 					pthread_mutex_unlock(&semItems);
 					log_debug(logger, "Libere recursos");
-					//eliminar al personaje de list_personajes
-					bool buscarPersonaje(pers_t* perso){return(perso->simbolo==persDesconectado->simbolo);}
-					pers_t *personajeOut = list_remove_by_condition(list_personajes,(void*)buscarPersonaje);
 					free(persDesconectado);
 					personaje_destroyer(personajeOut);
 				break;
 				} //Fin del switch
 
 				nivel_gui_dibujar(list_items, nom_nivel);
+				if(tipoMsj==PL_MOV_PERSONAJE) personaG->ready = true;
 			}
 		}
 	}
@@ -559,9 +509,11 @@ void *enemigo(void * args) {
 				}
 			}
 			list_iterate(list_items,(void*)esUnRecurso);
-		} else { //ELEGIR O PERSEGUIR A LA VICTIMA
-			if(victimaAsignada=='0'){//No tiene victima =>reordenar viendo cual es la victima mas cercana
-				//haciendo esta busqueda mas rudimentaria porque no se por que valgrind me tiraba que estaba leyendo 1-4 bytes de mas cuando accedia a itemBusq->algo
+		}
+		else { //ELEGIR O PERSEGUIR A LA VICTIMA
+
+			if(victimaAsignada=='0'){//No tiene victima => selecciono una victima
+
 				for(i=0;i<list_size(list_items);i++){
 					item=list_get(list_items,i);
 					dist1=(enemigo->posX-item->posx)*(enemigo->posX-item->posx)+(enemigo->posY-item->posy)*(enemigo->posY-item->posy);
@@ -570,24 +522,17 @@ void *enemigo(void * args) {
 						dist2=dist1;
 					}
 				}
-			}else{//ya teiene una victima asignada=>busco la victimaAsignada en la lista de items y la coloco en persVictima
-				//Haciendo la busqueda a manopla por que lo de arriba tira en valgrind que se accede a un byte no reservado
-				int j=0;
-				for(i=0;i<list_size(list_personajes);i++){
-					persVictima=list_get(list_personajes,i);
-					if((char)persVictima->simbolo==victimaAsignada) j=i;
-				}
-				persVictima=list_get(list_personajes,j);
-				if(persVictima->bloqueado==true){//ver si el personaje que estaba persiguiendo se bloqueo en un recurso=>habra que elegir otra victima
+			}
+			else{//Ya tiene una victima asignada => busco la victimaAsignada en la lista de items y la coloco en persVictima
+
+				persVictima = getPersonajeBySymbol((tSimbolo)victimaAsignada);
+
+				if(persVictima->bloqueado || persVictima->muerto || !persVictima->ready){
+					//Si estaba bloqueado o ya matado(pero aun no lo saque) => busco nueva victima
 					victimaAsignada='0';
-				}else{
-					//cambie de la manera de arriba a esta por lo mismo de antes
-					j=0;
-					for(i=0;i<list_size(list_items);i++){
-						item=list_get(list_items,i);
-						if(item->id==victimaAsignada) j=i;
-					}
-					item=list_get(list_items,j);
+				}
+				else{ //Me acerco a la victima
+					item = getItemById(victimaAsignada);
 
 					//Elijo el eje por el que me voy a acercar
 					if(enemigo->posY==item->posy){
@@ -600,61 +545,142 @@ void *enemigo(void * args) {
 						if(enemigo->posX==item->posx){//se esta en la misma posicion que la victima =>matarla
 							//un semaforo para que no mande mensaje al mismo tiempo que otros enemigos o el while principal
 							//otro semaforo para que no desasigne y se esten evaluando otros
-							matarPersonaje(item);
+							pers_t *unPersonaje = getPersonajeBySymbol((tSimbolo)item->id);
+							if(!unPersonaje->muerto){ //Si no esta muerto, matar
+								unPersonaje->muerto = true;
+								matarPersonaje((tSimbolo *)&unPersonaje->simbolo);
+							}
 							victimaAsignada='0';
 						}
-					}else{ //acercarse por fila
+					}
+					else{ //acercarse por fila
 						if(enemigo->posY<item->posy) contMovimiento=4;
 						if(enemigo->posY>item->posy) contMovimiento=2;
 				    }
 				}
-				actualizaPosicion(&contMovimiento, &(enemigo->posX),&(enemigo->posY));
-				void esUnRec(ITEM_NIVEL *iten){
-					if ((iten->item_type==RECURSO_ITEM_TYPE)&&((iten->posx==enemigo->posX)&&(iten->posy==enemigo->posY)))
-						enemigo->posX--;
-				}
-				list_iterate(list_items,(void*)esUnRec);
-				//TODO agregar si se llega a "chocar" con un personaje que no es su victima---------------->no habia contemplado este caso
+				//TODO agregar si se llega a "chocar" con un personaje que no es su victima-->no habia contemplado este caso
 
-				bool esUnPerso(ITEM_NIVEL *item){
-					return (item->item_type==PERSONAJE_ITEM_TYPE)&&((item->posx==enemigo->posX)&&(item->posy==enemigo->posY));
-				}
-				ITEM_NIVEL *personajeItem = list_find(list_items, (void *)esUnPerso);
+				actualizaPosicion(&contMovimiento, &(enemigo->posX),&(enemigo->posY));
+
+				evitarRecurso(enemigo);
+
+				ITEM_NIVEL *personajeItem = getVictima(enemigo);
+
 				if(personajeItem!= NULL){
-					int contPj;
-					pers_t *unPersonaje;
-					for(contPj = 0; contPj < list_size(list_personajes); contPj++){
-						unPersonaje = list_get(list_personajes, contPj);
-						if(unPersonaje->simbolo == (tSimbolo)personajeItem->id){
-							break;
-						}
-					}
-					if(!unPersonaje->muerto){
+					pers_t *unPersonaje = getPersonajeBySymbol((tSimbolo)personajeItem->id);
+					if(!unPersonaje->muerto){ //Si no esta muerto, matar
 						unPersonaje->muerto = true;
-						matarPersonaje(personajeItem);
+						matarPersonaje((tSimbolo *)&unPersonaje->simbolo);
 					}
 				}
 			}
 		}
+
 		pthread_mutex_lock(&semItems);
 		MoveEnemy(list_items, enemigo->num_enemy, enemigo->posX,enemigo->posY);
 		nivel_gui_dibujar(list_items, nom_nivel);
 		pthread_mutex_unlock(&semItems);
 		usleep(sleep_enemigos);
-		} //Fin de while(1)
+
+	} //Fin de while(1)
 	pthread_exit(NULL );
 }
-void matarPersonaje(ITEM_NIVEL *item){
+
+//Buscar en list_items y me devuelve el personaje que cumple la condicion
+ITEM_NIVEL *getVictima(enemigo_t *enemigo){
+	ITEM_NIVEL *personajeItem;
+	bool esUnPersonaje(ITEM_NIVEL *item){
+		return (item->item_type==PERSONAJE_ITEM_TYPE)&&((item->posx==enemigo->posX)&&(item->posy==enemigo->posY));
+	}
+	personajeItem = list_find(list_items, (void *)esUnPersonaje);
+	return personajeItem;
+}
+
+ITEM_NIVEL *getItemById(char id_victima){
+	int i;
+	for(i=0;i<list_size(list_items);i++){
+		ITEM_NIVEL *item=list_get(list_items,i);
+		if(item->id==id_victima)
+			return item;
+	}
+	return NULL;
+}
+
+//Mueve el enemigo atras en x si se paro en un recurso
+void evitarRecurso(enemigo_t *enemigo){
+
+	void esUnRecurso(ITEM_NIVEL *iten){
+		if ((iten->item_type==RECURSO_ITEM_TYPE)&&((iten->posx==enemigo->posX)&&(iten->posy==enemigo->posY)))
+			enemigo->posX--;
+	}
+	list_iterate(list_items,(void*)esUnRecurso);
+}
+
+//Busca en la list_personajes
+pers_t *getPersonajeBySymbol(tSimbolo simbolo){
+	pers_t *unPersonaje;
+	bool buscaPersonaje(pers_t* personaje){
+		return (personaje->simbolo==simbolo);
+	}
+	unPersonaje=(pers_t *)list_find(list_personajes,(void*)buscaPersonaje);
+	return unPersonaje;
+}
+
+void CrearNuevoPersonaje(pers_t *pjNew, tSimbolo simbolo){
+	pjNew->simbolo  = simbolo;
+	pjNew->bloqueado  = false;
+	pjNew->muerto = false;
+	pjNew->ready = false;
+	pjNew->recursos = list_create();
+	list_add_new(list_personajes,(void*)pjNew,sizeof(pers_t));
+	pthread_mutex_unlock(&semItems);
+	CrearPersonaje(list_items, (char)simbolo, INI_X, INI_Y);
+	pthread_mutex_unlock(&semItems);
+	log_info(logger, "<<< Se agrego al personaje %c a la lista", simbolo);
+}
+
+void confirmacionPlataforma(tPaquete *paquete, tMensaje tipoMensaje, char *msjInfo){
+	pthread_mutex_lock(&semSockPaq);
+	paquete->type=tipoMensaje;
+	paquete->length=0;
+	enviarPaquete(sockete, paquete, logger, msjInfo);
+	pthread_mutex_unlock(&semSockPaq);
+}
+
+void solicitudError(tPaquete *paquete, tMensaje tipoMensaje, char *msjInfo){
+	confirmacionPlataforma(paquete, tipoMensaje, msjInfo);
+}
+
+void calcularMovimiento(tDirMovimiento direccion, int *posX, int *posY){
+	switch (direccion) {
+		case arriba:
+			if (*posY > 1) (*posY)--;
+		break;
+		case abajo:
+			if (*posY < maxRows) (*posY)++;
+		break;
+		case izquierda:
+			if (*posX > 1) (*posX)--;
+		break;
+		case derecha:
+			if (*posX < maxCols) (*posX)++;
+		break;
+		default:
+			log_error(logger, "ERROR: no detecto una direccion de movimiento valida: %d", direccion);
+		break;
+	}
+}
+
+void matarPersonaje(tSimbolo *simboloItem){
+	pthread_mutex_lock(&semItems);
+	BorrarItem(list_items, (char)*simboloItem);
+	pthread_mutex_unlock(&semItems);
 	pthread_mutex_lock(&semSockPaq);
 	paquete.type=N_MUERTO_POR_ENEMIGO;
-	memcpy(paquete.payload,&(item->id),sizeof(char));
-	paquete.length=sizeof(char);
+	memcpy(paquete.payload, simboloItem,sizeof(tSimbolo));
+	paquete.length=sizeof(tSimbolo);
 	enviarPaquete(sockete,&paquete,logger,"enviando notificacion de muerte de personaje a plataforma");
 	pthread_mutex_unlock(&semSockPaq);
-//	pthread_mutex_lock(&semItems);
-//	liberarRecsPersonaje(item->id); //Libera recursos solo en DESCONEXION_PERS
-//	pthread_mutex_unlock(&semItems);
-
 }
 
 void *deteccionInterbloqueo (void *parametro){
@@ -791,7 +817,6 @@ void *deteccionInterbloqueo (void *parametro){
 	return 0;
 }
 
-
 void liberarRecsPersonaje(char id){
 	pers_t* personaje;
 
@@ -841,7 +866,6 @@ void cerrarNivel(char* msjLog) {
 	exit(EXIT_FAILURE);
 }
 //--------------------------------------Señal SIGINT
-// Libera memoria de cada personaje de la lista
 
 static void personaje_destroyer(pers_t *personaje) {
 	list_destroy_and_destroy_elements(personaje->recursos, free);

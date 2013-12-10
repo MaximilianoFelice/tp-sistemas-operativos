@@ -66,19 +66,31 @@ typedef struct{
 //Señales
 void cerrarNivel(char*);
 void cerrarForzado(int sig);
+
 //Enemigos
 void *enemigo(void * args);
 void *deteccionInterbloqueo (void *parametro);
 void actualizaPosicion(int *contMovimiento, int *posX, int *posY);
+void calcularMovimiento(tDirMovimiento direccion, int *posX, int *posY);
+void matarPersonaje(tSimbolo *simboloItem);
+
+//Mensajes
+void confirmacionPlataforma(tPaquete *paquete, tMensaje tipoMensaje, char *msjInfo);
+void solicitudError(tPaquete *paquete, tMensaje tipoMensaje, char *msjInfo);
+
+//Busquedas e iteraciones de listas
+pers_t *getPersonajeBySymbol(tSimbolo simbolo); //Busca en list_personajes
+ITEM_NIVEL *getItemById(char id_victima); //Busca en list_items
+void evitarRecurso(enemigo_t *enemigo);
+ITEM_NIVEL *getVictima(enemigo_t *enemigo);
+
 
 //Nivel
-void matarPersonaje(ITEM_NIVEL *item);
+void CrearNuevoPersonaje(pers_t *pjNew, tSimbolo simbolo);
 void levantarArchivoConf(char*);
 void actualizarInfoNivel(char* argumento);
 void liberarRecsPersonaje(char);
-void liberarRecsPersonaje2(char id);
 static void personaje_destroyer(pers_t *personaje);
-//static void recurso_destroyer(char *recurso);
 
 //#undef NIVEL_H_
 #endif //NIVEL_H_
