@@ -65,13 +65,19 @@ int main(int argc, char*argv[]) {
 	log_debug(logger, "El personaje se conecto con el orquestador");
 
 
-	while(continuar && !(terminoBienTodosLosNiveles())){
+	/*while(continuar && !(terminoBienTodosLosNiveles())){ //ver si es necesario que este en el while todo
 		crearTodosLosHilos();
 		char *join_return = tirarTodosLosHilos();
 
 		if(join_return != NULL)
 			log_debug(logger, "El personaje %c %s", personaje.simbolo, join_return);
 	}
+*/
+	crearTodosLosHilos();
+	char *join_return = tirarTodosLosHilos();
+
+	if(join_return != NULL)
+		log_debug(logger, "El personaje %c %s", personaje.simbolo, join_return);
 
 	if ((personaje.vidas>0) && terminoBienTodosLosNiveles())//Termino t0do el plan de niveles correctamente
 	{
@@ -373,11 +379,14 @@ void seMuereSinSenal(personajeIndividual_t *personajePorNivel){
 		reiniciarObjetivosNivel(personajePorNivel);
 		continuar=false;
 		//Reiniciar hilos
+		/*
 		crearHiloPersonajePorNivel(personajePorNivel);
 		char *join_return = tirarHiloPersonajePorNivel(personajePorNivel);
 		if(join_return != NULL)
 			log_debug(logger, "El personaje %c, ha devuelto '%s' al tirar el hilo del personaje", personaje.simbolo, join_return);
+		 */
 
+		reiniciarHilo(personajePorNivel);
 	}else{
 		reiniciarJuego();
 	}
@@ -423,6 +432,23 @@ void crearTodosLosHilos(){
 void crearHiloPersonajePorNivel(personajeIndividual_t* personajePorNivel){
 	threadNivel_t* threadAReiniciar =devolverThread(personajePorNivel->nivelQueJuego);//FIXME
 	pthread_create(&(*threadAReiniciar).thread, NULL, jugar, (void *) &(*threadAReiniciar).nivel);
+}
+
+void reiniciarHilo(personajeIndividual_t* personajePorNivel){
+	threadNivel_t* threadAReiniciar =devolverThread(personajePorNivel->nivelQueJuego);//FIXME
+	threadNivel_t aux = (*threadAReiniciar);
+	pthread_create(&(*threadAReiniciar).thread, NULL, jugar, (void *) &(*threadAReiniciar).nivel);
+	pthread_cancel(aux.thread);
+}
+
+void reiniciarTodosLosHilos(){
+
+	void _reiniciarHilo(char* key, personajeIndividual_t* personajePorNivel) {
+		reiniciarHilo(personajePorNivel);
+	}
+
+	dictionary_iterator(listaPersonajePorNiveles, (void*) _reiniciarHilo);
+
 }
 
 char* tirarHiloPersonajePorNivel(personajeIndividual_t* personajePorNivel){
@@ -764,6 +790,9 @@ void actualizaPosicion(tDirMovimiento* movimiento, personajeIndividual_t **perso
 		case izquierda:
 			((*personajePorNivel)->posX)--;
 			break;
+		case vacio:
+			log_error(logger, "Se intenta actualizar la posicion a VACIO");
+			break;
 	}
 	//log_debug(logger, "P = (%d, %d) - R = (%d, %d)", (*personajePorNivel)->posX, (*personajePorNivel)->posY, (*personajePorNivel)->posRecursoX, (*personajePorNivel)->posRecursoY);
 
@@ -887,11 +916,14 @@ void reiniciarJuego(){
 		personaje.reintentos++;
 		reiniciarObjetivosTodosLosNiveles();
 
+		/*
 		crearTodosLosHilos();//corre los hilos
 		char *join_return = tirarTodosLosHilos();//devuelve el estado de los hilos
 		if(join_return != NULL)
 			log_debug(logger, "El personaje %c, ha devuelto '%s' al tirar todos los hilos", personaje.simbolo, join_return);
+		*/
 
+		reiniciarTodosLosHilos();
 		continuar =true;
 		personaje.vidas = personaje.vidasMaximas;
 

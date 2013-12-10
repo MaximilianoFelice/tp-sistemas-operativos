@@ -105,6 +105,10 @@ void crearTodosLosHilos();
 
 void crearHiloPersonajePorNivel(personajeIndividual_t* personajePorNivel);
 
+void reiniciarHilo(personajeIndividual_t* personajePorNivel);
+
+void reiniciarTodosLosHilos();
+
 void recibirMensajeTurno(personajeIndividual_t *personajePorNivel);
 
 void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurso);
