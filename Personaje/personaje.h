@@ -52,12 +52,8 @@ typedef struct PersonajeIndividual{
 	int posY;
 	int posRecursoX;
 	int posRecursoY;
-<<<<<<< HEAD
-	bool termino;
 	bool bienTerminado;
-=======
 	bool murioEnNivel;
->>>>>>> refactorPersonaje
 	tDirMovimiento ultimoMovimiento;
 	char *nomNivel;
 	t_list *Objetivos;
@@ -98,15 +94,10 @@ tDirMovimiento calcularYEnviarMovimiento(personajeIndividual_t *personajePorNive
 
 void crearTodosLosHilos();
 
-<<<<<<< HEAD
-void crearHiloPersonajePorNivel(personajeIndividual_t* personajePorNivel);
-
 void reiniciarHilo(personajeIndividual_t* personajePorNivel);
 
 void reiniciarTodosLosHilos();
 
-=======
->>>>>>> refactorPersonaje
 void recibirMensajeTurno(personajeIndividual_t *personajePorNivel);
 
 void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurso);
