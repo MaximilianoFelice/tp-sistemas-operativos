@@ -13,11 +13,11 @@ Los tipos de mensajes, los paquetes a enviar y la implementeacion de la serializ
 
 Ir a la carpeta de cada proceso. Y ejecutar:
 
-`./mountplatform`
+`./mountplatform.sh`
 
-`./mountlevel (archivo de configuracion del nivel)`
+`./mountlevel.sh [Level_Config]`
 
-`./mountcharacter (archivo de configuracion del personaje)`
+`./mountcharacter.sh [Level_Config]`
 
 ----------------------------------------------------------
 
@@ -29,9 +29,9 @@ Luego usando los ejecutables compilados por Eclipse, en este orden, los procesos
 
 `./Debug/plataforma plataforma.config -v -ll trace`
 
-`./Debug/nivel (archivo de configuracion del nivel)`
+`./Debug/nivel [Level_Config]`
 
-`./Debug/personaje (archivo de configuracion del personaje) -v`
+`./Debug/personaje [Level_Config] -v`
 
 ----------------------------------------------------------
 
@@ -55,7 +55,14 @@ Para ejecutarlos:
 
 `./plataforma plataforma.config -v`
 
-`./nivel (archivo de configuracion del nivel)`
+`./nivel [Level_Config]`
 
-`./personaje (archivo de configuracion del personaje) -v`
+`./personaje [Level_Config] -v`
+
+
+----------------------------------------------------------
+
+### Filesystem:
+
+Revisar el readme ubicado en: https://github.com/sisoputnfrba/tp-2013-2c-c-o-no-ser/tree/master/FileSystem
 
