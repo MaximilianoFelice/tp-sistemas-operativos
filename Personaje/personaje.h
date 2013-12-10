@@ -62,6 +62,7 @@ typedef struct PersonajeIndividual{
 	int posY;
 	int posRecursoX;
 	int posRecursoY;
+	bool termino;
 	bool bienTerminado;
 	tDirMovimiento ultimoMovimiento;
 	nivel_t *nivelQueJuego;
@@ -86,6 +87,8 @@ void obtenerIpYPuerto(char *dirADividir, char * ip,  char * puerto);
 static void nivel_destroyer(nivel_t*nivel);
 
 void *jugar(void *args);
+
+void destruirSemaforos();
 
 void desconectarPersonaje(personajeIndividual_t* personajePorNivel);
 
