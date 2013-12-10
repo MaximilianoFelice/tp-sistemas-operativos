@@ -65,14 +65,16 @@ int main(int argc, char*argv[]) {
 	log_debug(logger, "El personaje se conecto con el orquestador");
 
 
-	/*while(continuar && !(terminoBienTodosLosNiveles())){ //ver si es necesario que este en el while todo
+	/*
+	 * //ver si es necesario que este en el while todo, creo que con la condicion de adentro es suficiente
+	 while(continuar && !(terminoBienTodosLosNiveles())){
 		crearTodosLosHilos();
 		char *join_return = tirarTodosLosHilos();
 
 		if(join_return != NULL)
 			log_debug(logger, "El personaje %c %s", personaje.simbolo, join_return);
 	}
-*/
+	 */
 	crearTodosLosHilos();
 	char *join_return = tirarTodosLosHilos();
 
@@ -430,12 +432,12 @@ void crearTodosLosHilos(){
 }
 
 void crearHiloPersonajePorNivel(personajeIndividual_t* personajePorNivel){
-	threadNivel_t* threadAReiniciar =devolverThread(personajePorNivel->nivelQueJuego);//FIXME
+	threadNivel_t* threadAReiniciar =devolverThread(personajePorNivel->nivelQueJuego);
 	pthread_create(&(*threadAReiniciar).thread, NULL, jugar, (void *) &(*threadAReiniciar).nivel);
 }
 
 void reiniciarHilo(personajeIndividual_t* personajePorNivel){
-	threadNivel_t* threadAReiniciar =devolverThread(personajePorNivel->nivelQueJuego);//FIXME
+	threadNivel_t* threadAReiniciar =devolverThread(personajePorNivel->nivelQueJuego);
 	threadNivel_t aux = (*threadAReiniciar);
 	pthread_create(&(*threadAReiniciar).thread, NULL, jugar, (void *) &(*threadAReiniciar).nivel);
 	pthread_cancel(aux.thread);
