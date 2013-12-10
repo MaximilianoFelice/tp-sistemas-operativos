@@ -44,6 +44,7 @@ typedef struct PersonajeGlobal{
 	t_list *lPersonajes;
 } personajeGlobal_t;
 
+
 typedef struct PersonajeIndividual{
 	int socketPlataforma;
 	tSimbolo recursoActual; //el numero del recurso actual basandonos en la lista de recursos por nivel
