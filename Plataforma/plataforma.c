@@ -69,7 +69,7 @@ int desconectarNivel(tNivel *pNivel);
 int desconectarPersonaje(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexion);
 
 int eliminarPersonaje(tNivel *pNivel, tPersonaje *pPersonaje);
-void avisarDesconexionAlNivel(tNivel *pNivel, tPersonaje *pPersonaje, char *recursosLiberados);
+void avisarDesconexionAlNivel(tNivel *pNivel, tPersonaje *pPersonaje, int lenghtRecursos, char **recursosLiberados);
 char *liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel);
 bool coordinarAccesoMultiplesPersonajes(tPersonaje *personajeActual, int socketConexion, bool valor);
 bool esElPersonajeQueTieneElTurno(int socketActual, int socketConexion);
@@ -937,7 +937,7 @@ int desconectarPersonaje(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSoc
 	tPersonaje *pPersonaje;
 	int socketPersonajeQueSalio;
 
-	if (iSocketConexion == (*pPersonajeActual)->socket) {
+	if ((*pPersonajeActual)!= NULL && (iSocketConexion == (*pPersonajeActual)->socket)) {
 		socketPersonajeQueSalio = iSocketConexion;
 		eliminarPersonaje(pNivel, *pPersonajeActual);
 		*pPersonajeActual = NULL;
@@ -958,22 +958,22 @@ int desconectarPersonaje(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSoc
 int eliminarPersonaje(tNivel *pNivel, tPersonaje *pPersonaje){
 	char *recursosNoAsignados;
 	log_info(logger, "Se desconecto el personaje %c", pPersonaje->simbolo);
+	int lenghtRecursos = list_size(pPersonaje->recursos);
 	recursosNoAsignados = liberarRecursos(pPersonaje, pNivel);
-	avisarDesconexionAlNivel(pNivel, pPersonaje, recursosNoAsignados);
+	avisarDesconexionAlNivel(pNivel, pPersonaje, lenghtRecursos, &recursosNoAsignados);
 	free(pPersonaje);
 	free(recursosNoAsignados);
 	return EXIT_SUCCESS;
 }
 
-void avisarDesconexionAlNivel(tNivel *pNivel, tPersonaje *pPersonaje, char *recursosLiberados){
-	int lenghtRecursos;
+void avisarDesconexionAlNivel(tNivel *pNivel, tPersonaje *pPersonaje, int lenghtRecursos, char **recursosLiberados){
 	tPaquete pkgDesconexionPers;
 	tDesconexionPers desconexionPersonaje;
 
-	lenghtRecursos = list_size(pPersonaje->recursos);
+	log_debug(logger,"El length es %d", lenghtRecursos);
 	desconexionPersonaje.simbolo = pPersonaje->simbolo;
-	desconexionPersonaje.lenghtRecursos = lenghtRecursos; //
-	memcpy(&desconexionPersonaje.recursos, recursosLiberados, desconexionPersonaje.lenghtRecursos);
+	desconexionPersonaje.lenghtRecursos = lenghtRecursos;
+	memcpy(&desconexionPersonaje.recursos, *recursosLiberados, desconexionPersonaje.lenghtRecursos);
 	serializarDesconexionPers(PL_DESCONEXION_PERSONAJE, desconexionPersonaje, &pkgDesconexionPers);
 
 	enviarPaquete(pNivel->socket, &pkgDesconexionPers, logger, "Se envia desconexion del personaje al nivel");

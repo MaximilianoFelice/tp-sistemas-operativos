@@ -287,9 +287,14 @@ int main(int argc, char* argv[]) {
 					//agrego una instancia a list_items de todos los recursos que me manda planificador (que son todos los que no reasigno)
 					for(i=0;i<persDesconectado->lenghtRecursos;i++){
 						sumarRecurso(list_items,persDesconectado->recursos[i]);
+						log_debug(logger, "Libere una instancia del recurso %c", persDesconectado->recursos[i]);
 					}
 					if(!personajeOut->muerto) //Si no esta muerto, sacalo
 						BorrarItem(list_items, persDesconectado->simbolo);
+					else{
+						log_debug(logger, "no lo saue al pesonaje ");
+						log_debug(logger, "No lo saque al personaje %c", personajeOut->simbolo);
+					}
 					pthread_mutex_unlock(&semItems);
 					log_debug(logger, "Libere recursos");
 					free(persDesconectado);
@@ -299,7 +304,7 @@ int main(int argc, char* argv[]) {
 
 				pthread_mutex_lock(&semItems);
 				nivel_gui_dibujar(list_items, nom_nivel);
-				if(tipoMsj==PL_MOV_PERSONAJE) personaG->ready = true;
+				if(tipoMsj==PL_MOV_PERSONAJE) personaG->listoParaPerseguir = true;
 				pthread_mutex_unlock(&semItems);
 			}
 		}
@@ -421,7 +426,7 @@ void *enemigo(void * args) {
 	pthread_mutex_unlock(&semItems);
 
 	while (1) {
-		bool personajeBloqueado(pers_t* personaje){return(personaje->bloqueado==false && personaje->muerto==false && personaje->ready==true);}
+		bool personajeBloqueado(pers_t* personaje){return(personaje->bloqueado==false && personaje->muerto==false && personaje->listoParaPerseguir==true);}
 		cantPersonajesActivos=list_count_satisfying(list_personajes,(void*)personajeBloqueado);
 		if (cantPersonajesActivos == 0) {
 			/* para hacer el movimiento de caballo uso la var ultimoMov que puede ser:
@@ -529,7 +534,7 @@ void *enemigo(void * args) {
 
 				persVictima = getPersonajeBySymbol((tSimbolo)victimaAsignada);
 
-				if(persVictima->bloqueado || persVictima->muerto || !persVictima->ready){
+				if(persVictima->bloqueado || persVictima->muerto || !persVictima->listoParaPerseguir){
 					//Si estaba bloqueado o ya matado(pero aun no lo saque) => busco nueva victima
 					victimaAsignada='0';
 				}
@@ -632,7 +637,7 @@ void CrearNuevoPersonaje(pers_t *pjNew, tSimbolo simbolo){
 	pjNew->simbolo  = simbolo;
 	pjNew->bloqueado  = false;
 	pjNew->muerto = false;
-	pjNew->ready = false;
+	pjNew->listoParaPerseguir = false;
 	pjNew->recursos = list_create();
 	list_add_new(list_personajes,(void*)pjNew,sizeof(pers_t));
 	pthread_mutex_unlock(&semItems);

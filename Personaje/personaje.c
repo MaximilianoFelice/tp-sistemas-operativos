@@ -741,6 +741,7 @@ bool consultarReinicio(){
 	} else if (toupper(caracter_pulsado) == 'N') {
 		return false;
 	}
+	return false;
 
 }
 
