@@ -806,7 +806,8 @@ void movimientoPersonaje(int iSocketConexion, char* sPayload, tNivel *pNivel, tP
 		enviarPaquete(pNivel->socket, &pkgMovimientoPers, logger, "Envio movimiento del personaje");
 
     } else { //Esta muerto, no puede moverse debe morir
-
+// FIXME: Deberia generar la muerte en el momento que se produce y no en el proximo turno.
+    	// Se podria realizar una evaluacion en la cual se analicen los personajes que no se estan ejecutando.
 		int socketPersonaje = (*pPersonajeActual)->socket;
 		eliminarPersonaje(pNivel, *pPersonajeActual);
 		avisarAlPersonajeDeMuerte(socketPersonaje, movPers->simbolo);
@@ -1322,7 +1323,6 @@ tPersonaje* desbloquearPersonaje(t_list* lBloqueados, tSimbolo recurso) {
 
 		if (personaje == NULL) {
 			log_debug(logger, "personaje es NULL");
-			sleep(30);	//TODO borrar este sleep
 		}
 		list_add_new(personaje->recursos, (void *)&recurso, sizeof(recurso));
 		return personaje;
@@ -1374,7 +1374,6 @@ void imprimirConexiones(fd_set *master_planif, int maxSock, char* host) {
 void waitPersonajes(tNivel *pNivel, tPersonaje *personajeActual, bool *iEnviarTurno) {
 	if (nivelVacio(pNivel) && personajeActual==NULL) {
 
-		//TODO REVISAR
 		pthread_mutex_lock(&semNivel);
 		pthread_cond_wait(&pNivel->hayPersonajes, &semNivel);
 		pthread_mutex_unlock(&semNivel);

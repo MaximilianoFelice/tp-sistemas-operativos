@@ -11,7 +11,8 @@
 
 pthread_mutex_t semModificadorDeVidas; //Los semaforos solo para las variables globales
 sem_t semReinicio;
-
+sem_t semFinPlan;
+bool reiniciar = false;
 
 personajeGlobal_t personaje;
 t_config *configPersonaje;
@@ -26,7 +27,7 @@ int main(int argc, char*argv[]) {
 
 	pthread_mutex_init(&semModificadorDeVidas, NULL);
 	sem_init(&semReinicio, 0, 0);
-
+	sem_init(&semFinPlan, 0, 0);
 
 	// Inicializa el log.
 	logger = logInit(argv, "PERSONAJE");
@@ -56,19 +57,17 @@ int main(int argc, char*argv[]) {
 	//vuelve a tirar todos los hilos por todos los niveles
 	int iNivel;
 	char *resultadoThread;
-	bool reiniciar;
 
 	do {
 		log_debug(logger, "Tiro los hilos para jugar en cada nivel");
 		crearTodosLosHilos();
 		reiniciar = false;
 
-		//FIXME Ver cuando termina el plan de niveles
+		//FIXME Ver cuando termina el plan de niveles -- hipoteticamente solucionado :D
 		sem_wait(&semReinicio);
-
+		sem_wait(&semFinPlan);
 		//Ya terminaron todos los hilos. Si murio el ultimo me va a decir que reinicie o no.
-		reiniciar = true;
-		log_debug(logger, "El personaje %c termina su conexion y reinicia todos los niveles", personaje.simbolo);
+		if (reiniciar) log_debug(logger, "El personaje %c termina su conexion y reinicia todos los niveles", personaje.simbolo);
 
 	} while (reiniciar);
 
@@ -82,12 +81,23 @@ int main(int argc, char*argv[]) {
 	for (iNivel = 0; iNivel < cantidadPersonajes; iNivel++) {
 		personajeIndividual_t *pPersonajeNivel = (personajeIndividual_t *) list_get(personaje.lPersonajes, iNivel);
 		list_destroy(pPersonajeNivel->Objetivos);
+		free(pPersonajeNivel->thread);
 	}
-	
+
 	list_destroy(personaje.lPersonajes);
 
 	exit(EXIT_SUCCESS);
 
+}
+
+bool finalizoPlan(){
+
+	bool _finalizoPlan(personajeIndividual_t* personajePorNivel){
+		return personajePorNivel->bienTerminado;
+	}
+
+	if (list_all_satisfy(personaje.lPersonajes, (void*) _finalizoPlan)) return true;
+	return false;
 }
 
 void notificarFinPlanNiveles(){
@@ -165,7 +175,6 @@ void obtenerIpYPuerto(char *dirADividir, char * ip,  char * puerto){
 void *jugar(void *vPersonajeNivel) {
 
 	personajeIndividual_t* pPersonajePorNivel = (personajeIndividual_t *)vPersonajeNivel;
-//	signal(SIGILL, deboMorir);
 	pPersonajePorNivel->posX = 0;
 	pPersonajePorNivel->posY = 0;
 	pPersonajePorNivel->posRecursoX=0;
@@ -175,9 +184,9 @@ void *jugar(void *vPersonajeNivel) {
 	pPersonajePorNivel->ultimoMovimiento = vacio;
 	pPersonajePorNivel->murioEnNivel 	 = false;
 
-	bool finalizoNivel = false;
+	pPersonajePorNivel->bienTerminado = false;
 
-	while (personaje.vidas>0 && !finalizoNivel) {
+	while (personaje.vidas>0 && !pPersonajePorNivel->bienTerminado) {
 
 		pPersonajePorNivel->socketPlataforma = connectToServer(ip_plataforma, atoi(puerto_orq), logger);
 		handshake_plataforma(pPersonajePorNivel);
@@ -216,11 +225,11 @@ void *jugar(void *vPersonajeNivel) {
 
 		if (pPersonajePorNivel->murioEnNivel) {
 			pthread_mutex_lock(&semModificadorDeVidas);
+
 			personaje.vidas--;
 			log_debug(logger, "El personaje %c perdio una vida en %s", personaje.simbolo, pPersonajePorNivel->nomNivel);
-
 			if (personaje.vidas > 0) {
-				finalizoNivel = false;
+				pPersonajePorNivel->bienTerminado = false;
 				pPersonajePorNivel->murioEnNivel = false;
 				desconectarPersonaje(pPersonajePorNivel);
 				pthread_mutex_unlock(&semModificadorDeVidas);
@@ -228,31 +237,34 @@ void *jugar(void *vPersonajeNivel) {
 				log_debug(logger, "El personaje %c detecto que no hay mas vidas\n", personaje.simbolo);
 				matarHilosExceptoYo(pPersonajePorNivel->nomNivel); //Mato a los otros hilos
 				desconectarPersonaje(pPersonajePorNivel);
-				bool reiniciar = consultarReinicio(); //Aqui es donde me asesino
+				reiniciar = consultarReinicio(); //Aqui es donde me asesino
 				pthread_mutex_unlock(&semModificadorDeVidas);
 				if (reiniciar) {
 					sem_post(&semReinicio); //SIGNAL(sem)
+					sem_post(&semFinPlan);
 					pthread_exit(NULL);
 				}
 			}
 
 		}
 		else {
-			finalizoNivel = true; //Ya termino este nivel
+			pPersonajePorNivel->bienTerminado = true; //Ya termino este nivel
+			log_debug(logger, "El personaje termino bien el nivel %s", pPersonajePorNivel->nomNivel);
+
 		}
 
 	}//Fin del while
 
-
+	desconectarPersonaje(pPersonajePorNivel);
 	log_debug(logger, "El personaje se desconecto de la plataforma");
-
+	sem_post(&semReinicio);
+	if (finalizoPlan())	sem_post(&semFinPlan);
 	char * exit_return = strdup("El personaje ha finalizado su plan de nivel");
 	pthread_exit((void *)exit_return);
 }
 
 void matarHilosExceptoYo(char *nombreNivel) {
 	int cantidadNiveles, indexNivel;
-	// LOCK ---->>> YA ESTA LOCKEADO POR LA FUNCION QUE LO LLAMA
 	cantidadNiveles = list_size(personaje.lPersonajes);
 
     for (indexNivel = 0; indexNivel < cantidadNiveles; indexNivel++) {
@@ -263,16 +275,8 @@ void matarHilosExceptoYo(char *nombreNivel) {
     		close(unPersonajeNivel->socketPlataforma);
     	}
     }
-    //UNLOCK
 }
 
-//void deboMorir() { //Este captura la señal para cada hilo
-//	pthread_exit((void*)"reiniciar");
-//}
-//
-//void asesinarme(char * resultado) { //Ahora si quiero morir :'(
-//	pthread_exit((void*)(resultado));
-//}
 
 bool personajeEstaMuerto(bool murioPersonaje){
 	//si esta muerto por alguna señal o porque se quedo sin vidas
