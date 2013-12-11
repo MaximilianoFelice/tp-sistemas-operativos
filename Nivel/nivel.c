@@ -25,7 +25,6 @@ tAlgoritmo algoritmo;
 int quantum;
 uint32_t retardo;
 int timeCheck;
-char* dir_plataforma=NULL;
 char* ip_plataforma=NULL;
 int port_orq;
 
@@ -108,7 +107,7 @@ int main(int argc, char* argv[]) {
 	enviarPaquete(sockete,&paquete,logger,"notificando a plataforma algoritmo");
 	//free(nom_nivel);--->NO, la usaran los hilos enemigos
 	free(ip_plataforma);
-	free(dir_plataforma);
+	//free(dir_plataforma);
 
 	//INOTIFY
 	descriptorInotify=inotify_init();
@@ -316,21 +315,18 @@ int main(int argc, char* argv[]) {
 }
 
 void levantarArchivoConf(char* argumento){
-	t_config *configNivel; //TODO destruir el config cuando cierra el nivel,
-	extern char* dir_plataforma;
+	extern char* nom_nivel;
 	extern char* ip_plataforma;
-	dir_plataforma=(char*)malloc(sizeof(char)*22);
-	ip_plataforma=(char*)malloc(sizeof(char)*16);
+
+	t_config *configNivel;
+
+	char* dir_plataforma;
+
 	char* algoritmoAux;
 	int i,posXCaja,posYCaja,cantCajas;
 	char* messageLimitErr= malloc(sizeof(char) * 100);
 	char** lineaCaja;
 	char** dirYpuerto;
-
-	dirYpuerto=(char**)malloc(sizeof(char*)*2);
-	dirYpuerto[0]=malloc(sizeof(int)*4+sizeof(char)*3);
-	dirYpuerto[1]=malloc(sizeof(int));
-	extern char* nom_nivel;
 
 	configNivel=config_create(argumento);
 	cantCajas=config_keys_amount(configNivel)-9;
@@ -352,7 +348,7 @@ void levantarArchivoConf(char* argumento){
 		CrearCaja(list_items, *lineaCaja[1],atoi(lineaCaja[3]),atoi(lineaCaja[4]),atoi(lineaCaja[2]));//*cajaRecursos[1], atoi(cajaRecursos[3]), atoi(cajaRecursos[4]), atoi(cajaRecursos[2]));
 		pthread_mutex_unlock(&semItems);
 	}
-	free(lineaCaja);
+
 	free(messageLimitErr);
 	nom_nivel 	   = string_duplicate(config_get_string_value(configNivel,"Nombre"));
 	recovery       = config_get_int_value(configNivel, "Recovery");
@@ -365,16 +361,12 @@ void levantarArchivoConf(char* argumento){
 	retardo 	   = config_get_int_value(configNivel, "Retardo");
 	timeCheck      = config_get_int_value(configNivel, "TiempoChequeoDeadlock");
 	dir_plataforma = config_get_string_value(configNivel, "Plataforma");
-	//TODO ya no tiene que levantar el ip y puerto de un archivo de configuracion
 	dirYpuerto     = string_split(dir_plataforma,":");
 	ip_plataforma  = string_duplicate(dirYpuerto[0]);
 	port_orq 	   = atoi(dirYpuerto[1]);
 	cantRecursos   = list_size(list_items);
 
-	//config_destroy(configNivel);
-	free(dirYpuerto[0]);
-	free(dirYpuerto[1]);
-	free(dirYpuerto);
+	config_destroy(configNivel);
 }
 
 void actualizarInfoNivel(char* argumento){
@@ -384,19 +376,28 @@ void actualizarInfoNivel(char* argumento){
 	char* algoritmoAux;
 	t_config *configNivel;
 
-	configNivel  = config_create(argumento);
-	algoritmoAux = config_get_string_value(configNivel, "algoritmo");
+	while(1){ //------------------------------------->despues de muchos dias de putear esta era la solucion (hay un retraso que produce un seg.fault)
+		configNivel  = config_create(argumento);
+		if(!config_has_property(configNivel,"Algoritmo")){
+			usleep(10);
 
-	char rr[]="RR";
+			config_destroy(configNivel);
+		}
+		else break;
+	}
+
+
+	algoritmoAux = config_get_string_value(configNivel, "Algoritmo");
+	char *rr="RR";
 	if (strcmp(algoritmoAux,rr)==0) {
 		algoritmo = RR;
 	} else {
 		algoritmo = SRDF;
 	}
-
-	quantum = config_get_int_value(configNivel, "quantum");
-	retardo = config_get_int_value(configNivel, "retardo");
-	//config_destroy(configNivel); TODO ver esto
+	quantum = config_get_int_value(configNivel, "Quantum");
+	retardo = config_get_int_value(configNivel, "Retardo");
+	log_debug(logger,"se produjo un cambio en el archivo config, Algorimo: %s quantum:%i retardo:%i",algoritmoAux,quantum,retardo);
+	config_destroy(configNivel);
 }
 
 void *enemigo(void * args) {
