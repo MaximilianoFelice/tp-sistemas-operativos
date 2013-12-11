@@ -286,6 +286,7 @@ int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOr
 		pkgNivelRepetido.type   = PL_NIVEL_YA_EXISTENTE;
 		pkgNivelRepetido.length = 0;
 		enviarPaquete(iSocketComunicacion, &pkgNivelRepetido, logger, "Ya se encuentra conectado al orquestador un nivel con el mismo nombre");
+		free(sPayload);
 		return EXIT_FAILURE;
 	}
 
@@ -296,7 +297,10 @@ int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOr
 	tNivel *pNivelNuevo = (tNivel *)    malloc(sizeof(tNivel));
 	pPlanificador 	    = (pthread_t *) malloc(sizeof(pthread_t));
 	log_debug(logger, "Se conecto el nivel %s", sPayload);
-	char* sNombreNivel = strdup(sPayload);
+
+	char* sNombreNivel = (char *)malloc(strlen(sPayload) + 1);
+	strcpy(sNombreNivel, sPayload);
+	free(sPayload);
 
 	tPaquete pkgHandshake;
 	pkgHandshake.type   = PL_HANDSHAKE;
@@ -307,6 +311,7 @@ int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOr
 	recibirPaquete(iSocketComunicacion, &tipoMensaje, &sPayload, logger, "Recibe mensaje informacion del nivel");
 
 	pInfoNivel = deserializarInfoNivel(sPayload);
+	free(sPayload);
 
 	// Validacion de que el nivel me envia informacion correcta
 	if (tipoMensaje == N_DATOS) {
@@ -321,7 +326,6 @@ int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOr
 		return EXIT_FAILURE;
 	}
 
-	free(sPayload);
 	free(pInfoNivel);
 	return EXIT_SUCCESS;
 }
@@ -330,6 +334,7 @@ int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOr
 int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char* sPayload) {
 	tHandshakePers* pHandshakePers;
 	pHandshakePers = deserializarHandshakePers(sPayload);
+	free(sPayload);
 	int iIndiceNivel;
 
 	log_info(logger, "Se conectó el personaje %c pidiendo el nivel '%s'", pHandshakePers->simbolo, pHandshakePers->nombreNivel);
@@ -351,6 +356,7 @@ int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char*
 
 		if (rta_nivel) {
 			agregarPersonaje(pNivelPedido, pHandshakePers->simbolo, iSocketComunicacion);
+			free(pHandshakePers);
 			delegarConexion(&pNivelPedido->masterfds, socketsOrquestador, iSocketComunicacion, &pNivelPedido->maxSock);
 
 			pthread_cond_signal(&(pNivelPedido->hayPersonajes));
@@ -360,10 +366,12 @@ int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char*
 			pkgHandshake.length = 0;
 			// Le contesto el handshake
 			enviarPaquete(iSocketComunicacion, &pkgHandshake, logger, "Handshake de la plataforma al personaje");
+			return EXIT_SUCCESS;
+
 		} else {
 			log_error(logger, "El personaje ya esta jugando actualmente en ese nivel");
 			sendConnectionFail(iSocketComunicacion, PL_PERSONAJE_REPETIDO, "El personaje ya esta jugando ese nivel");
-			free(sPayload);
+
 			free(pHandshakePers);
 			return EXIT_FAILURE;
 		}
@@ -372,14 +380,9 @@ int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char*
 		pthread_mutex_unlock(&mtxlNiveles);
 		log_error(logger, "El nivel solicitado no se encuentra conectado a la plataforma");
 		sendConnectionFail(iSocketComunicacion, PL_NIVEL_INEXISTENTE, "No se encontro el nivel pedido");
-		free(sPayload);
 		free(pHandshakePers);
 		return EXIT_FAILURE;
 	}
-
-	free(sPayload);
-	free(pHandshakePers);
-	return EXIT_SUCCESS;
 }
 
 
@@ -407,6 +410,7 @@ bool avisoConexionANivel(int sockNivel,char *sPayload, tSimbolo simbolo){
 	} else if(tipoMensaje == N_PERSONAJE_YA_EXISTENTE) {
 		return false;
 	}
+
 	return false;
 }
 
@@ -433,7 +437,7 @@ void crearNivel(t_list* lNiveles, tNivel* pNivelNuevo, int socket, char *levelNa
 
 void agregarPersonaje(tNivel *pNivel, tSimbolo simbolo, int socket) {
 	tPersonaje *pPersonajeNuevo;
-	pPersonajeNuevo = malloc(sizeof(tPersonaje));
+	pPersonajeNuevo = (tPersonaje *) malloc(sizeof(tPersonaje));
 
 	pPersonajeNuevo->simbolo  	  	   = simbolo;
 	pPersonajeNuevo->socket 	  	   = socket;
