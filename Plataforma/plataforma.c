@@ -357,7 +357,10 @@ int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char*
 
 		if (rta_nivel) {
 			agregarPersonaje(pNivelPedido, pHandshakePers->simbolo, iSocketComunicacion);
+
+			free(pHandshakePers->nombreNivel);
 			free(pHandshakePers);
+
 			delegarConexion(&pNivelPedido->masterfds, socketsOrquestador, iSocketComunicacion, &pNivelPedido->maxSock);
 
 			pthread_cond_signal(&(pNivelPedido->hayPersonajes));
@@ -373,6 +376,7 @@ int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char*
 			log_error(logger, "El personaje ya esta jugando actualmente en ese nivel");
 			sendConnectionFail(iSocketComunicacion, PL_PERSONAJE_REPETIDO, "El personaje ya esta jugando ese nivel");
 
+			free(pHandshakePers->nombreNivel);
 			free(pHandshakePers);
 			return EXIT_FAILURE;
 		}
@@ -381,6 +385,8 @@ int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char*
 		pthread_mutex_unlock(&mtxlNiveles);
 		log_error(logger, "El nivel solicitado no se encuentra conectado a la plataforma");
 		sendConnectionFail(iSocketComunicacion, PL_NIVEL_INEXISTENTE, "No se encontro el nivel pedido");
+
+		free(pHandshakePers->nombreNivel);
 		free(pHandshakePers);
 		return EXIT_FAILURE;
 	}
@@ -971,6 +977,8 @@ int eliminarPersonaje(tNivel *pNivel, tPersonaje *pPersonaje){
 	int lenghtRecursos = list_size(pPersonaje->recursos);
 	recursosNoAsignados = liberarRecursos(pPersonaje, pNivel);
 	avisarDesconexionAlNivel(pNivel, pPersonaje, lenghtRecursos, &recursosNoAsignados);
+
+	list_destroy(pPersonaje->recursos);
 	free(pPersonaje);
 	free(recursosNoAsignados);
 	return EXIT_SUCCESS;
