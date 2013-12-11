@@ -29,3 +29,6 @@ FileSystem/log/
 
 # Files
 *.log
+
+/Nivel/logvalgrind.txt
+

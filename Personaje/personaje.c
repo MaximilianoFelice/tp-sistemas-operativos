@@ -134,7 +134,7 @@ void cargarArchivoConfiguracion(char* archivoConfiguracion){
 		personajeNivel->nomNivel = string_duplicate(niveles[nroNivel]);
 //		strcpy(personajeNivel->nomNivel, niveles[nroNivel]);
 		personajeNivel->Objetivos = listaObjetivos;
-		list_add(personaje.lPersonajes, personajeNivel, sizeof(personajeIndividual_t));
+		list_add(personaje.lPersonajes, personajeNivel);
 	}
 
 //	free(stringABuscar);
