@@ -321,13 +321,14 @@ int conexionNivel(int iSocketComunicacion, char* sPayload, fd_set* pSetSocketsOr
 		delegarConexion(&pNivelNuevo->masterfds, pSetSocketsOrquestador, iSocketComunicacion, &pNivelNuevo->maxSock);
 		log_debug(logger, "Nuevo planificador del nivel: '%s' y planifica con: %i", pNivelNuevo->nombre, pNivelNuevo->algoritmo);
 
+		free(sNombreNivel);
+		free(pInfoNivel);
+		return EXIT_SUCCESS;
+
 	} else {
 		log_error(logger,"Tipo de mensaje incorrecto: se esperaba datos del nivel");
 		return EXIT_FAILURE;
 	}
-
-	free(pInfoNivel);
-	return EXIT_SUCCESS;
 }
 
 
@@ -415,9 +416,9 @@ bool avisoConexionANivel(int sockNivel,char *sPayload, tSimbolo simbolo){
 }
 
 
-void crearNivel(t_list* lNiveles, tNivel* pNivelNuevo, int socket, char *levelName, tInfoNivel *pInfoNivel) {
-	pNivelNuevo->nombre = malloc(strlen(levelName) + 1);
-	strcpy(pNivelNuevo->nombre, levelName);
+void crearNivel(t_list* lNiveles, tNivel* pNivelNuevo, int socket, char *nombreNivel, tInfoNivel *pInfoNivel) {
+	pNivelNuevo->nombre = malloc(strlen(nombreNivel) + 1);
+	strcpy(pNivelNuevo->nombre, nombreNivel);
 	pNivelNuevo->cListos 	 = queue_create();
 	pNivelNuevo->lBloqueados = list_create();
 	pNivelNuevo->socket 	 = socket;
