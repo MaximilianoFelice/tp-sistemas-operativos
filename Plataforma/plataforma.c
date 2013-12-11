@@ -553,7 +553,7 @@ void *planificador(void * pvNivel) {
 
             case(DESCONEXION):
 				desconectar(pNivel, &pPersonajeActual, iSocketConexion);
-            	if(pPersonajeActual == NULL && cantidadListos == 1){
+            	if (pPersonajeActual == NULL && cantidadListos == 1) {
             		iEnviarTurno = true;
             	} else {
             		iEnviarTurno = false;
@@ -719,6 +719,7 @@ void posicionRecursoPersonaje(tNivel *pNivel, tPersonaje *pPersonajeActual, int 
     pkgPosRecurso.type   = PL_POS_RECURSO;
     pkgPosRecurso.length = sizeof(tSimbolo) + sizeof(tSimbolo);
     memcpy(pkgPosRecurso.payload, sPayload, pkgPosRecurso.length);
+    free(sPayload);
 
     enviarPaquete(socketNivel, &pkgPosRecurso, logger, "Solicitud al NIVEL la posicion de recurso");
     recibirPaquete(socketNivel, &tipoMensaje, &sPayload, logger, "Recibo del NIVEL posicion del recurso");
@@ -730,6 +731,7 @@ void posicionRecursoPersonaje(tNivel *pNivel, tPersonaje *pPersonajeActual, int 
     	pkgPosRecurso.type    = PL_POS_RECURSO;
         pkgPosRecurso.length  = sizeof(int8_t) + sizeof(int8_t);
         memcpy(pkgPosRecurso.payload, sPayload, pkgPosRecurso.length);
+        free(sPayload);
     	enviarPaquete(iSocketConexion, &pkgPosRecurso, logger, "Envio de posicion de recurso al personaje");
 
     } else {
@@ -738,8 +740,6 @@ void posicionRecursoPersonaje(tNivel *pNivel, tPersonaje *pPersonajeActual, int 
         pkgPosRecurso.length  = 0;
         enviarPaquete(iSocketConexion, &pkgPosRecurso, logger, "WARN: No se obtiene respuesta esperada del nivel");
     }
-
-    free(sPayload);
 }
 
 void obtenerDistanciaFaltante(tPersonaje *pPersonajeActual, char * sPayload) {
@@ -759,6 +759,8 @@ void obtenerDistanciaFaltante(tPersonaje *pPersonajeActual, char * sPayload) {
 
 void muertePorEnemigoPersonaje(tNivel *pNivel, tPersonaje** pPersonajeActual, int iSocketConexion, char* sPayload) {
 	tSimbolo *simbolo = deserializarSimbolo(sPayload);
+	free(sPayload);
+
 	tPersonaje *personajeMuerto;
 	log_debug(logger, "<<< Me llego la muerte del personaje %c por un enemigo", *simbolo);
 
@@ -772,7 +774,6 @@ void muertePorEnemigoPersonaje(tNivel *pNivel, tPersonaje** pPersonajeActual, in
 	}
 
 	free(simbolo);
-	free(sPayload);
 }
 
 int avisarAlPersonajeDeMuerte(int socketPersonajeMuerto, tSimbolo simbolo){
@@ -785,6 +786,8 @@ int avisarAlPersonajeDeMuerte(int socketPersonajeMuerto, tSimbolo simbolo){
 void muertePorDeadlockPersonaje(tNivel *pNivel, char *sPayload){
 
 	char *personajeDeadlock = sPayload;
+	free(sPayload);
+
 	tPaquete paquete;
 
 	log_debug(logger, "<<< El nivel %s mato al personaje %c para resolver interbloqueo", pNivel->nombre, *personajeDeadlock);
@@ -794,13 +797,12 @@ void muertePorDeadlockPersonaje(tNivel *pNivel, char *sPayload){
 	paquete.type = PL_MUERTO_POR_DEADLOCK; //Cuando el personaje se desconecte va a liberar recursos ahí.
 	paquete.length = 0;
 	enviarPaquete(persBlock->pPersonaje->socket, &paquete, logger, "Se envia aviso de muerte por deadlock");
-
-	free(sPayload);
 }
 
 void movimientoPersonaje(int iSocketConexion, char* sPayload, tNivel *pNivel, tPersonaje** pPersonajeActual) {
 
     tMovimientoPers *movPers = deserializarMovimientoPers(sPayload);
+    free(sPayload);
 
     //Si no esta muerto, le doy el movimiento
     if(!(*pPersonajeActual)->muertoEnemigos){
@@ -818,7 +820,6 @@ void movimientoPersonaje(int iSocketConexion, char* sPayload, tNivel *pNivel, tP
 		*pPersonajeActual = NULL;
     }
 
-	free(sPayload);
 	free(movPers);
 }
 
@@ -841,22 +842,24 @@ void confirmarMovimiento(tNivel *nivel, tPersonaje *pPersonajeActual) {
 int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNivel, tPersonaje *pPersonajeActual) {
 	tInfoNivel* pInfoNivel;
 	pInfoNivel = deserializarInfoNivel(sPayload);
+	free(sPayload);
+
 	log_debug(logger, "<<< Recibe actualizacion de criterios del nivel");
 
-	pNivel->quantum   = pInfoNivel->quantum;
-	pNivel->delay     = pInfoNivel->delay;
+	pNivel->quantum = pInfoNivel->quantum;
+	pNivel->delay   = pInfoNivel->delay;
 
 	if (pNivel->algoritmo != pInfoNivel->algoritmo) {
 		pNivel->algoritmo = pInfoNivel->algoritmo;
 
-		if(!nivelVacio(pNivel)){
+		if (!nivelVacio(pNivel)) {
 
-			if(pPersonajeActual != NULL){
+			if (pPersonajeActual != NULL) {
 				pPersonajeActual->quantumUsado = 0;
 				queue_push(pNivel->cListos, pPersonajeActual);
 			}
 
-			bool _menorRemainingDistance(tPersonaje *unPersonaje, tPersonaje *otroPersonaje){
+			bool _menorRemainingDistance(tPersonaje *unPersonaje, tPersonaje *otroPersonaje) {
 				return (unPersonaje->remainingDistance < otroPersonaje->remainingDistance );
 			}
 			list_sort(pNivel->cListos->elements, (void *)_menorRemainingDistance);
@@ -864,9 +867,7 @@ int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNi
 		}
 	}
 
-	free(sPayload);
 	free(pInfoNivel);
-
 	return EXIT_SUCCESS;
 }
 
@@ -878,6 +879,8 @@ void solicitudRecursoPersonaje(int iSocketConexion, char *sPayload, tNivel *pNiv
 
     tSimbolo *recurso;
     recurso = deserializarSimbolo(sPayload);
+    free(sPayload);
+
     log_info(logger, "<<< El personaje %c solicita el recurso %c", (*pPersonaje)->simbolo, *recurso);
 
     tPersonajeBloqueado *pPersonajeBloqueado =  createPersonajeBlock(*pPersonaje, *recurso);
@@ -885,7 +888,7 @@ void solicitudRecursoPersonaje(int iSocketConexion, char *sPayload, tNivel *pNiv
     log_debug(logger, "Personaje %c se encuentra bloqueado por recurso %c", pPersonajeBloqueado->pPersonaje->simbolo, *recurso);
 
     *pPersonaje = NULL;
-    free(sPayload);
+
     free(recurso);
 
     enviarPaquete(pNivel->socket, &pkgSolicituRecurso, logger, "Solicitud de recurso");
@@ -896,6 +899,8 @@ void recepcionRecurso(tNivel *pNivel, char *sPayload) {
 	tPersonaje *pPersonaje;
 
 	pSimbolo = deserializarSimbolo(sPayload);
+	free(sPayload);
+
 	log_info(logger, "<<< Se recibe el recurso %c", *pSimbolo);
 	pPersonaje = desbloquearPersonaje(pNivel->lBloqueados, *pSimbolo);
 
@@ -919,7 +924,6 @@ void recepcionRecurso(tNivel *pNivel, char *sPayload) {
 	}
 
 	free(pSimbolo);
-	free(sPayload);
 }
 
 int desconectarNivel(tNivel *pNivel){
