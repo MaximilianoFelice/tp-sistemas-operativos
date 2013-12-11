@@ -60,7 +60,7 @@ typedef struct PersonajeIndividual{
 	pthread_t *thread;
 } personajeIndividual_t;
 
-void consultarReinicio();
+bool consultarReinicio();
 void matarHilosExceptoYo(char *nivel);
 void asesinarme();
 void deboMorir();
