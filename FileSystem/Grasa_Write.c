@@ -116,6 +116,8 @@ int grasa_rmdir (const char* path){
 	// Devuelve el lock de escritura.
 	pthread_rwlock_unlock(&rwlock);
 			log_lock_trace(logger, "Rmdir: Devuelve lock escritura. En cola: %d", rwlock.__data.__nr_writers_queued);
+	// Borra la estructura de cache:
+	name_cache_free(&node_cache);
 	return res;
 }
 
@@ -399,7 +401,8 @@ int grasa_unlink (const char* path){
 	// Devuelve el lock de escritura.
 	pthread_rwlock_unlock(&rwlock);
 			log_lock_trace(logger, "Ulink: Devuelve lock escritura. En cola: %d", rwlock.__data.__nr_writers_queued);
-
+	// Borra la estructura de cache:
+	name_cache_free(&node_cache);
 	DISABLE_DELETE_MODE;
 
 	return grasa_rmdir(path);
@@ -435,6 +438,8 @@ int grasa_rename (const char* oldpath, const char* newpath){
 
 	free(tofree1);
 	free(tofree2);
+	// Borra la estructura de cache:
+	name_cache_free(&node_cache);
 
 	return 0;
 }
@@ -515,6 +520,9 @@ int grasa_flush(const char* path, struct fuse_file_info *fi){
 	// Devuelve el lock de escritura.
 	pthread_rwlock_unlock(&rwlock);
 			log_lock_trace(logger, "Flush: Devuelve lock escritura. En cola: %d", rwlock.__data.__nr_writers_queued);
+
+	// Borra la estructura de cache:
+	name_cache_free(&node_cache);
 
 	return 0;
 }

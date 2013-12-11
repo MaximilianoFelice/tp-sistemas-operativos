@@ -5,9 +5,6 @@
  *      Author: Maximiliano Felice
  */
 #include "grasa.h"
-//#include "Grasa_Handlers.c"
-
-
 
 struct t_runtime_options {
 	char* welcome_msg;
@@ -109,10 +106,17 @@ void sig_term_handler(int sig){
 			if (munmap(header_start, ACTUAL_DISC_SIZE_B ) == -1) printf("ERROR");
 
 			close(discDescriptor);
+
+			name_cache_delete(&node_cache);
+
+			exit(0); /* Chau, chau, adios! */
 	}
 }
 
 int main (int argc, char *argv[]){
+
+	/* Crea la estructura de cache */
+	name_cache_create(&node_cache);
 
 	DISABLE_DELETE_MODE;
 
@@ -214,6 +218,8 @@ int main (int argc, char *argv[]){
 	if (munmap(header_start, ACTUAL_DISC_SIZE_B ) == -1) printf("ERROR");
 
 	close(fd);
+
+	name_cache_delete(&node_cache);
 
 	return res;
 

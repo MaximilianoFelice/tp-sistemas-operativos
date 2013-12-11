@@ -21,6 +21,7 @@
 #include <commons/log.h>
 #include <signal.h>
 #include <commons/string.h>
+#include "grasa_cache.h"
 
 
 #define GFILEBYTABLE 1024
@@ -130,6 +131,7 @@ int discDescriptor;
 	int split_path(const char*, char**, char**);
 	int path_size_in_bytes(const char*);
 	int get_size(void);
+	uint32_t get_node_number(const char*, struct fuse_file_info*);
 
 	// Funciones de lectura de FUSE (incluidas en <Grasa_Read.c>)
 	int grasa_getattr(const char*, struct stat*);

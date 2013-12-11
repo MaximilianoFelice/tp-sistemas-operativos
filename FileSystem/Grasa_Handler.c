@@ -22,6 +22,10 @@ ptrGBloque determinar_nodo(const char* path){
 	// Si es el directorio raiz, devuelve 0:
 	if(!strcmp(path, "/")) return 0;
 
+	int cache_result;
+	/* Realiza el chequeo de la cache */
+	if ((cache_result = name_cache_look(&node_cache, path)) > 0) return cache_result;
+
 	int i, nodo_anterior, err = 0;
 	// Super_path usado para obtener la parte superior del path, sin el nombre.
 	char *super_path = (char*) malloc(strlen(path) +1), *nombre = (char*) malloc(strlen(path)+1);
@@ -46,13 +50,16 @@ ptrGBloque determinar_nodo(const char* path){
 		node_name = &(node->fname[0]);
 	}
 
-	// Cierra conexiones y libera memoria.
+	// Cierra conexiones y libera memoria. Contempla casos de error.
 	pthread_rwlock_unlock(&rwlock);
 			log_lock_trace(logger, "Determinar_nodo: Libera lock lectura. Cantidad de lectores: %d", rwlock.__data.__nr_readers);
 	free(start);
 	free(start_super_path);
 	if (err != 0) return err;
 	if (i >= GFILEBYTABLE) return -1;
+
+	/* Guarda el resultado de la operacion en la cache */
+	cache_renew(&node_cache, path, (i+1));
 	return (i+1);
 
 }
@@ -112,7 +119,7 @@ int get_node(void){
 	bitarray = bitarray_create((char*) bitmap_start, BITMAP_SIZE_B);
 
 	// Encuentra el primer bit libre en la tabla de nodos.
-	for (i = 0; (i <= bitmap_size_in_bits) & (bitarray_test_bit(bitarray,i) == 1); i++);
+	for (i = (GHEADERBLOCKS+BITMAP_BLOCK_SIZE+GFILEBYTABLE); (i <= bitmap_size_in_bits) & (bitarray_test_bit(bitarray,i) == 1); i++);
 	if(i > BITMAP_SIZE_BITS) {
 		res = -ENOSPC;
 		goto finalizar;
@@ -268,7 +275,6 @@ int set_position (int *pointer_block, int *data_block, size_t size, off_t offset
 	return 0;
 }
 
-// FIXME Hay un caso especial donde borra el header. Analizarlo.
 /*
  *	@DESC
  *		Borra los nodos hasta la estructura correspondiente (upto:hasta) especificadas. EXCLUSIVE.
@@ -308,11 +314,6 @@ int delete_nodes_upto (struct grasa_file_t *file_data, int pointer_upto, int dat
 
 		// localiza el puntero de datos a borrar.
 		node_pointer_to_delete = file_data->blk_indirect[pointer_pos];
-//		if (node_pointer_to_delete == 0) { /* Hay un caso especial donde sucede esto: Cuando un archivo termina justo de cargar un nodo hasta el final. */
-//			pointer_pos--;
-//			data_pos = PTRGBLOQUE_SIZE-1;
-//			continue;
-//		}
 		aux = (ptrGBloque*) &(header_start[node_pointer_to_delete]);
 
 		// Indica hasta que nodo debe borrar.

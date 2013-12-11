@@ -18,7 +18,9 @@
  * 		fi - es una estructura que contiene la metadata del archivo indicado en el path
  *
  * 	@RETURN
- * 		O archivo fue encontrado. -EACCES archivo no es accesible
+ * 		O archivo fue encontrado.
+ * 		-EACCES archivo no es accesible.
+ * 		-ENOENT archivo no encontrado.
  */
 int grasa_open(const char *path, struct fuse_file_info *fi) {
 

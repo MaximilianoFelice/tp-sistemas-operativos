@@ -99,7 +99,7 @@ int grasa_getattr(const char *path, struct stat *stbuf) {
  */
 int grasa_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi) {
 			log_info(logger, "Readdir: Path: %s - Offset %d", path, offset);
-	int i, nodo = determinar_nodo((char*) path), res = 0;
+	int i, nodo = determinar_nodo(path), res = 0;
 	struct grasa_file_t *node;
 
 	if (nodo == -1) return  -ENOENT;
@@ -147,7 +147,7 @@ int grasa_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t off
 int grasa_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
 			log_info(logger, "Reading: Path: %s - Size: %d - Offset %d", path, size, offset);
 	(void) fi;
-	unsigned int nodo = determinar_nodo(path), bloque_punteros, num_bloque_datos;
+	unsigned int nodo =determinar_nodo(path), bloque_punteros, num_bloque_datos;
 	unsigned int bloque_a_buscar; // Estructura auxiliar para no dejar choclos
 	struct grasa_file_t *node;
 	ptrGBloque *pointer_block;
