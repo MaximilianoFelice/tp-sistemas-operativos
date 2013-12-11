@@ -1373,6 +1373,8 @@ void imprimirConexiones(fd_set *master_planif, int maxSock, char* host) {
 
 void waitPersonajes(tNivel *pNivel, tPersonaje *personajeActual, bool *iEnviarTurno) {
 	if (nivelVacio(pNivel) && personajeActual==NULL) {
+
+		//TODO REVISAR
 		pthread_mutex_lock(&semNivel);
 		pthread_cond_wait(&pNivel->hayPersonajes, &semNivel);
 		pthread_mutex_unlock(&semNivel);

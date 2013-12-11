@@ -60,7 +60,6 @@ int main(int argc, char*argv[]) {
 
 	do {
 		log_debug(logger, "Tiro los hilos para jugar en cada nivel");
-		sleep(1);
 		crearTodosLosHilos();
 		reiniciar = false;
 
