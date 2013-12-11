@@ -15,32 +15,30 @@
  */
 t_config *config_try_create(char *path, char* options){
 
-
-	if (!file_exists (path))	//Si no existe, sale y muestra el error
-	{
-		printf("[ERROR] `%s` no encontrado o no disponible para la lectura.\n", path);
-		exit(0);
+	if (!file_exists(path)) {
+		printf("[ERROR] '%s' no encontrado o no disponible para la lectura.\n", path);
+		exit(EXIT_FAILURE);
 	}
-	t_config *conf = config_create (path);
 
-    char* str = strdup(options);
-    char* token=strtok (str,",");
+	t_config *conf = config_create(path);
 
-    while(token)//va levantando cada string
-    {
-    	if (!config_get_string_value (conf, token)) //Si no existe, imprime el error
-    	{
-			printf("[ERROR] No se encontro `%s` en `%s`\n", token, path);
-			exit(0); //Linux limpia la memoria cuando se cierra, asi que no me gasto en hacer free
+	char* str = strdup(options);
+    char* token;
+    token = strtok(str, ",");
+
+    while (token) {
+    	if (!(config_has_property(conf, token))) {
+			printf("[ERROR] No se encontro '%s' en '%s'\n", token, path);
+			exit(EXIT_FAILURE); //Linux limpia la memoria cuando se cierra, asi que no me gasto en hacer free
 		}
-        token=strtok (NULL,","); //Pasa al siguiente token
+        token = strtok(NULL,","); //Pasa al siguiente token
     }
 
-	free(str); //Libero las opciones, si llego hasta aca, es porque levanto bien
+    free(str);
 	return conf;
 }
 
-int file_exists( const char* path ){
+int file_exists(const char* path ){
     struct stat buffer;
     int exist = stat(path, &buffer);
     return (exist+1); //Devolveria 0 si lo cuentra, -1 si no
@@ -53,8 +51,9 @@ int file_exists( const char* path ){
  * de la siguiente forma [lista_valores_separados_por_coma]
  * Si no existe la key, revuelve -1
 */
-char **config_try_get_array_value(t_config* conf, char* key){
-	if( config_has_property(conf, key) )
+char **config_try_get_array_value(t_config* conf, char* key) {
+	if (config_has_property(conf, key)) {
 		return config_get_array_value(conf, key);
+	}
 	return NULL;
 }
