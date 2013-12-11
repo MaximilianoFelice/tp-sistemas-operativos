@@ -111,7 +111,7 @@ int recibirPaquete(int socketReceptor, tMensaje* tipoMensaje, char** psPayload, 
 
 		if (bytesRecibidos < 0) {
 			log_error(pLogger, "%s: %s", sMensajeLogger,  strerror(errno));
-			free(psPayload);	// ERROR, se libera el espacio reservado
+			free(*psPayload);	// ERROR, se libera el espacio reservado
 			return -1;
 		}
 		//log_debug(pLogger, "Se reciben %d bytes de payload", bytesRecibidos);//TODO borrar esta linea

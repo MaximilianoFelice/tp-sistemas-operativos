@@ -119,13 +119,10 @@ void cargarArchivoConfiguracion(char* archivoConfiguracion){
 	t_list* listaObjetivos;
 	personaje.lPersonajes = list_create();
 	int nroNivel;
-//	char *stringABuscar = malloc(sizeof(char) * 25);
-
 
 	//Armamos lista de niveles con sus listas de objetivos del config
 	for (nroNivel = 0; niveles[nroNivel] != NULL; nroNivel++) {  //Cicla los niveles
 		char* stringABuscar = string_from_format("Obj[%s]", niveles[nroNivel]);
-//		sprintf(stringABuscar, "Obj[%s]", niveles[nroNivel]); //Arma el string a buscar
 		char** objetivos = config_try_get_array_value(configPersonaje, stringABuscar);
 		free(stringABuscar);
 		int nroObjetivo;
@@ -138,7 +135,7 @@ void cargarArchivoConfiguracion(char* archivoConfiguracion){
 		personajeNivel->nomNivel = string_duplicate(niveles[nroNivel]);
 //		strcpy(personajeNivel->nomNivel, niveles[nroNivel]);
 		personajeNivel->Objetivos = listaObjetivos;
-		list_add_new(personaje.lPersonajes, personajeNivel, sizeof(personajeIndividual_t));
+		list_add(personaje.lPersonajes, personajeNivel, sizeof(personajeIndividual_t));
 	}
 
 //	free(stringABuscar);
