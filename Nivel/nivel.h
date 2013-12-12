@@ -40,8 +40,6 @@
 
 typedef struct {
 	_Bool bloqueado;
-	_Bool muerto; //Para que no lo intente matar dos veces seguidas
-	_Bool listoParaPerseguir; //Se activa cuando se empieza a mover el personaje; es para que no lo persiga si el chabon todavia no empezo a moverse
 	tSimbolo simbolo;
 	t_list* recursos;
 } pers_t;
@@ -72,7 +70,8 @@ void *enemigo(void * args);
 void *deteccionInterbloqueo (void *parametro);
 void actualizaPosicion(int *contMovimiento, int *posX, int *posY);
 void calcularMovimiento(tDirMovimiento direccion, int *posX, int *posY);
-void matarPersonaje(tSimbolo *simboloItem);
+void matarPersonaje(ITEM_NIVEL *item); //El original de Cesar
+void matarPersonaje2(tSimbolo *simboloItem);
 
 //Mensajes
 void confirmacionPlataforma(tPaquete *paquete, tMensaje tipoMensaje, char *msjInfo);

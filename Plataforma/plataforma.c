@@ -453,7 +453,6 @@ void agregarPersonaje(tNivel *pNivel, tSimbolo simbolo, int socket) {
 	pPersonajeNuevo->posRecurso.posY   = 0; // Solo se usa en SRDF
 	pPersonajeNuevo->quantumUsado      = 0;
 	pPersonajeNuevo->remainingDistance = pNivel->rdDefault;
-	pPersonajeNuevo->muertoEnemigos    = false;
 
 	queue_push(pNivel->cListos, pPersonajeNuevo);
 	log_debug(logger, "Se agrego personaje a la cola de listos");
@@ -537,6 +536,8 @@ void *planificador(void * pvNivel) {
 
             case(N_MUERTO_POR_ENEMIGO):
 				muertePorEnemigoPersonaje(pNivel, &pPersonajeActual, iSocketConexion, sPayload);
+            	if(pPersonajeActual==NULL)
+            		iEnviarTurno=true;
             	break;
 
             case(N_MUERTO_POR_DEADLOCK):
@@ -766,27 +767,33 @@ void obtenerDistanciaFaltante(tPersonaje *pPersonajeActual, char * sPayload) {
 
 void muertePorEnemigoPersonaje(tNivel *pNivel, tPersonaje** pPersonajeActual, int iSocketConexion, char* sPayload) {
 	tSimbolo *simbolo = deserializarSimbolo(sPayload);
-	free(sPayload);
+	int socketPersonaje;
 
-	tPersonaje *personajeMuerto;
 	log_debug(logger, "<<< Me llego la muerte del personaje %c por un enemigo", *simbolo);
 
-	//Lo saco y lo marco como muerto. Cuando se quiera volver a mover ahi lo mato
-	if(*pPersonajeActual!=NULL && ((*pPersonajeActual)->simbolo==*simbolo)){ //Si el personaje que tenia el turno
-		(*pPersonajeActual)->muertoEnemigos = true;
+	if(*pPersonajeActual!=NULL && (*pPersonajeActual)->simbolo==*simbolo){
+		socketPersonaje = (*pPersonajeActual)->socket;
+		eliminarPersonaje(pNivel, *pPersonajeActual);
+		avisarAlPersonajeDeMuerte(socketPersonaje, *simbolo);
+		*pPersonajeActual = NULL;
 	}
-	else { //Es un personaje que no tenia el turno
+	else {
+		tPersonaje *personajeMuerto;
 		personajeMuerto = getPersonaje(pNivel->cListos->elements, *simbolo, byName);
-		personajeMuerto->muertoEnemigos = true;
+		socketPersonaje = personajeMuerto->socket;
+		eliminarPersonaje(pNivel, personajeMuerto);
+		avisarAlPersonajeDeMuerte(socketPersonaje, *simbolo);
 	}
 
+	free(sPayload);
 	free(simbolo);
+
 }
 
 int avisarAlPersonajeDeMuerte(int socketPersonajeMuerto, tSimbolo simbolo){
 	tPaquete pkgMuertePers;
 	serializarSimbolo(PL_MUERTO_POR_ENEMIGO, simbolo, &pkgMuertePers);
-	enviarPaquete(socketPersonajeMuerto, &pkgMuertePers, logger, "Envio mensaje de muerte por personaje");
+	enviarPaquete(socketPersonajeMuerto, &pkgMuertePers, logger, "Envio mensaje de muerte al personaje");
 	return EXIT_SUCCESS;
 }
 
@@ -812,20 +819,9 @@ void movimientoPersonaje(int iSocketConexion, char* sPayload, tNivel *pNivel, tP
     free(sPayload);
 
     //Si no esta muerto, le doy el movimiento
-    if(!(*pPersonajeActual)->muertoEnemigos){
-
-		tPaquete pkgMovimientoPers;
-		serializarMovimientoPers(PL_MOV_PERSONAJE, *movPers, &pkgMovimientoPers);
-		enviarPaquete(pNivel->socket, &pkgMovimientoPers, logger, "Envio movimiento del personaje");
-
-    } else { //Esta muerto, no puede moverse debe morir
-// FIXME: Deberia generar la muerte en el momento que se produce y no en el proximo turno.
-    	// Se podria realizar una evaluacion en la cual se analicen los personajes que no se estan ejecutando.
-		int socketPersonaje = (*pPersonajeActual)->socket;
-		eliminarPersonaje(pNivel, *pPersonajeActual);
-		avisarAlPersonajeDeMuerte(socketPersonaje, movPers->simbolo);
-		*pPersonajeActual = NULL;
-    }
+	tPaquete pkgMovimientoPers;
+	serializarMovimientoPers(PL_MOV_PERSONAJE, *movPers, &pkgMovimientoPers);
+	enviarPaquete(pNivel->socket, &pkgMovimientoPers, logger, "Envio movimiento del personaje");
 
 	free(movPers);
 }
