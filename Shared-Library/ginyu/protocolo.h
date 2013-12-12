@@ -85,7 +85,8 @@ typedef enum {
 	P_FIN_PLAN_NIVELES,			//AVISO cuando se terminan todos los niveles
 	/* Mensajes comunes */
 	DESCONEXION,
-	NO_SE_OBTIENE_RESPUESTA
+	NO_SE_OBTIENE_RESPUESTA,
+	NADA
 } tMensaje;
 
 typedef int8_t tSimbolo;

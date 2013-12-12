@@ -40,7 +40,8 @@
 
 typedef struct {
 	_Bool bloqueado;
-	_Bool listoParaPerseguir; //Se activa cuando se empieza a mover el personaje; es para que no lo persiga si el chabon todavia no empezo a moverse
+	_Bool muertoEnemigos;
+	_Bool listoParaPersguir;
 	tSimbolo simbolo;
 	t_list* recursos;
 } pers_t;

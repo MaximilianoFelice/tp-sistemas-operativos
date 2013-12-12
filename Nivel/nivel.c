@@ -204,32 +204,35 @@ int main(int argc, char* argv[]) {
 					movPersonaje.simbolo   = (int8_t)*payload;
 					movPersonaje.direccion = (tDirMovimiento)*(payload+sizeof(int8_t));
 
-
-
 					log_debug(logger, "<<< %s: Solicitud de movimiento del personaje %c", nom_nivel, movPersonaje.simbolo);
-
-					pthread_mutex_lock(&semEnemigos);
 
 					personaG = getPersonajeBySymbol(movPersonaje.simbolo);
 
 					if (personaG != NULL) {
-						personaG->bloqueado=false;
-						personaG->listoParaPerseguir = true;
-						char symbol=(char) movPersonaje.simbolo;
-						getPosPersonaje(list_items,symbol, &posX, &posY);
-						calcularMovimiento(movPersonaje.direccion, &posX, &posY);
+						if(!personaG->muertoEnemigos){
+							personaG->bloqueado=false;
 
-						pthread_mutex_lock(&semItems);
-						MoverPersonaje(list_items,symbol, posX, posY);
-						pthread_mutex_unlock(&semItems);
-						confirmacionPlataforma(&paquete, N_CONFIRMACION_MOV, "Notificando a plataforma personaje movido correctamente");
+							char symbol=(char) movPersonaje.simbolo;
+							getPosPersonaje(list_items,symbol, &posX, &posY);
+							calcularMovimiento(movPersonaje.direccion, &posX, &posY);
 
+							pthread_mutex_lock(&semItems);
+							MoverPersonaje(list_items,symbol, posX, posY);
+							nivel_gui_dibujar(list_items, nom_nivel);
+							pthread_mutex_unlock(&semItems);
+							confirmacionPlataforma(&paquete, N_CONFIRMACION_MOV, "Notificando a plataforma personaje movido correctamente");
+						}
+						else {
+							pthread_mutex_lock(&semEnemigos);
+							matarPersonaje(&movPersonaje.simbolo);
+							pthread_mutex_unlock(&semEnemigos);
+						}
 					}
 //					else {
 //						solicitudError(&paquete, N_PERSONAJE_INEXISTENTE, "Notificando a plataforma personaje no existe");
 //					}
 					free(payload);
-					pthread_mutex_unlock(&semEnemigos);
+
 
 				break;
 				case PL_POS_RECURSO:
@@ -330,17 +333,13 @@ int main(int argc, char* argv[]) {
 						log_debug(logger, "Libere una instancia del recurso %c", persDesconectado->recursos[i]);
 					}
 					BorrarItem(list_items, persDesconectado->simbolo); //Si no esta muerto, sacalo
-
+					nivel_gui_dibujar(list_items, nom_nivel);
 					pthread_mutex_unlock(&semItems);
 					log_debug(logger, "%s: Libere recursos", nom_nivel);
 					free(persDesconectado);
 					personaje_destroyer(personajeOut);
 				break;
 				} //Fin del switch
-
-				pthread_mutex_lock(&semItems);
-				nivel_gui_dibujar(list_items, nom_nivel);
-				pthread_mutex_unlock(&semItems);
 			}
 		}
 	}
@@ -462,29 +461,46 @@ void *enemigo(void * args) {
 	CreateEnemy(list_items,enemigo->num_enemy,enemigo->posX,enemigo->posY);
 	pthread_mutex_unlock(&semItems);
 
+
 	while (1) {
-		bool personajeBloqueado(pers_t* personaje){return(personaje->bloqueado==false && personaje->listoParaPerseguir==true);}
+		bool personajeBloqueado(pers_t* personaje){return(personaje->bloqueado==false && !personaje->muertoEnemigos);}
 		cantPersonajesActivos=list_count_satisfying(list_personajes,(void*)personajeBloqueado);
+
 		if (cantPersonajesActivos == 0) {
-			/* para hacer el movimiento de caballo uso la var ultimoMov que puede ser:
-			 * a:el ultimo movimiento fue horizontal por primera vez b:el utlimo movimiento fue horizontal por segunda vez
-			 * c:el ultimo movimiento fue vertical por primera vez
-			 * y la variable dirMov que indicara en que direccion se esta moviendo
-			 * a:abajo-derecha b:abajo-izquierda c:arriba-derecha d:arriba-izquierda
+			/* Para hacer el movimiento de caballo uso la var ultimoMov que puede ser:
+			 * 		a:el ultimo movimiento fue horizontal por primera vez
+			 * 		b:el ultimo movimiento fue horizontal por segunda vez
+			 * 		c:el ultimo movimiento fue vertical por primera vez
+			 *
+			 * La variable dirMov que indicara en que direccion se esta moviendo
+			 * 		a:abajo-derecha
+			 * 		b:abajo-izquierda
+			 * 		c:arriba-derecha
+			 * 		d:arriba-izquierda
 			*/
 			if(enemigo->posY<1){ //se esta en el limite vertical superior
-				if((enemigo->posX<1)||(dirMov=='c')) dirMov='a';
-				if((enemigo->posX>maxCols)||(dirMov=='d')) dirMov='b';
+				if((enemigo->posX<1)||(dirMov=='c'))
+					dirMov='a';
+				if((enemigo->posX>maxCols)||(dirMov=='d'))
+					dirMov='b';
 			}
 			if(enemigo->posY>maxRows){ //se esta en el limite vertical inferior
-				if((enemigo->posX<1)||(dirMov=='a')) dirMov='c';
-				if((enemigo->posX>maxCols)||(dirMov=='b'))dirMov='d';
+				if((enemigo->posX<1)||(dirMov=='a'))
+					dirMov='c';
+				if((enemigo->posX>maxCols)||(dirMov=='b'))
+					dirMov='d';
 			}
 			if(enemigo->posX<=0){ //se esta en el limite horizontal izquierdo
-				if(dirMov=='b') dirMov='a';else dirMov='c';
+				if(dirMov=='b')
+					dirMov='a';
+				else
+					dirMov='c';
 			}
 			if(enemigo->posX>maxCols){
-				if(dirMov=='a') dirMov='b';else dirMov='d';
+				if(dirMov=='a')
+					dirMov='b';
+				else
+					dirMov='d';
 			}
 			//calculando el movimiento segun lo anterior y la direccion con la que viene
 			switch(dirMov){
@@ -548,60 +564,77 @@ void *enemigo(void * args) {
 			actualizaPosicion(&contMovimiento, &(enemigo->posX),&(enemigo->posY));
 			void esUnRecurso(ITEM_NIVEL *ite){
 				if ((ite->item_type==RECURSO_ITEM_TYPE)&&((ite->posx==enemigo->posX)&&(ite->posy==enemigo->posY))){
-					if(ultimoMov=='a'||ultimoMov=='b')enemigo->posY++;
-					else enemigo->posX--;
+					if(ultimoMov=='a'||ultimoMov=='b')
+						enemigo->posY++;
+					else
+						enemigo->posX--;
 				}
 			}
 			list_iterate(list_items,(void*)esUnRecurso);
+			log_debug(logger, "Soy el enemigo %d y estoy por evadir recursos", enemigo->num_enemy);
 		}
 		else { //ELEGIR O PERSEGUIR A LA VICTIMA
 
 			if(victimaAsignada=='0'){//No tiene victima => selecciono una victima
 
+				dist2=999999;
 				for(i=0;i<list_size(list_items);i++){
 					item=list_get(list_items,i);
 					dist1=(enemigo->posX-item->posx)*(enemigo->posX-item->posx)+(enemigo->posY-item->posy)*(enemigo->posY-item->posy);
-					if((dist1<dist2)&&(item->item_type==PERSONAJE_ITEM_TYPE)){
+					if((item->item_type==PERSONAJE_ITEM_TYPE) && (dist1<dist2)){
+
 						victimaAsignada=item->id;
 						dist2=dist1;
 					}
 				}
+				log_debug(logger, "Soy el enemigo %d y ME ASIGNE la victima %c", enemigo->num_enemy, victimaAsignada);
+
 			}
 			else{//Ya tiene una victima asignada => busco la victimaAsignada en la lista de items y la coloco en persVictima
 
 				persVictima = getPersonajeBySymbol((tSimbolo)victimaAsignada);
 
-				if(persVictima->bloqueado || !persVictima->listoParaPerseguir){
+				log_debug(logger, "Soy el enemigo %d y YA TENGO ASIGNADA la victima %c", enemigo->num_enemy, victimaAsignada);
+
+				if(persVictima->bloqueado || persVictima->muertoEnemigos){
 					//Si estaba bloqueado o ya matado(pero aun no lo saque) => busco nueva victima
 					victimaAsignada='0';
 				}
 				else{ //Me acerco a la victima
 					item = getItemById(victimaAsignada);
 
-					//Elijo el eje por el que me voy a acercar
-					if(enemigo->posY==item->posy){
-						if(enemigo->posX<item->posx){
-							contMovimiento=1;
-						}
-						if(enemigo->posX>item->posx){
-							contMovimiento=3;
-						}
+					log_debug(logger, "Mi victima es %c y esta en (%d, %d)", item->id, item->posx, item->posy);
 
-						if(enemigo->posX==item->posx){//se esta en la misma posicion que la victima =>matarla
-							//un semaforo para que no mande mensaje al mismo tiempo que otros enemigos o el while principal
-							//otro semaforo para que no desasigne y se esten evaluando otros
-							pthread_mutex_lock(&semEnemigos);
-							pers_t *unPersonaje = getPersonajeBySymbol((tSimbolo)item->id);
-							if(unPersonaje!=NULL)
-								matarPersonaje((tSimbolo *)&unPersonaje->simbolo);
-							victimaAsignada='0';
-							pthread_mutex_unlock(&semEnemigos);
+					if(item->posx!=0 && item->posy!=0){
+						//Elijo el eje por el que me voy a acercar
+						if(enemigo->posY==item->posy){
+							if(enemigo->posX<item->posx){
+								contMovimiento=1;
+							}
+							if(enemigo->posX>item->posx){
+								contMovimiento=3;
+							}
+
+							if(enemigo->posX==item->posx){//se esta en la misma posicion que la victima =>matarla
+								//un semaforo para que no mande mensaje al mismo tiempo que otros enemigos o el while principal
+								//otro semaforo para que no desasigne y se esten evaluando otros
+								pthread_mutex_lock(&semEnemigos);
+								pers_t *unPersonaje = getPersonajeBySymbol((tSimbolo)item->id);
+								if(!unPersonaje->muertoEnemigos){
+									unPersonaje->muertoEnemigos = true;
+								}
+								victimaAsignada='0';
+								pthread_mutex_unlock(&semEnemigos);
+							}
+						}
+						else{ //acercarse por fila
+							if(enemigo->posY<item->posy) contMovimiento=4;
+							if(enemigo->posY>item->posy) contMovimiento=2;
 						}
 					}
-					else{ //acercarse por fila
-						if(enemigo->posY<item->posy) contMovimiento=4;
-						if(enemigo->posY>item->posy) contMovimiento=2;
-				    }
+					else {
+						victimaAsignada='0';
+					}
 				}
 				//TODO agregar si se llega a "chocar" con un personaje que no es su victima-->no habia contemplado este caso
 
@@ -614,8 +647,9 @@ void *enemigo(void * args) {
 				if(personajeItem!= NULL){
 					pthread_mutex_lock(&semEnemigos);
 					pers_t *unPersonaje = getPersonajeBySymbol((tSimbolo)personajeItem->id);
-					if(unPersonaje!=NULL)
-						matarPersonaje((tSimbolo *)&unPersonaje->simbolo);
+					if(!unPersonaje->muertoEnemigos){
+						unPersonaje->muertoEnemigos = true;
+					}
 					victimaAsignada='0';
 					pthread_mutex_unlock(&semEnemigos);
 				}
@@ -675,7 +709,8 @@ pers_t *getPersonajeBySymbol(tSimbolo simbolo){
 void CrearNuevoPersonaje(pers_t *pjNew, tSimbolo simbolo){
 	pjNew->simbolo  = simbolo;
 	pjNew->bloqueado  = false;
-	pjNew->listoParaPerseguir = false;
+	pjNew->listoParaPersguir=false;
+	pjNew->muertoEnemigos = false;
 	pjNew->recursos = list_create();
 	list_add_new(list_personajes,(void*)pjNew,sizeof(pers_t));
 	pthread_mutex_unlock(&semItems);
@@ -725,6 +760,7 @@ void matarPersonaje(tSimbolo *simboloItem){
 
 	pthread_mutex_unlock(&semItems);
 	BorrarItem(list_items, *simboloItem);
+	nivel_gui_dibujar(list_items, nom_nivel);
 	pthread_mutex_unlock(&semItems);
 
 
