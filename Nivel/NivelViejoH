@@ -40,8 +40,6 @@
 
 typedef struct {
 	_Bool bloqueado;
-	_Bool muertoEnemigos;
-	_Bool listoParaPersguir;
 	tSimbolo simbolo;
 	t_list* recursos;
 } pers_t;
@@ -72,7 +70,8 @@ void *enemigo(void * args);
 void *deteccionInterbloqueo (void *parametro);
 void actualizaPosicion(int *contMovimiento, int *posX, int *posY);
 void calcularMovimiento(tDirMovimiento direccion, int *posX, int *posY);
-void matarPersonaje(tSimbolo *simboloItem);
+void matarPersonaje(ITEM_NIVEL *item); //El original de Cesar
+void matarPersonaje2(tSimbolo *simboloItem);
 
 //Mensajes
 void confirmacionPlataforma(tPaquete *paquete, tMensaje tipoMensaje, char *msjInfo);
@@ -90,6 +89,7 @@ void CrearNuevoPersonaje(pers_t *pjNew, tSimbolo simbolo);
 void levantarArchivoConf(char*);
 void actualizarInfoNivel(char* argumento);
 void liberarRecsPersonaje(char);
+void eliminarPersPeroNoLiberarRecursos(char id);
 static void personaje_destroyer(pers_t *personaje);
 
 //#undef NIVEL_H_

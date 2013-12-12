@@ -57,6 +57,7 @@ typedef enum {
 	PL_RECURSO_INEXISTENTE,		// AVISO
 	PL_RECURSO_OTORGADO,		// AVISO
 	PL_DESCONEXION_PERSONAJE,
+	PL_LIBERA_RECURSOS,
 	/* Mensajes del nivel */
 	N_HANDSHAKE,
 	N_CONEXION_EXITOSA,			//Se conecta un nuevo personaje correctamente
@@ -84,7 +85,8 @@ typedef enum {
 	P_FIN_PLAN_NIVELES,			//AVISO cuando se terminan todos los niveles
 	/* Mensajes comunes */
 	DESCONEXION,
-	NO_SE_OBTIENE_RESPUESTA
+	NO_SE_OBTIENE_RESPUESTA,
+	NADA
 } tMensaje;
 
 typedef int8_t tSimbolo;
