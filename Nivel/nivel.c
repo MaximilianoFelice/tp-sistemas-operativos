@@ -605,35 +605,30 @@ void *enemigo(void * args) {
 
 					log_debug(logger, "Mi victima es %c y esta en (%d, %d)", item->id, item->posx, item->posy);
 
-					if(item->posx!=0 && item->posy!=0){
-						//Elijo el eje por el que me voy a acercar
-						if(enemigo->posY==item->posy){
-							if(enemigo->posX<item->posx){
-								contMovimiento=1;
-							}
-							if(enemigo->posX>item->posx){
-								contMovimiento=3;
-							}
-
-							if(enemigo->posX==item->posx){//se esta en la misma posicion que la victima =>matarla
-								//un semaforo para que no mande mensaje al mismo tiempo que otros enemigos o el while principal
-								//otro semaforo para que no desasigne y se esten evaluando otros
-								pthread_mutex_lock(&semEnemigos);
-								pers_t *unPersonaje = getPersonajeBySymbol((tSimbolo)item->id);
-								if(!unPersonaje->muertoEnemigos){
-									unPersonaje->muertoEnemigos = true;
-								}
-								victimaAsignada='0';
-								pthread_mutex_unlock(&semEnemigos);
-							}
+					//Elijo el eje por el que me voy a acercar
+					if(enemigo->posY==item->posy){
+						if(enemigo->posX<item->posx){
+							contMovimiento=1;
 						}
-						else{ //acercarse por fila
-							if(enemigo->posY<item->posy) contMovimiento=4;
-							if(enemigo->posY>item->posy) contMovimiento=2;
+						if(enemigo->posX>item->posx){
+							contMovimiento=3;
+						}
+
+						if(enemigo->posX==item->posx){//se esta en la misma posicion que la victima =>matarla
+							//un semaforo para que no mande mensaje al mismo tiempo que otros enemigos o el while principal
+							//otro semaforo para que no desasigne y se esten evaluando otros
+							pthread_mutex_lock(&semEnemigos);
+							pers_t *unPersonaje = getPersonajeBySymbol((tSimbolo)item->id);
+							if(!unPersonaje->muertoEnemigos){
+								unPersonaje->muertoEnemigos = true;
+							}
+							victimaAsignada='0';
+							pthread_mutex_unlock(&semEnemigos);
 						}
 					}
-					else {
-						victimaAsignada='0';
+					else{ //acercarse por fila
+						if(enemigo->posY<item->posy) contMovimiento=4;
+						if(enemigo->posY>item->posy) contMovimiento=2;
 					}
 				}
 				//TODO agregar si se llega a "chocar" con un personaje que no es su victima-->no habia contemplado este caso
