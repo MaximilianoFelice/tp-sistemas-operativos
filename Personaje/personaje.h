@@ -66,6 +66,8 @@ void asesinarme();
 void deboMorir();
 void desconectarPersonajeDeTodoNivel();
 void matarHilos();
+void enviarDesconexionATodos();
+void enviarDesconexion();
 
 
 void notificarFinPlanNiveles();

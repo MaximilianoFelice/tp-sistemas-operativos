@@ -661,24 +661,22 @@ void sig_aumentar_vidas() {
 void restarVida(){
 
 	pthread_mutex_lock(&semModificadorDeVidas);
-	personaje.vidas--; //TODO Validar si no le quedaran vidas
+	personaje.vidas--;
 
 	if (personaje.vidas <= 0){
 		log_debug(logger, "El personaje %c detecto que no hay mas vidas\n", personaje.simbolo);
 		matarHilos();
+		enviarDesconexionATodos();
 		desconectarPersonajeDeTodoNivel();
 		reiniciar = consultarReinicio(); //Aqui es donde me asesino
-		if (reiniciar) {
-			sem_post(&semReinicio); //SIGNAL(sem)
-			sem_post(&semFinPlan);
-		}
+		sem_post(&semReinicio); //SIGNAL(sem)
+		sem_post(&semFinPlan);
 	}
 	pthread_mutex_unlock(&semModificadorDeVidas);
 	log_debug(logger, "Se le ha restado una vida.");
 	log_debug(logger, "Vidas de %c = %d", personaje.simbolo, personaje.vidas);
 }
 
-//Para la señal SIGINT
 void matarHilos() {
 	int cantidadPersonajes = list_size(personaje.lPersonajes);
 	int indexPersonaje;
@@ -686,10 +684,10 @@ void matarHilos() {
 	for (indexPersonaje = 0; indexPersonaje < cantidadPersonajes; indexPersonaje++) {
 		pPersonajePorNivel = list_get(personaje.lPersonajes, indexPersonaje);
 		pthread_cancel(*pPersonajePorNivel->thread);
+		desconectarPersonaje(pPersonajePorNivel);
 	}
 }
 
-//Para la Señal SIGINT
 void desconectarPersonajeDeTodoNivel() {
 	//desconecta a todos los personajes por nivel
 
@@ -712,6 +710,7 @@ void muertoPorSenial() {
 	log_info(logger, "Capture la señal SIGINT y ahora debo morir");
 
 	matarHilos();
+	enviarDesconexionATodos();
 	desconectarPersonajeDeTodoNivel();
 
 	pthread_mutex_unlock(&semModificadorDeVidas);
@@ -763,4 +762,24 @@ bool consultarReinicio(){
 	return false;
 
 }
+
+
+void enviarDesconexion(personajeIndividual_t *personajePorNivel){
+
+	tPaquete paquete;
+	paquete.type = DESCONEXION; //Cuando el personaje se desconecte va a liberar recursos ahí.
+	paquete.length = 0;
+	enviarPaquete(personajePorNivel->socketPlataforma, &paquete, logger, "Se envia aviso de desconexionde la plataforma por muerte");
+
+}
+
+void enviarDesconexionATodos(){
+
+	void _enviarDesconexion(personajeIndividual_t* personajePorNivel){
+		enviarDesconexion(personajePorNivel);
+	}
+
+	list_iterate(personaje.lPersonajes, (void*) _enviarDesconexion);
+}
+
 
