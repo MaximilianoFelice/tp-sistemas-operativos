@@ -89,6 +89,7 @@ void CrearNuevoPersonaje(pers_t *pjNew, tSimbolo simbolo);
 void levantarArchivoConf(char*);
 void actualizarInfoNivel(char* argumento);
 void liberarRecsPersonaje(char);
+void eliminarPersPeroNoLiberarRecursos(char id);
 static void personaje_destroyer(pers_t *personaje);
 
 //#undef NIVEL_H_
