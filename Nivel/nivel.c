@@ -213,19 +213,6 @@ int main(int argc, char* argv[]) {
 					}
 					free(payload);
 					break;
-				case NO_SE_OBTIENE_RESPUESTA:
-					persDesconectado = deserializarDesconexionPers(payload);
-					log_debug(logger,"<<< %s: El personaje %c se MURIO y desconecto",nom_nivel, persDesconectado->simbolo);
-					pthread_mutex_lock(&semItems);
-					//agrego una instancia a list_items de todos los recursos que me manda planificador (que son todos los que no reasigno)
-					for (i = 0; i < persDesconectado->lenghtRecursos; i++) {
-						sumarRecurso(list_items, persDesconectado->recursos[i]);
-					}
-					pthread_mutex_unlock(&semItems);
-					log_debug(logger, "%s: Libere recursos", nom_nivel);
-					free(persDesconectado);
-					free(payload);
-					break;
 				case PL_MOV_PERSONAJE:
 					movPersonaje.simbolo = (int8_t) *payload;
 					movPersonaje.direccion = (tDirMovimiento) *(payload	+ sizeof(int8_t));
