@@ -60,8 +60,10 @@ int main(int argc, char*argv[]) {
 
 	do {
 		log_debug(logger, "Tiro los hilos para jugar en cada nivel");
-		crearTodosLosHilos();
+
 		reiniciar = false;
+
+		crearTodosLosHilos();
 
 		//FIXME Ver cuando termina el plan de niveles -- hipoteticamente solucionado :D
 		sem_wait(&semReinicio);
@@ -660,6 +662,17 @@ void restarVida(){
 
 	pthread_mutex_lock(&semModificadorDeVidas);
 	personaje.vidas--; //TODO Validar si no le quedaran vidas
+
+	if (personaje.vidas <= 0){
+		log_debug(logger, "El personaje %c detecto que no hay mas vidas\n", personaje.simbolo);
+		matarHilos();
+		desconectarPersonajeDeTodoNivel();
+		reiniciar = consultarReinicio(); //Aqui es donde me asesino
+		if (reiniciar) {
+			sem_post(&semReinicio); //SIGNAL(sem)
+			sem_post(&semFinPlan);
+		}
+	}
 	pthread_mutex_unlock(&semModificadorDeVidas);
 	log_debug(logger, "Se le ha restado una vida.");
 	log_debug(logger, "Vidas de %c = %d", personaje.simbolo, personaje.vidas);
@@ -702,7 +715,9 @@ void muertoPorSenial() {
 	desconectarPersonajeDeTodoNivel();
 
 	pthread_mutex_unlock(&semModificadorDeVidas);
+
 	log_info(logger, "El personaje ha muerto por la senal kill");
+
 	pthread_mutex_destroy(&semModificadorDeVidas);
 
 	log_destroy(logger);
