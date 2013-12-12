@@ -123,7 +123,7 @@ int main(int argc, char* argv[]) {
 	uDescriptores[1].events=POLLIN;
 
 	////CREANDO Y LANZANDO HILOS ENEMIGOS
-	if(cant_enemigos > 0){
+	if (cant_enemigos > 0) {
 		threadEnemy_t *hilosEnemigos;
 		hilosEnemigos = calloc(cant_enemigos, sizeof(threadEnemy_t));
 		for (i = 0; i < cant_enemigos; i++) {
@@ -144,15 +144,16 @@ int main(int argc, char* argv[]) {
 
 	//WHILE PRINCIPAL
 	while (1) {
-		if((rv=poll(uDescriptores,2,-1))==-1) perror("poll");
-		else{
-			if (uDescriptores[1].revents&POLLIN){
-				i=0;
-				bytesLeidos=read(descriptorInotify,bufferInotify,TAM_BUFFER);
-				while(i<bytesLeidos){
+		if ((rv=poll(uDescriptores,2,-1))==-1) {
+			perror("poll");
+		} else {
+			if (uDescriptores[1].revents&POLLIN) {
+				i = 0;
+				bytesLeidos = read(descriptorInotify,bufferInotify,TAM_BUFFER);
+				while (i<bytesLeidos) {
 					struct inotify_event* evento;
-					evento=(struct inotify_event*) &bufferInotify[i];
-					if(evento->mask & IN_MODIFY){//avisar a planificador que cambio el archivo config
+					evento = (struct inotify_event*) &bufferInotify[i];
+					if (evento->mask & IN_MODIFY) {//avisar a planificador que cambio el archivo config
 						actualizarInfoNivel(argv[1]);
 						//ENVIANDO A PLATAFORMA NOTIFICACION DE ALGORITMO ASIGNADO
 						tInfoNivel infoDeNivel;
@@ -169,37 +170,41 @@ int main(int argc, char* argv[]) {
 				}
 			}//Preguntar por que si poll detecta actividad en el descriptor del inotify y este solo se acciona cuando ocurre in_modify => haria falta todo lo que sigue? o
 			 //simplemente podria actualizar los datos y listo?
-			if(uDescriptores[0].revents & POLLIN){
+			if (uDescriptores[0].revents & POLLIN) {
 				pers_t pjNew;
-				tPregPosicion* posConsultada=NULL;
-				pers_t* personaG=NULL;
-				ITEM_NIVEL* itemRec=NULL;
+				tPregPosicion* posConsultada = NULL;
+				pers_t* personaG = NULL;
+				ITEM_NIVEL* itemRec = NULL;
 				tDesconexionPers* persDesconectado;
-				recibirPaquete(sockete,&tipoDeMensaje,&payload,logger,"recibiendo mensaje de plataforma");
+				recibirPaquete(sockete, &tipoDeMensaje, &payload, logger,"Recibiendo mensaje de plataforma");
 				tMovimientoPers movPersonaje;
-				tipoMsj=(int8_t)tipoDeMensaje;
+				tipoMsj = (int8_t)tipoDeMensaje;
 
 				switch(tipoMsj){
 				case PL_CONEXION_PERS:
-					movPersonaje.simbolo=(int8_t)*payload;
+					movPersonaje.simbolo = (int8_t)*payload;
+					free(payload);
 
 					personaG = getPersonajeBySymbol(movPersonaje.simbolo);
 
-					if(personaG==NULL){
+					if (personaG==NULL) {
 						CrearNuevoPersonaje(&pjNew, movPersonaje.simbolo);
 						confirmacionPlataforma(&paquete, N_CONEXION_EXITOSA, "Notificando a plataforma personaje nuevo aceptado");
-					}else {//se encontro=>el personaje ya existe
+					} else {//se encontro=>el personaje ya existe
 						solicitudError(&paquete, N_PERSONAJE_YA_EXISTENTE, "Notificando a plataforma personaje ya existente");
 					}
 				break;
+
 				case PL_MOV_PERSONAJE:
-					movPersonaje.simbolo=(int8_t)*payload;
-					movPersonaje.direccion=(tDirMovimiento)*(payload+sizeof(int8_t));
+					movPersonaje.simbolo   = (int8_t)*payload;
+					movPersonaje.direccion = (tDirMovimiento)*(payload+sizeof(int8_t));
+					free(payload);
+
 					log_debug(logger, "<<< El personaje %c solicito moverse", movPersonaje.simbolo);
 
 					personaG = getPersonajeBySymbol(movPersonaje.simbolo);
 
-					if(personaG != NULL && !personaG->muerto){
+					if (personaG != NULL && !personaG->muerto) {
 						personaG->bloqueado=false;
 
 						char symbol=(char) movPersonaje.simbolo;
@@ -210,18 +215,21 @@ int main(int argc, char* argv[]) {
 						MoverPersonaje(list_items,symbol, posX, posY);
 						pthread_mutex_unlock(&semItems);
 						confirmacionPlataforma(&paquete, N_CONFIRMACION_MOV, "Notificando a plataforma personaje movido correctamente");
-					}
-					else {
+
+					} else {
 						solicitudError(&paquete, N_PERSONAJE_INEXISTENTE, "Notificando a plataforma personaje no existe");
 					}
 
 				break;
 				case PL_POS_RECURSO:
 					posConsultada = deserializarPregPosicion(payload);
+					free(payload);
+
 					log_debug(logger, "<<< Personaje %c solicita la posicion del recurso %c", (char)posConsultada->simbolo, (char)posConsultada->recurso);
 					bool buscarRecurso(ITEM_NIVEL *item){return ((item->id==(char)posConsultada->recurso)&&(item->item_type==RECURSO_ITEM_TYPE));}
 					itemRec=list_find(list_items,(void*)buscarRecurso);
-					if(itemRec!=NULL){
+
+					if(itemRec!=NULL) {
 						posRecX=itemRec->posx;
 						posRecY=itemRec->posy;
 						posRespondida.posX=posRecX;
@@ -232,17 +240,22 @@ int main(int argc, char* argv[]) {
 						paquete.length=sizeof(tRtaPosicion);
 						enviarPaquete(sockete,&paquete,logger,"enviando pos de recurso a plataforma");
 						pthread_mutex_unlock(&semSockPaq);
-					}else{
+
+					} else {
 						solicitudError(&paquete, N_RECURSO_INEXISTENTE, "El recurso solicitado no existe");
 					}
 				break;
+
 				case PL_SOLICITUD_RECURSO:
-					posConsultada=deserializarPregPosicion(payload);
+					posConsultada = deserializarPregPosicion(payload);
+					free(payload);
+
 					log_debug(logger, "<<< Personaje %c solicita una instancia del recurso %c", (char)posConsultada->simbolo, (char)posConsultada->recurso);
 					// Calculo la cantidad de instancias
 					pthread_mutex_lock(&semItems);
 					int cantInstancias = restarInstanciasRecurso(list_items,posConsultada->recurso);
 					pthread_mutex_unlock(&semItems);
+
 					if (cantInstancias >= 0) { //SE LO OTORGO EL RECURSO PEDIDO
 						log_info(logger, "Al personaje %c se le dio el recurso %c",posConsultada->simbolo,posConsultada->recurso);
 
@@ -250,7 +263,7 @@ int main(int argc, char* argv[]) {
 
 						//Agrego el recurso a la lista de recursos del personaje y lo desbloquea si estaba bloqueado
 						void agregaRecursoYdesboquea(pers_t *personaje){
-							if(personaje->simbolo==personaG->simbolo){
+							if (personaje->simbolo==personaG->simbolo) {
 								personaje->bloqueado=false;
 								list_add_new(personaje->recursos,&(posConsultada->recurso),sizeof(tSimbolo));
 							}
@@ -261,14 +274,14 @@ int main(int argc, char* argv[]) {
 						// Envio mensaje donde confirmo la otorgacion del recurso pedido
 						enviarPaquete(sockete,&paquete,logger,"enviando confirmacion de otorgamiento de recurso a plataforma");
 						pthread_mutex_unlock(&semSockPaq);
-					}
-					else { //ESTA BLOQUEADO
+
+					} else { //ESTA BLOQUEADO
 						personaG = getPersonajeBySymbol(posConsultada->simbolo);
 
 						log_info(logger,"El personaje %c se bloqueo por el recurso %c",posConsultada->simbolo,posConsultada->recurso);
 						//Agrego el recurso a la lista de recursos del personaje y lo bloqueo
-						void agregaRecursoYbloquea(pers_t *personaje){
-							if(personaje->simbolo==personaG->simbolo){
+						void agregaRecursoYbloquea(pers_t *personaje) {
+							if(personaje->simbolo==personaG->simbolo) {
 								personaje->bloqueado=true;
 								list_add_new(personaje->recursos,&(posConsultada->recurso),sizeof(tSimbolo));
 							}
@@ -278,19 +291,21 @@ int main(int argc, char* argv[]) {
 				break;
 				case PL_DESCONEXION_PERSONAJE:// Un personaje termino o murio y debo liberar instancias de recursos que tenia asignado
 					persDesconectado = deserializarDesconexionPers(payload);
+					free(payload);
+
 					log_debug(logger, "<<< El personaje %c se desconecto", persDesconectado->simbolo);
 					//eliminar al personaje de list_personajes
 					bool buscarPersonaje(pers_t* perso){return(perso->simbolo==persDesconectado->simbolo);}
 					pers_t *personajeOut = list_remove_by_condition(list_personajes,(void*)buscarPersonaje);
 					pthread_mutex_lock(&semItems);
 					//agrego una instancia a list_items de todos los recursos que me manda planificador (que son todos los que no reasigno)
-					for(i=0;i<persDesconectado->lenghtRecursos;i++){
+					for (i=0; i<persDesconectado->lenghtRecursos; i++) {
 						sumarRecurso(list_items,persDesconectado->recursos[i]);
 						log_debug(logger, "Libere una instancia del recurso %c", persDesconectado->recursos[i]);
 					}
-					if(!personajeOut->muerto) //Si no esta muerto, sacalo
-						BorrarItem(list_items, persDesconectado->simbolo);
-					else{
+					if(!personajeOut->muerto) {
+						BorrarItem(list_items, persDesconectado->simbolo); //Si no esta muerto, sacalo
+					} else {
 						log_debug(logger, "no lo saue al pesonaje ");
 						log_debug(logger, "No lo saque al personaje %c", personajeOut->simbolo);
 					}
@@ -303,7 +318,9 @@ int main(int argc, char* argv[]) {
 
 				pthread_mutex_lock(&semItems);
 				nivel_gui_dibujar(list_items, nom_nivel);
-				if(tipoMsj==PL_MOV_PERSONAJE) personaG->listoParaPerseguir = true;
+				if (tipoMsj==PL_MOV_PERSONAJE) {
+					personaG->listoParaPerseguir = true;
+				}
 				pthread_mutex_unlock(&semItems);
 			}
 		}
@@ -328,10 +345,10 @@ void levantarArchivoConf(char* argumento){
 	char** lineaCaja;
 	char** dirYpuerto;
 
-	configNivel=config_create(argumento);
-	cantCajas=config_keys_amount(configNivel)-9;
+	configNivel = config_create(argumento);
+	cantCajas   = config_keys_amount(configNivel)-9;
 
-	for(i=0;i<cantCajas;i++){
+	for (i=0; i<cantCajas; i++) {
 		//printf("valor de i:%i",i);
 		char* clave;
 		clave=string_from_format("Caja%i",i+1);
