@@ -186,28 +186,29 @@ int main(int argc, char* argv[]) {
 					bool buscaPersonaje(pers_t* perso){return (perso->simbolo==movPersonaje.simbolo);}
 					personaG=list_find(list_personajes,(void*)buscaPersonaje);
 					if(personaG==NULL){
-							pjNew.simbolo  = movPersonaje.simbolo;
-							pjNew.bloqueado  = false;
-							pjNew.recursos = list_create();
-							list_add_new(list_personajes,(void*)&pjNew,sizeof(pers_t));
-							char symbol=(char) movPersonaje.simbolo;
-							pthread_mutex_unlock(&semItems);
-							CrearPersonaje(list_items,symbol, INI_X, INI_Y);
-							pthread_mutex_unlock(&semItems);
-							// Logueo el personaje recien agregado
-							log_info(logger, "<<< Se agrego al personaje %c a la lista", (char) pjNew.simbolo);
-							pthread_mutex_lock(&semSockPaq);
-							paquete.type=N_CONEXION_EXITOSA;
-							paquete.length=0;
-							enviarPaquete(sockete,&paquete,logger,"notificando a plataforma personaje nuevo aceptado");
-							pthread_mutex_unlock(&semSockPaq);
+						pjNew.simbolo  = movPersonaje.simbolo;
+						pjNew.bloqueado  = false;
+						pjNew.recursos = list_create();
+						list_add_new(list_personajes,(void*)&pjNew,sizeof(pers_t));
+						char symbol=(char) movPersonaje.simbolo;
+						pthread_mutex_unlock(&semItems);
+						CrearPersonaje(list_items,symbol, INI_X, INI_Y);
+						pthread_mutex_unlock(&semItems);
+						// Logueo el personaje recien agregado
+						log_info(logger, "<<< Se agrego al personaje %c a la lista", (char) pjNew.simbolo);
+						pthread_mutex_lock(&semSockPaq);
+						paquete.type=N_CONEXION_EXITOSA;
+						paquete.length=0;
+						enviarPaquete(sockete,&paquete,logger,"notificando a plataforma personaje nuevo aceptado");
+						pthread_mutex_unlock(&semSockPaq);
 					}else {//se encontro=>el personaje ya existe
-							pthread_mutex_lock(&semSockPaq);
-							paquete.type=N_PERSONAJE_YA_EXISTENTE;
-							paquete.length=0;
-							enviarPaquete(sockete,&paquete,logger,"notificando a plataforma personaje ya existente");
-							pthread_mutex_unlock(&semSockPaq);
+						pthread_mutex_lock(&semSockPaq);
+						paquete.type=N_PERSONAJE_YA_EXISTENTE;
+						paquete.length=0;
+						enviarPaquete(sockete,&paquete,logger,"notificando a plataforma personaje ya existente");
+						pthread_mutex_unlock(&semSockPaq);
 					}
+					free(payload);
 					break;
 				case PL_MOV_PERSONAJE:
 					movPersonaje.simbolo=(int8_t)*payload;
@@ -256,6 +257,7 @@ int main(int argc, char* argv[]) {
 						enviarPaquete(sockete,&paquete,logger,"notificando a plataforma personaje movido correctamente");
 						pthread_mutex_unlock(&semSockPaq);
 					}
+					free(payload);
 					break;
 				case PL_POS_RECURSO:
 					posConsultada = deserializarPregPosicion(payload);
@@ -280,6 +282,7 @@ int main(int argc, char* argv[]) {
 						enviarPaquete(sockete,&paquete,logger,"el recurso solicitado no existe");
 						pthread_mutex_unlock(&semSockPaq);
 					}
+					free(payload);
 				break;
 				case PL_SOLICITUD_RECURSO:
 					posConsultada=deserializarPregPosicion(payload);
@@ -321,6 +324,7 @@ int main(int argc, char* argv[]) {
 						}
 						list_iterate(list_personajes,(void*)agregaRecursoYbloquea);
 					}
+					free(payload);
 					break;
 				case PL_DESCONEXION_PERSONAJE:// Un personaje termino o murio y debo liberar instancias de recursos que tenia asignado
 					persDesconectado = deserializarDesconexionPers(payload);
@@ -338,6 +342,7 @@ int main(int argc, char* argv[]) {
 					pers_t *personajeOut = list_remove_by_condition(list_personajes,(void*)buscarPersonaje);
 					free(persDesconectado);
 					personaje_destroyer(personajeOut);
+					free(payload);
 					break;
 				} //Fin del switch
 
