@@ -26,7 +26,8 @@ int main(int argc, char** argv) {
 
 	signal(SIGINT, cerrarForzado);
 
-	pthread_mutex_init(&semItems,NULL);
+	
+pthread_mutex_init(&semItems,NULL);
 
 	//LOG
 	logger = logInit(argv, "NIVEL");
@@ -415,6 +416,7 @@ void solicitudRecurso(tNivel *pNivel, int iSocket, char *sPayload) {
 	free(posConsultada);
 }
 
+
 void liberarRecursosPersonajeMuerto(tNivel *pNivel, char *sPayload){
 	tDesconexionPers *persDesconectado = deserializarDesconexionPers(sPayload);
 
@@ -430,6 +432,7 @@ void liberarRecursosPersonajeMuerto(tNivel *pNivel, char *sPayload){
 	free(sPayload);
 }
 
+
 void desconexionPersonaje(char *sPayload) {
 
 	tDesconexionPers *persDesconectado = deserializarDesconexionPers(sPayload);
@@ -442,6 +445,7 @@ void desconexionPersonaje(char *sPayload) {
 	}
 
 	tPersonaje *personajeOut = list_remove_by_condition(list_personajes,(void*)buscarPersonaje);
+	
 	//agrego una instancia a list_items de todos los recursos que me manda planificador (que son todos los que no reasigno)
 	int iIndexRecurso;
 	for (iIndexRecurso=0; iIndexRecurso<persDesconectado->lenghtRecursos; iIndexRecurso++) {
@@ -457,6 +461,7 @@ void desconexionPersonaje(char *sPayload) {
 	free(persDesconectado);
 	personaje_destroyer(personajeOut);
 }
+
 
 void actualizarInfoNivel(tNivel *pNivel, int iSocket, char* configFilePath) {
 	char* algoritmoAux;
@@ -506,17 +511,25 @@ void *enemigo(void * args) {
 	char dirMov	       = 'b';
 	//Variables de persecucion de victima
 	tPersonaje* persVictima;
+	bool estaEnRecurso = false;
 
-	enemigo->posX = 1+(rand() % enemigo->pNivel->maxCols);
-	enemigo->posY = 1+(rand() % enemigo->pNivel->maxRows);
+	
 	bool esUnRecurso(ITEM_NIVEL *itemNiv){
 		return (itemNiv->item_type==RECURSO_ITEM_TYPE && itemNiv->posx==enemigo->posX && itemNiv->posy==enemigo->posY);
 	}
-	while(list_any_satisfy(list_items,(void*)esUnRecurso)){
-		enemigo->posX=1+(rand() % enemigo->pNivel->maxCols);
-		enemigo->posY=1+(rand() % enemigo->pNivel->maxRows);
-	}
-	CreateEnemy(list_items,enemigo->ID,enemigo->posX,enemigo->posY);
+
+	pthread_mutex_lock(&semItems);
+
+	do {
+		enemigo->posX = 1 + (rand() % enemigo->pNivel->maxCols);
+		enemigo->posY = 1 + (rand() % enemigo->pNivel->maxRows);
+		estaEnRecurso = list_any_satisfy(list_items,(void*)esUnRecurso);
+	} while (estaEnRecurso);
+
+	CreateEnemy(list_items, enemigo->ID, enemigo->posX, enemigo->posY);
+	log_info(logger, "Se crea el enemigo %d", enemigo->ID);
+	pthread_mutex_unlock(&semItems);
+
 
 	bool movimientoAleatorio;
 
@@ -632,12 +645,14 @@ void *enemigo(void * args) {
 				}
 			}
 			list_iterate(list_items,(void*)esUnRecurso);
-
+			////PERSECUCION DE PERSONAJE
 			pthread_mutex_lock(&semItems);
 			MoveEnemy(list_items, enemigo->ID, enemigo->posX,enemigo->posY);
 			nivel_gui_dibujar(list_items, enemigo->pNivel->nombre);
 			pthread_mutex_unlock(&semItems);
 			usleep(enemigo->pNivel->sleepEnemigos);
+
+
 		}
 		else { ////PERSECUCION DE PERSONAJE
 
@@ -669,13 +684,14 @@ void *enemigo(void * args) {
 				pthread_mutex_unlock(&semItems);
 				usleep(enemigo->pNivel->sleepEnemigos);
 
-			} //While(hayQueAsesinar)
+			} 
 
 		}//Else->perseguir enemigos
 
 	} //Fin de while(1)
 	pthread_exit(NULL );
 }
+
 
 ////FUNCIONES ENEMIGOS
 _Bool alcanceVictima(tEnemigo *enemigo, ITEM_NIVEL *victima){
@@ -686,7 +702,7 @@ _Bool analizarMovimientoDeEnemigo(){
 
 	int cantPersonajesNoBloqueados;
 	bool personajeBloqueado(tPersonaje* personaje){
-		return (personaje->bloqueado==false)/*&&(personaje->posicion.x!=0)&&(personaje->posicion.y!=0)*/;
+		return (personaje->bloqueado==false);
 	}
 
 	cantPersonajesNoBloqueados = list_count_satisfying(list_personajes,(void*)personajeBloqueado);
@@ -914,6 +930,7 @@ void matarPersonaje(tNivel *pNivel, tSimbolo *simboloItem){
 	tPersonaje *personajeOut = list_remove_by_condition(list_personajes,(void*)buscarPersonaje);
 
 	BorrarItem(list_items, *simboloItem);
+	nivel_gui_dibujar(list_items, pNivel->nombre);
 
 	paquete.type=N_MUERTO_POR_ENEMIGO;
 	memcpy(paquete.payload, simboloItem,sizeof(tSimbolo));
@@ -1052,6 +1069,7 @@ void *deteccionInterbloqueo (void *parametro) {
 					paquete.payload[0] = personajeSimbolo;
 					enviarPaquete(pNivel->plataforma.socket,&paquete,logger,"enviando notificacion de bloqueo de personajes a plataforma");
 					log_debug(logger, "El personaje %c se elimino por participar en un interbloqueo", paquete.payload[0]);
+//					
 				}
 			}
 			pthread_mutex_unlock(&semItems);

@@ -64,10 +64,12 @@ typedef struct {
 	unsigned int socket;
 } tInfoPlataforma;
 
+
 typedef struct {
 	int recovery;
 	int checkTime;
 } tInfoInterbloqueo;
+
 
 typedef struct {
 	char *nombre;
@@ -84,6 +86,7 @@ typedef struct {
 	int cantidadInstancias;
 	char simbolo;
 } t_caja;
+
 
 typedef struct {
 	int ID;
