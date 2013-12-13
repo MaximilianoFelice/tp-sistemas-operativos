@@ -89,7 +89,7 @@ int nivel_gui_dibujar(t_list* items, char* nombre_nivel) {
                     waddch(secwin, '*' | COLOR_PAIR(4));
             } else if (item->item_type == RECURSO_ITEM_TYPE) {
                     waddch(secwin, item->id | COLOR_PAIR(3));
-            } else if(item->item_type == PERSONAJE_ITEM_TYPE) {
+            } else if((item->item_type == PERSONAJE_ITEM_TYPE)&&(item->num_enemy!=-99)) {
                     waddch(secwin, item->id | COLOR_PAIR(2));
             }
             if (item->item_type == RECURSO_ITEM_TYPE) {

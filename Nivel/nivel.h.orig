@@ -64,12 +64,10 @@ typedef struct {
 	unsigned int socket;
 } tInfoPlataforma;
 
-
 typedef struct {
 	int recovery;
 	int checkTime;
 } tInfoInterbloqueo;
-
 
 typedef struct {
 	char *nombre;
@@ -86,7 +84,6 @@ typedef struct {
 	int cantidadInstancias;
 	char simbolo;
 } t_caja;
-
 
 typedef struct {
 	int ID;
@@ -124,16 +121,18 @@ void actualizaPosicion(int *contMovimiento, int *posX, int *posY);
 void calcularMovimiento(tNivel *pNivel, tDirMovimiento direccion, int *posX, int *posY);
 void matarPersonaje(tNivel *, tSimbolo *simboloItem);
 ITEM_NIVEL *asignarVictima(tEnemigo *enemigo);
+<<<<<<< HEAD
 tPersonaje *asignarPersonajeVictima(tEnemigo *enemigo);
-tPersonaje *asignarVictimaVersionVieja(tEnemigo *enemigo);
 int calcularDistancia(tEnemigo *enemigo, int posX, int posY);
-void evitarRecurso(tEnemigo *enemigo);
-void evitarOrigen(tEnemigo *enemigo);
+=======
+int calcularDistancia(tEnemigo *enemigo, ITEM_NIVEL *item);
+>>>>>>> 6f3e60d55302e13efe2c99ed48399c903bc28ca6
 _Bool analizarMovimientoDeEnemigo();
 _Bool esUnPersonaje(ITEM_NIVEL *item);
+void evitarRecurso(tEnemigo *enemigo);
 _Bool acercarmeALaVictima(tEnemigo *enemigo, ITEM_NIVEL *item, int *contMovimiento);
 _Bool acercarmeALaVictimaPersonaje(tEnemigo *enemigo, tPersonaje *personaje, int *contMovimiento);
-_Bool estoyArriba(tEnemigo *enemigo, tPersonaje *persVictima);
+void evitarOrigen(tEnemigo *enemigo);
 _Bool hayAlgunEnemigoArriba(tNivel *pNivel, int posPerX, int posPerY);
 
 //Busquedas e iteraciones de listas
