@@ -41,10 +41,16 @@
 #define INI_X 0
 #define INI_Y 0
 
+
+typedef struct {
+	int x;
+	int y;
+} tPosicion;
+
 typedef struct {
 	_Bool bloqueado;
 	_Bool muerto; //Para que no lo intente matar dos veces seguidas
-	_Bool listoParaPerseguir; //Se activa cuando se empieza a mover el personaje; es para que no lo persiga si el chabon todavia no empezo a moverse
+	tPosicion posicion;
 	tSimbolo simbolo;
 	t_list* recursos;
 } tPersonaje;
@@ -58,12 +64,10 @@ typedef struct {
 	unsigned int socket;
 } tInfoPlataforma;
 
-
 typedef struct {
 	int recovery;
 	int checkTime;
 } tInfoInterbloqueo;
-
 
 typedef struct {
 	char *nombre;
@@ -77,16 +81,9 @@ typedef struct {
 } tNivel;
 
 typedef struct {
-	int x;
-	int y;
-} tPosicion;
-
-
-typedef struct {
 	int cantidadInstancias;
 	char simbolo;
 } t_caja;
-
 
 typedef struct {
 	int ID;
@@ -95,6 +92,7 @@ typedef struct {
 	pthread_t thread;
 	tNivel *pNivel;
 } tEnemigo;
+
 
 
 //Acciones de los mensajes
@@ -122,12 +120,14 @@ void *deteccionInterbloqueo (void *parametro);
 void actualizaPosicion(int *contMovimiento, int *posX, int *posY);
 void calcularMovimiento(tNivel *pNivel, tDirMovimiento direccion, int *posX, int *posY);
 void matarPersonaje(tNivel *, tSimbolo *simboloItem);
-ITEM_NIVEL *asignarVictima(tEnemigo *enemigo, int *distFinal);
-int calcularDistancia(tEnemigo *enemigo, ITEM_NIVEL *item);
+ITEM_NIVEL *asignarVictima(tEnemigo *enemigo);
+tPersonaje *asignarPersonajeVictima(tEnemigo *enemigo);
+int calcularDistancia(tEnemigo *enemigo, int posX, int posY);
 _Bool analizarMovimientoDeEnemigo();
 _Bool esUnPersonaje(ITEM_NIVEL *item);
 void evitarRecurso(tEnemigo *enemigo);
 _Bool acercarmeALaVictima(tEnemigo *enemigo, ITEM_NIVEL *item, int *contMovimiento);
+_Bool acercarmeALaVictimaPersonaje(tEnemigo *enemigo, tPersonaje *personaje, int *contMovimiento);
 void evitarOrigen(tEnemigo *enemigo);
 _Bool hayAlgunEnemigoArriba(tNivel *pNivel, int posPerX, int posPerY);
 

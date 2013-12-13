@@ -13,8 +13,8 @@
 t_log  *logger;
 t_list *list_personajes;
 t_list *list_items;
+bool hayQueAsesinar = true;
 
-pthread_mutex_t semSockPaq;
 pthread_mutex_t semItems;
 
 
@@ -26,7 +26,6 @@ int main(int argc, char** argv) {
 
 	signal(SIGINT, cerrarForzado);
 
-	pthread_mutex_init(&semSockPaq, NULL);
 	pthread_mutex_init(&semItems,NULL);
 
 	//LOG
@@ -62,8 +61,9 @@ int main(int argc, char** argv) {
 	crearEnemigos(&nivel);
 
 	// LANZANDO EL HILO DETECTOR DE INTERBLOQUEO
-	pthread_t hiloInterbloqueo;
-	pthread_create(&hiloInterbloqueo, NULL, &deteccionInterbloqueo, (void *)&nivel);
+	//TODO descomentar cuando ande bien enemigos
+//	pthread_t hiloInterbloqueo;
+//	pthread_create(&hiloInterbloqueo, NULL, &deteccionInterbloqueo, (void *)&nivel);
 
 	escucharConexiones(&nivel, descriptorInotify, configFilePath);
 
@@ -71,6 +71,84 @@ int main(int argc, char** argv) {
 	close(descriptorInotify);
 	log_destroy(logger);
 	return EXIT_SUCCESS;
+}
+
+void levantarArchivoConf(char* pathConfigFile, tNivel *pNivel) {
+
+	t_config *configNivel;
+	tPosicion posCaja;
+	int iCaja = 1;
+	bool hayCajas = false;
+	char* sLineaCaja;
+	char** aCaja;
+	char* datosPlataforma;
+
+	configNivel = config_try_create(pathConfigFile, "Nombre,Recovery,Enemigos,Sleep_Enemigos,Algoritmo,Quantum,Retardo,TiempoChequeoDeadlock,Plataforma");
+
+	sLineaCaja = string_from_format("Caja%i", iCaja);
+
+	while (config_has_property(configNivel, sLineaCaja)) {
+		hayCajas = true;
+		aCaja = config_get_array_value(configNivel, sLineaCaja);
+		free(sLineaCaja);
+
+		posCaja.x  = atoi(aCaja[3]);
+		posCaja.y  = atoi(aCaja[4]);
+
+		if (posCaja.y > pNivel->maxRows || posCaja.y > pNivel->maxCols || posCaja.y < 1 || posCaja.y < 1) {
+			char* messageLimitErr;
+			messageLimitErr = string_from_format(
+				"La caja %s excede los limites de la pantalla. CajaPos=(%d,%d) - Limites=(%d,%d)",
+				iCaja, posCaja.x, posCaja.y, pNivel->maxCols, pNivel->maxRows
+			);
+			cerrarNivel(messageLimitErr);
+		}
+
+		// Si la validacion fue exitosa creamos la caja de recursos
+		CrearCaja(list_items, *aCaja[1],atoi(aCaja[3]),atoi(aCaja[4]),atoi(aCaja[2]));
+
+		iCaja++;
+		sLineaCaja = string_from_format("Caja%i", iCaja);
+	};
+
+	if (!hayCajas) {
+		cerrarNivel("No hay cajas disponibles");
+	}
+
+	log_info(logger, "Archivo correcto, se procede a levantar los valores");
+
+	pNivel->cantRecursos   = list_size(list_items);
+
+	pNivel->deadlock.recovery  = config_get_int_value(configNivel, "Recovery");
+	pNivel->deadlock.checkTime = config_get_int_value(configNivel, "TiempoChequeoDeadlock");
+
+	pNivel->nombre = string_duplicate(config_get_string_value(configNivel,"Nombre"));
+
+	pNivel->cantEnemigos  = config_get_int_value(configNivel, "Enemigos");
+
+	pNivel->sleepEnemigos = config_get_int_value(configNivel, "Sleep_Enemigos");
+
+	char* algoritmoAux;
+	algoritmoAux   = config_get_string_value(configNivel, "Algoritmo");
+
+	if (strcmp(algoritmoAux, "RR") == 0) {
+		pNivel->plataforma.algPlanif = RR;
+		pNivel->plataforma.valorAlgorimo = config_get_int_value(configNivel, "Quantum");
+	} else {
+		pNivel->plataforma.algPlanif = SRDF;
+	}
+
+	free(algoritmoAux);
+
+	pNivel->plataforma.delay = config_get_int_value(configNivel, "Retardo");
+
+	datosPlataforma = config_get_string_value(configNivel, "Plataforma");
+
+	char ** aDatosPlataforma = string_split(datosPlataforma, ":");
+	strcpy(pNivel->plataforma.IP, aDatosPlataforma[0]);
+	pNivel->plataforma.port  = atoi(aDatosPlataforma[1]);
+
+	config_destroy(configNivel);
 }
 
 void handshakeConPlataforma(tNivel *pNivel) {
@@ -123,6 +201,87 @@ void crearEnemigos(tNivel *nivel) {
 	}
 }
 
+void escucharConexiones(tNivel *pNivel, int fdInotify, char* configFilePath) {
+	// Variables del Poll
+	struct pollfd uDescriptores[POLL_NRO_FDS];
+	uDescriptores[0].fd	    = pNivel->plataforma.socket;
+	uDescriptores[0].events = POLLIN;
+	uDescriptores[1].fd 	= fdInotify;
+	uDescriptores[1].events = POLLIN;
+	int iResultadoPoll;
+
+	// Variables iNotify
+	int bytesLeidos;
+	char bufferInotify[TAM_BUFFER];
+
+	char *sPayload;
+	tMensaje tipoDeMensaje;
+	int iSocket = pNivel->plataforma.socket;
+
+	while (1) {
+
+		if ((iResultadoPoll = poll(uDescriptores, POLL_NRO_FDS, POLL_TIMEOUT)) == -1) {
+			log_error(logger, "Error al escuchar en el polling");
+
+		} else {
+
+			if (uDescriptores[1].revents & POLLIN) { // Hay data lista para recibir
+				int bytes;
+				bytesLeidos = read(fdInotify, bufferInotify, TAM_BUFFER);
+				struct inotify_event* evento; // VER ESTO, PUEDE FALLAR EL CAMBIO DE WHILE A FOR
+
+				for (bytes = 0; bytes < bytesLeidos; bytes += TAM_EVENTO + evento->len) {
+
+					evento = (struct inotify_event*) &bufferInotify[bytes];
+
+					if (evento->mask & IN_MODIFY) {//avisar a planificador que cambio el archivo config
+						actualizarInfoNivel(pNivel, iSocket, configFilePath);
+					}
+				}
+			} //Preguntar por que si poll detecta actividad en el descriptor del inotify y este solo se acciona cuando ocurre in_modify => haria falta todo lo que sigue? o
+			 //simplemente podria actualizar los datos y listo?
+			if (uDescriptores[0].revents & POLLIN) { // Hay data lista para recibir
+
+				recibirPaquete(iSocket, &tipoDeMensaje, &sPayload, logger,"Recibiendo mensaje de plataforma");
+
+				pthread_mutex_lock(&semItems);
+				switch(tipoDeMensaje) {
+				case PL_CONEXION_PERS:
+					conexionPersonaje(iSocket, sPayload);
+					break;
+
+				case PL_POS_RECURSO:
+					posicionRecurso(pNivel, iSocket, sPayload);
+					break;
+
+				case PL_MOV_PERSONAJE:
+					movimientoPersonaje(pNivel, iSocket, sPayload);
+					break;
+
+				case PL_SOLICITUD_RECURSO:
+					solicitudRecurso(pNivel, iSocket, sPayload);
+					break;
+
+				case PL_LIBERA_RECURSOS:
+					liberarRecursosPersonajeMuerto(pNivel, sPayload);
+					break;
+
+				case PL_DESCONEXION_PERSONAJE:// Un personaje termino o murio y debo liberar instancias de recursos que tenia asignado
+					desconexionPersonaje(sPayload);
+					break;
+
+				default:
+					break;
+				} //Fin del switch
+
+				nivel_gui_dibujar(list_items, pNivel->nombre);
+
+				pthread_mutex_unlock(&semItems);
+			}
+		}
+	}
+}
+
 void conexionPersonaje(int iSocket, char *sPayload) {
 	tPersonaje *pPersonaje;
 	tSimbolo *simbolo = deserializarSimbolo(sPayload);
@@ -164,11 +323,13 @@ void movimientoPersonaje(tNivel *pNivel, int iSocket, char *sPayload) {
 			calcularMovimiento(pNivel, movPersonaje->direccion, &posPersonaje.x, &posPersonaje.y);
 
 			MoverPersonaje(list_items,symbol, posPersonaje.x, posPersonaje.y);
-			nivel_gui_dibujar(list_items, pNivel->nombre);
+			pPersonaje->posicion.x = posPersonaje.x;
+			pPersonaje->posicion.y = posPersonaje.y;
 			notificacionAPlataforma(iSocket, N_CONFIRMACION_MOV, "Notificando a plataforma personaje movido correctamente");
 		}
 		else {
 			matarPersonaje(pNivel, &movPersonaje->simbolo);
+			hayQueAsesinar = true;
 		}
 	}
 
@@ -254,7 +415,6 @@ void solicitudRecurso(tNivel *pNivel, int iSocket, char *sPayload) {
 	free(posConsultada);
 }
 
-
 void liberarRecursosPersonajeMuerto(tNivel *pNivel, char *sPayload){
 	tDesconexionPers *persDesconectado = deserializarDesconexionPers(sPayload);
 
@@ -270,11 +430,9 @@ void liberarRecursosPersonajeMuerto(tNivel *pNivel, char *sPayload){
 	free(sPayload);
 }
 
-
 void desconexionPersonaje(char *sPayload) {
-	tDesconexionPers *persDesconectado;
-	persDesconectado = deserializarDesconexionPers(sPayload);
-	free(sPayload);
+
+	tDesconexionPers *persDesconectado = deserializarDesconexionPers(sPayload);
 
 	log_debug(logger, "<<< El personaje %c se desconecto", persDesconectado->simbolo);
 
@@ -284,7 +442,6 @@ void desconexionPersonaje(char *sPayload) {
 	}
 
 	tPersonaje *personajeOut = list_remove_by_condition(list_personajes,(void*)buscarPersonaje);
-	pthread_mutex_lock(&semItems);
 	//agrego una instancia a list_items de todos los recursos que me manda planificador (que son todos los que no reasigno)
 	int iIndexRecurso;
 	for (iIndexRecurso=0; iIndexRecurso<persDesconectado->lenghtRecursos; iIndexRecurso++) {
@@ -292,176 +449,13 @@ void desconexionPersonaje(char *sPayload) {
 		log_debug(logger, "Libere una instancia del recurso %c", persDesconectado->recursos[iIndexRecurso]);
 	}
 
-	if (!personajeOut->muerto) {
-		BorrarItem(list_items, persDesconectado->simbolo); //Si no esta muerto, sacalo
-	} else {
-		log_error(logger, "No se elimina al personaje %c", personajeOut->simbolo);
-	}
-	pthread_mutex_unlock(&semItems);
+	BorrarItem(list_items, persDesconectado->simbolo); //Si no esta muerto, sacalo
+
 	log_debug(logger, "Libere recursos");
+
+	free(sPayload);
 	free(persDesconectado);
 	personaje_destroyer(personajeOut);
-}
-
-void escucharConexiones(tNivel *pNivel, int fdInotify, char* configFilePath) {
-	// Variables del Poll
-	struct pollfd uDescriptores[POLL_NRO_FDS];
-	uDescriptores[0].fd	    = pNivel->plataforma.socket;
-	uDescriptores[0].events = POLLIN;
-	uDescriptores[1].fd 	= fdInotify;
-	uDescriptores[1].events = POLLIN;
-	int iResultadoPoll;
-
-	// Variables iNotify
-	int bytesLeidos;
-	char bufferInotify[TAM_BUFFER];
-
-	char *sPayload;
-	tMensaje tipoDeMensaje;
-	int iSocket = pNivel->plataforma.socket;
-
-	while (1) {
-
-		if ((iResultadoPoll = poll(uDescriptores, POLL_NRO_FDS, POLL_TIMEOUT)) == -1) {
-			log_error(logger, "Error al escuchar en el polling");
-
-		} else {
-
-			if (uDescriptores[1].revents & POLLIN) { // Hay data lista para recibir
-				int bytes;
-				bytesLeidos = read(fdInotify, bufferInotify, TAM_BUFFER);
-				struct inotify_event* evento; // VER ESTO, PUEDE FALLAR EL CAMBIO DE WHILE A FOR
-
-				for (bytes = 0; bytes < bytesLeidos; bytes += TAM_EVENTO + evento->len) {
-
-					evento = (struct inotify_event*) &bufferInotify[bytes];
-
-					if (evento->mask & IN_MODIFY) {//avisar a planificador que cambio el archivo config
-						actualizarInfoNivel(pNivel, iSocket, configFilePath);
-					}
-				}
-			} //Preguntar por que si poll detecta actividad en el descriptor del inotify y este solo se acciona cuando ocurre in_modify => haria falta todo lo que sigue? o
-			 //simplemente podria actualizar los datos y listo?
-			if (uDescriptores[0].revents & POLLIN) { // Hay data lista para recibir
-
-				recibirPaquete(iSocket, &tipoDeMensaje, &sPayload, logger,"Recibiendo mensaje de plataforma");
-
-				switch(tipoDeMensaje) {
-				case PL_CONEXION_PERS:
-					conexionPersonaje(iSocket, sPayload);
-					break;
-
-				case PL_POS_RECURSO:
-					posicionRecurso(pNivel, iSocket, sPayload);
-					break;
-
-				case PL_MOV_PERSONAJE:
-					movimientoPersonaje(pNivel, iSocket, sPayload);
-					break;
-
-				case PL_SOLICITUD_RECURSO:
-					solicitudRecurso(pNivel, iSocket, sPayload);
-					break;
-
-				case PL_LIBERA_RECURSOS:
-					liberarRecursosPersonajeMuerto(pNivel, sPayload);
-					break;
-
-				case PL_DESCONEXION_PERSONAJE:// Un personaje termino o murio y debo liberar instancias de recursos que tenia asignado
-					desconexionPersonaje(sPayload);
-					break;
-
-				default:
-					break;
-				} //Fin del switch
-
-				pthread_mutex_lock(&semItems);
-				nivel_gui_dibujar(list_items, pNivel->nombre);
-
-				pthread_mutex_unlock(&semItems);
-			}
-		}
-	}
-}
-
-void levantarArchivoConf(char* pathConfigFile, tNivel *pNivel) {
-
-	t_config *configNivel;
-	tPosicion posCaja;
-	int iCaja = 1;
-	bool hayCajas = false;
-	char* sLineaCaja;
-	char** aCaja;
-	char* datosPlataforma;
-
-	configNivel = config_try_create(pathConfigFile, "Nombre,Recovery,Enemigos,Sleep_Enemigos,Algoritmo,Quantum,Retardo,TiempoChequeoDeadlock,Plataforma");
-
-	sLineaCaja = string_from_format("Caja%i", iCaja);
-
-	while (config_has_property(configNivel, sLineaCaja)) {
-		hayCajas = true;
-		aCaja = config_get_array_value(configNivel, sLineaCaja);
-		free(sLineaCaja);
-
-		posCaja.x  = atoi(aCaja[3]);
-		posCaja.y  = atoi(aCaja[4]);
-
-		if (posCaja.y > pNivel->maxRows || posCaja.y > pNivel->maxCols || posCaja.y < 1 || posCaja.y < 1) {
-			char* messageLimitErr;
-			messageLimitErr = string_from_format(
-				"La caja %s excede los limites de la pantalla. CajaPos=(%d,%d) - Limites=(%d,%d)",
-				iCaja, posCaja.x, posCaja.y, pNivel->maxCols, pNivel->maxRows
-			);
-			cerrarNivel(messageLimitErr);
-		}
-
-		pthread_mutex_lock(&semItems); //TODO ver semaforo
-		// Si la validacion fue exitosa creamos la caja de recursos
-		CrearCaja(list_items, *aCaja[1],atoi(aCaja[3]),atoi(aCaja[4]),atoi(aCaja[2]));
-		pthread_mutex_unlock(&semItems);
-
-		iCaja++;
-		sLineaCaja = string_from_format("Caja%i", iCaja);
-	};
-
-	if (!hayCajas) {
-		cerrarNivel("No hay cajas disponibles");
-	}
-
-	log_info(logger, "Archivo correcto, se procede a levantar los valores");
-
-	pNivel->cantRecursos   = list_size(list_items);
-
-	pNivel->deadlock.recovery  = config_get_int_value(configNivel, "Recovery");
-	pNivel->deadlock.checkTime = config_get_int_value(configNivel, "TiempoChequeoDeadlock");
-
-	pNivel->nombre = string_duplicate(config_get_string_value(configNivel,"Nombre"));
-
-	pNivel->cantEnemigos  = config_get_int_value(configNivel, "Enemigos");
-
-	pNivel->sleepEnemigos = config_get_int_value(configNivel, "Sleep_Enemigos");
-
-	char* algoritmoAux;
-	algoritmoAux   = config_get_string_value(configNivel, "Algoritmo");
-
-	if (strcmp(algoritmoAux, "RR") == 0) {
-		pNivel->plataforma.algPlanif = RR;
-		pNivel->plataforma.valorAlgorimo = config_get_int_value(configNivel, "Quantum");
-	} else {
-		pNivel->plataforma.algPlanif = SRDF;
-	}
-
-	free(algoritmoAux);
-
-	pNivel->plataforma.delay = config_get_int_value(configNivel, "Retardo");
-
-	datosPlataforma = config_get_string_value(configNivel, "Plataforma");
-
-	char ** aDatosPlataforma = string_split(datosPlataforma, ":");
-	strcpy(pNivel->plataforma.IP, aDatosPlataforma[0]);
-	pNivel->plataforma.port  = atoi(aDatosPlataforma[1]);
-
-	config_destroy(configNivel);
 }
 
 void actualizarInfoNivel(tNivel *pNivel, int iSocket, char* configFilePath) {
@@ -511,7 +505,6 @@ void *enemigo(void * args) {
 	char ultimoMov     = 'a';
 	char dirMov	       = 'b';
 	//Variables de persecucion de victima
-	int distFinal=9999999;
 	tPersonaje* persVictima;
 
 	enemigo->posX = 1+(rand() % enemigo->pNivel->maxCols);
@@ -523,18 +516,17 @@ void *enemigo(void * args) {
 		enemigo->posX=1+(rand() % enemigo->pNivel->maxCols);
 		enemigo->posY=1+(rand() % enemigo->pNivel->maxRows);
 	}
-	pthread_mutex_lock(&semItems);
 	CreateEnemy(list_items,enemigo->ID,enemigo->posX,enemigo->posY);
-	pthread_mutex_unlock(&semItems);
 
 	bool movimientoAleatorio;
 
 	while (1) {
 
+		pthread_mutex_lock(&semItems);
 		movimientoAleatorio = analizarMovimientoDeEnemigo();
+		pthread_mutex_unlock(&semItems);
 
-		if (movimientoAleatorio) {
-			////MOVIMIENTO EN L
+		if (movimientoAleatorio) { ////MOVIMIENTO EN L
 			/*
 			 * Para hacer el movimiento de caballo uso la var ultimoMov que puede ser:
 			 * 		a:el ultimo movimiento fue horizontal por primera vez
@@ -640,49 +632,50 @@ void *enemigo(void * args) {
 				}
 			}
 			list_iterate(list_items,(void*)esUnRecurso);
-		}
-		else { //ELEGIR O PERSEGUIR A LA VICTIMA
 
-			////PERSECUCION DE PERSONAJE
 			pthread_mutex_lock(&semItems);
-			ITEM_NIVEL *victima = asignarVictima(enemigo, &distFinal);
+			MoveEnemy(list_items, enemigo->ID, enemigo->posX,enemigo->posY);
+			nivel_gui_dibujar(list_items, enemigo->pNivel->nombre);
 			pthread_mutex_unlock(&semItems);
-
-			persVictima = getPersonajeBySymbol((tSimbolo)victima->id);
-
-			if(!persVictima->bloqueado){
-
-				acercarmeALaVictima(enemigo, victima, &contMovimiento);
-
-				actualizaPosicion(&contMovimiento, &(enemigo->posX),&(enemigo->posY));
-
-				evitarRecurso(enemigo);
-
-				evitarOrigen(enemigo);
-
-//				if(hayAlgunEnemigoArriba(enemigo->pNivel, victima->posx, victima->posy)){
-//					if(!persVictima->muerto){
-//						persVictima->muerto=true;
-//						MoveEnemy(list_items, enemigo->ID, enemigo->posX,enemigo->posY);
-//						nivel_gui_dibujar(list_items, enemigo->pNivel->nombre);
-//					}
-//				}
-			}
-
-
+			usleep(enemigo->pNivel->sleepEnemigos);
 		}
+		else { ////PERSECUCION DE PERSONAJE
 
+			if(hayQueAsesinar){
+				pthread_mutex_lock(&semItems);
 
-		pthread_mutex_lock(&semItems);
-		MoveEnemy(list_items, enemigo->ID, enemigo->posX,enemigo->posY);
-		nivel_gui_dibujar(list_items, enemigo->pNivel->nombre);
-		pthread_mutex_unlock(&semItems);
-		usleep(enemigo->pNivel->sleepEnemigos);
+				persVictima = asignarPersonajeVictima(enemigo);
+
+				if(persVictima!=NULL && !persVictima->bloqueado){
+
+					acercarmeALaVictimaPersonaje(enemigo, persVictima, &contMovimiento);
+
+					actualizaPosicion(&contMovimiento, &(enemigo->posX),&(enemigo->posY));
+
+					evitarRecurso(enemigo);
+
+					evitarOrigen(enemigo);
+
+					MoveEnemy(list_items, enemigo->ID, enemigo->posX,enemigo->posY);
+					nivel_gui_dibujar(list_items, enemigo->pNivel->nombre);
+
+					if(hayAlgunEnemigoArriba(enemigo->pNivel, persVictima->posicion.x, persVictima->posicion.y)){
+						if(hayQueAsesinar){
+							persVictima->muerto=true;
+							hayQueAsesinar = false;
+						}
+					}
+				}
+				pthread_mutex_unlock(&semItems);
+				usleep(enemigo->pNivel->sleepEnemigos);
+
+			} //While(hayQueAsesinar)
+
+		}//Else->perseguir enemigos
 
 	} //Fin de while(1)
 	pthread_exit(NULL );
 }
-
 
 ////FUNCIONES ENEMIGOS
 _Bool alcanceVictima(tEnemigo *enemigo, ITEM_NIVEL *victima){
@@ -693,7 +686,7 @@ _Bool analizarMovimientoDeEnemigo(){
 
 	int cantPersonajesNoBloqueados;
 	bool personajeBloqueado(tPersonaje* personaje){
-		return (personaje->bloqueado==false);
+		return (personaje->bloqueado==false)/*&&(personaje->posicion.x!=0)&&(personaje->posicion.y!=0)*/;
 	}
 
 	cantPersonajesNoBloqueados = list_count_satisfying(list_personajes,(void*)personajeBloqueado);
@@ -726,22 +719,66 @@ _Bool acercarmeALaVictima(tEnemigo *enemigo, ITEM_NIVEL *item, int *contMovimien
 
 }
 
-ITEM_NIVEL *asignarVictima(tEnemigo *enemigo, int *distFinal){
+_Bool acercarmeALaVictimaPersonaje(tEnemigo *enemigo, tPersonaje *personaje, int *contMovimiento){
+
+	//Elijo el eje por el que me voy a acercar
+	if(enemigo->posY == personaje->posicion.y){
+		if(enemigo->posX < personaje->posicion.x){
+			*contMovimiento=1;
+		}
+		if(enemigo->posX > personaje->posicion.x){
+			*contMovimiento=3;
+		}
+		if(enemigo->posX == personaje->posicion.x){
+			return true;
+		}
+	}
+	else{ //acercarse por fila
+		if(enemigo->posY < personaje->posicion.y)
+			*contMovimiento=4;
+		if(enemigo->posY > personaje->posicion.y)
+			*contMovimiento=2;
+	}
+	return false;
+
+}
+
+ITEM_NIVEL *asignarVictima(tEnemigo *enemigo){
 
 	int dist2=999999;
+	int distFinal;
 	int i;
 	ITEM_NIVEL *itemReturn = NULL;
 	for(i=0;i<list_size(list_items);i++){
 		ITEM_NIVEL *item=list_get(list_items,i);
 		if(esUnPersonaje(item)){
-			*distFinal = calcularDistancia(enemigo, item);
-			if((*distFinal<dist2)){
+			distFinal = calcularDistancia(enemigo, item->posx, item->posy);
+			if((distFinal<dist2)){
 				itemReturn = item;
-				dist2=*distFinal;
+				dist2=distFinal;
 			}
 		}
 	}
 	return itemReturn;
+}
+
+tPersonaje *asignarPersonajeVictima(tEnemigo *enemigo){
+
+	int dist2=999999;
+	int distFinal;
+	int i;
+	tPersonaje *personajeReturn = NULL;
+	for(i=0;i<list_size(list_personajes);i++){
+
+		tPersonaje *personaje=list_get(list_personajes, i);
+		distFinal = calcularDistancia(enemigo, personaje->posicion.x, personaje->posicion.y);
+		if((distFinal<dist2)){
+			personajeReturn = personaje;
+			dist2=distFinal;
+		}
+
+	}
+	return personajeReturn;
 }
 
 _Bool esUnPersonaje(ITEM_NIVEL *item){
@@ -749,12 +786,13 @@ _Bool esUnPersonaje(ITEM_NIVEL *item){
 
 }
 
-int calcularDistancia(tEnemigo *enemigo, ITEM_NIVEL *item){
+int calcularDistancia(tEnemigo *enemigo, int posX, int posY){
 
-	int terminoX = (enemigo->posX-item->posx)*(enemigo->posX-item->posx);
-	int terminoY = (enemigo->posY-item->posy)*(enemigo->posY-item->posy);
 
-	return (terminoX + terminoY);
+	int terminoEnX = abs(enemigo->posX - posX);
+	int terminoEnY = abs(enemigo->posY - posY);
+
+	return (terminoEnX + terminoEnY);
 
 }
 
@@ -796,17 +834,6 @@ void evitarOrigen(tEnemigo *enemigo){
 	}
 }
 
-void CrearNuevoPersonaje(tPersonaje *pjNew, tSimbolo simbolo){
-	pjNew->simbolo  = simbolo;
-	pjNew->bloqueado  = false;
-	pjNew->recursos = list_create();
-	list_add_new(list_personajes,(void*)pjNew,sizeof(tPersonaje));
-	pthread_mutex_unlock(&semItems);
-	CrearPersonaje(list_items, (char)simbolo, INI_X, INI_Y);
-	pthread_mutex_unlock(&semItems);
-	log_info(logger, "<<< Se agrego al personaje %c a la lista", simbolo);
-}
-
 _Bool hayAlgunEnemigoArriba(tNivel *pNivel, int posPerX, int posPerY) {
 
 	int i;
@@ -834,12 +861,11 @@ void crearNuevoPersonaje (tSimbolo simbolo) {
 	pPersonajeNuevo->simbolo = simbolo;
 	pPersonajeNuevo->bloqueado = false;
 	pPersonajeNuevo->muerto = false;
-	pPersonajeNuevo->listoParaPerseguir = false;
+	pPersonajeNuevo->posicion.x = 0;
+	pPersonajeNuevo->posicion.y = 0;
 	pPersonajeNuevo->recursos = list_create();
 	list_add(list_personajes, pPersonajeNuevo);
-	pthread_mutex_unlock(&semItems);
 	CrearPersonaje(list_items, (char)simbolo, INI_X, INI_Y);
-	pthread_mutex_unlock(&semItems);
 	log_info(logger, "<<< Se agrego al personaje %c a la lista", simbolo);
 }
 
@@ -887,17 +913,12 @@ void matarPersonaje(tNivel *pNivel, tSimbolo *simboloItem){
 	bool buscarPersonaje(tPersonaje* perso){return(perso->simbolo==*simboloItem);}
 	tPersonaje *personajeOut = list_remove_by_condition(list_personajes,(void*)buscarPersonaje);
 
-	pthread_mutex_unlock(&semItems);
 	BorrarItem(list_items, *simboloItem);
-	nivel_gui_dibujar(list_items, pNivel->nombre);
-	pthread_mutex_unlock(&semItems);
-
 
 	paquete.type=N_MUERTO_POR_ENEMIGO;
 	memcpy(paquete.payload, simboloItem,sizeof(tSimbolo));
 	paquete.length=sizeof(tSimbolo);
-	//TODO en plataforma tiene que tener el socket
-	//enviarPaquete(pNivel->plataforma.,&paquete,logger,"enviando notificacion de muerte de personaje a plataforma");
+	enviarPaquete(pNivel->plataforma.socket,&paquete,logger,"enviando notificacion de muerte de personaje a plataforma");
 	personaje_destroyer(personajeOut);
 }
 
@@ -918,9 +939,9 @@ void *deteccionInterbloqueo (void *parametro) {
 
 	int i,j,k,fila;
 	ITEM_NIVEL* itemRec = NULL;
-	struct timespec dormir;
-	dormir.tv_sec  = (time_t)(deadlock.checkTime/1000);
-	dormir.tv_nsec = (long)((deadlock.checkTime%1000) * 1000000);
+//	struct timespec dormir;
+//	dormir.tv_sec  = (time_t)(deadlock.checkTime/1000);
+//	dormir.tv_nsec = (long)((deadlock.checkTime%1000) * 1000000);
 
 	int cantPersonajes;
 	int **matAsignacion = NULL;
@@ -947,7 +968,8 @@ void *deteccionInterbloqueo (void *parametro) {
 			}
 
 		    pthread_mutex_lock (&semItems);// Nadie mueve un pelo hasta que no se evalue el interbloqueo
-			// Inicializando matrices
+			log_debug(logger, "ANALIZANDO INTERBLOQUEO...");
+		    // Inicializando matrices
 			for (i=0; i<cantPersonajes; i++) {
 
 				for (j=0; j<pNivel->cantRecursos; j++) {
@@ -1025,21 +1047,14 @@ void *deteccionInterbloqueo (void *parametro) {
 					}
 					log_debug(logger,"saliendo del while");
 					log_debug(logger,"antes de enviar paquete con perso(caja):%c",personaje);
-					pthread_mutex_lock(&semSockPaq); //TODO sacar
 					paquete.type = N_MUERTO_POR_DEADLOCK;
 					paquete.length = sizeof(tSimbolo);
 					paquete.payload[0] = personajeSimbolo;
-					//TODO socket para al pNivel
-//					enviarPaquete(sockete,&paquete,logger,"enviando notificacion de bloqueo de personajes a plataforma");
-					pthread_mutex_unlock(&semSockPaq);
-					//eliminar personaje y devolver recursos
+					enviarPaquete(pNivel->plataforma.socket,&paquete,logger,"enviando notificacion de bloqueo de personajes a plataforma");
 					log_debug(logger, "El personaje %c se elimino por participar en un interbloqueo", paquete.payload[0]);
-//					pthread_mutex_lock(&semItems);
-//					liberarRecsPersonaje2((char) personaje->simbolo); //Libera recursos solo en DESCONEXIN_PERS
-//					pthread_mutex_unlock(&semItems);
 				}
 			}
-			pthread_mutex_unlock (&semItems);
+			pthread_mutex_unlock(&semItems);
 			for (i=1;i<cantPersonajes;i++) {//i=1 o 0?
 				free(matSolicitud[i]);
 				free(matAsignacion[i]);
@@ -1050,7 +1065,8 @@ void *deteccionInterbloqueo (void *parametro) {
 			free(vecSatisfechos);
 			free(vecCajas);
 		}
-		nanosleep(&dormir,NULL);
+		usleep(pNivel->deadlock.checkTime);
+		//nanosleep(&dormir,NULL);
 	}
 	return 0;
 }
