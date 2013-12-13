@@ -50,19 +50,20 @@ typedef struct {
 } tPersonaje;
 
 typedef struct {
-	int ID;
-	int posX;
-	int posY;
-	pthread_t thread;
-} tEnemigo;
-
-typedef struct {
 	char IP[INET_ADDRSTRLEN];
 	unsigned short port;
 	int delay;
 	tAlgoritmo algPlanif;
 	int valorAlgorimo;
+	unsigned int socket;
 } tInfoPlataforma;
+
+
+typedef struct {
+	int recovery;
+	int checkTime;
+} tInfoInterbloqueo;
+
 
 typedef struct {
 	char *nombre;
@@ -72,12 +73,8 @@ typedef struct {
 	int cantEnemigos;
 	int sleepEnemigos;
 	tInfoPlataforma plataforma;
+	tInfoInterbloqueo deadlock;
 } tNivel;
-
-typedef struct {
-	int recovery;
-	int checkTime;
-} tInfoInterbloqueo;
 
 typedef struct {
 	int x;
@@ -90,23 +87,30 @@ typedef struct {
 	char simbolo;
 } t_caja;
 
-typedef struct {
-	tNivel   * pNivel;
-	tEnemigo * pEnemigo;
-} tParamThreadEnemigo;
 
-void handshakeConPlataforma(int iSocket, tNivel *pNivel);
+typedef struct {
+	int ID;
+	int posX;
+	int posY;
+	pthread_t thread;
+	tNivel *pNivel;
+} tEnemigo;
+
+
+void handshakeConPlataforma(tNivel *pNivel);
 void crearEnemigos(tNivel *nivel);
 void conexionPersonaje(int iSocket, char *sPayload);
 void movimientoPersonaje(tNivel *pNivel, int iSocket, char *sPayload);
 void posicionRecurso(int iSocket, char *sPayload);
 void solicitudRecurso(int iSocket, char *sPayload);
 void desconexionPersonaje(char *sPayload) ;
-void escucharConexiones(tNivel *pNivel, int iSocket, int fdInotify, char* configFilePath);
-void levantarArchivoConf(char* pathConfigFile, tNivel *pNivel, tInfoInterbloqueo *pInterbloqueo);
+void escucharConexiones(tNivel *pNivel, int fdInotify, char* configFilePath);
+void levantarArchivoConf(char* pathConfigFile, tNivel *pNivel);
 void actualizarInfoNivel(tNivel *pNivel, int iSocket, char* configFilePath);
 void crearNuevoPersonaje (tSimbolo simbolo);
 void notificacionAPlataforma(int iSocket, tPaquete *paquete, tMensaje tipoMensaje, char *msjInfo);
+void confirmacionPlataforma(int sock, tMensaje tipoMensaje, char *msjInfo);
+void solicitudError(int sock, tMensaje tipoMensaje, char *msjInfo);
 
 //Señales
 void cerrarNivel(char*);
@@ -117,18 +121,21 @@ void *enemigo(void * args);
 void *deteccionInterbloqueo (void *parametro);
 void actualizaPosicion(int *contMovimiento, int *posX, int *posY);
 void calcularMovimiento(tNivel *pNivel, tDirMovimiento direccion, int *posX, int *posY);
-void matarPersonaje(tSimbolo *simboloItem);
-
-//Mensajes
-void confirmacionPlataforma(tPaquete *paquete, tMensaje tipoMensaje, char *msjInfo);
-void solicitudError(tPaquete *paquete, tMensaje tipoMensaje, char *msjInfo);
+void matarPersonaje(tNivel *, tSimbolo *simboloItem);
+ITEM_NIVEL *asignarVictima(tEnemigo *enemigo, int *distFinal);
+int calcularDistancia(tEnemigo *enemigo, ITEM_NIVEL *item);
+_Bool analizarMovimientoDeEnemigo();
+_Bool esUnPersonaje(ITEM_NIVEL *item);
+void evitarRecurso(tEnemigo *enemigo);
+_Bool acercarmeALaVictima(tEnemigo *enemigo, ITEM_NIVEL *item, int *contMovimiento);
+void evitarOrigen(tEnemigo *enemigo);
+_Bool hayAlgunEnemigoArriba(tNivel *pNivel, int posPerX, int posPerY);
 
 //Busquedas e iteraciones de listas
 tPersonaje *getPersonajeBySymbol(tSimbolo simbolo); //Busca en list_personajes
 ITEM_NIVEL *getItemById(char id_victima); //Busca en list_items
 void evitarRecurso(tEnemigo *enemigo);
 ITEM_NIVEL *getVictima(tEnemigo *enemigo);
-
 
 //Nivel
 void CrearNuevoPersonaje(tPersonaje *pjNew, tSimbolo simbolo);
