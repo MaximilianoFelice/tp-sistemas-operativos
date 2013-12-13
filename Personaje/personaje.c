@@ -80,14 +80,6 @@ int main(int argc, char*argv[]) {
 
 	log_destroy(logger);
 	config_destroy(configPersonaje);
-//	int cantidadPersonajes = list_size(personaje.lPersonajes);
-//
-//	for (iNivel = 0; iNivel < cantidadPersonajes; iNivel++) {
-//		personajeIndividual_t *pPersonajeNivel = (personajeIndividual_t *) list_get(personaje.lPersonajes, iNivel);
-//		list_destroy(pPersonajeNivel->Objetivos);
-//		free(pPersonajeNivel->thread);
-//	}
-
 	list_destroy_and_destroy_elements(personaje.lPersonajes, (void*) _liberar_personaje_individual);
 	exit(EXIT_SUCCESS);
 
@@ -159,7 +151,6 @@ void cargarArchivoConfiguracion(char* archivoConfiguracion){
 		}
 		personajeNivel = (personajeIndividual_t*) malloc(sizeof(personajeIndividual_t));
 		personajeNivel->nomNivel = string_duplicate(niveles[nroNivel]);
-//		strcpy(personajeNivel->nomNivel, niveles[nroNivel]);
 		personajeNivel->Objetivos = listaObjetivos;
 		list_add(personaje.lPersonajes, personajeNivel);
 		free(objetivos);
@@ -262,11 +253,11 @@ void *jugar(void *vPersonajeNivel) {
 				desconectarPersonaje(pPersonajePorNivel);
 				reiniciar = consultarReinicio(); //Aqui es donde me asesino
 				pthread_mutex_unlock(&semModificadorDeVidas);
-				if (reiniciar) {
+//				if (reiniciar) { // Se saco porque al salir con un NO, se trababa.
 					sem_post(&semReinicio); //SIGNAL(sem)
 					sem_post(&semFinPlan);
 					pthread_exit(NULL);
-				}
+//				}
 			}
 
 		}
@@ -376,7 +367,7 @@ void solicitarRecurso(personajeIndividual_t* personajePorNivel, char *recurso){
 			break;
 		}
 	}
-	free(sPayload);
+//	free(sPayload);
 }
 
 
@@ -432,7 +423,7 @@ tDirMovimiento calcularYEnviarMovimiento(personajeIndividual_t *personajePorNive
 		
 	}
 
-	free(sPayload);
+//	free(sPayload);
 	return personajePorNivel->ultimoMovimiento;
 
 }
@@ -576,7 +567,7 @@ void handshake_plataforma(personajeIndividual_t* personajePorNivel){
 			break;
 
 	}
-	free(sPayload);
+//	free(sPayload);
 }
 
 void cerrarConexion(int * socketPlataforma){
