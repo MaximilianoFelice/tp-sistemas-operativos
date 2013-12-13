@@ -34,9 +34,17 @@
 #include <errno.h>
 #include <math.h>
 
+#define POLL_TIMEOUT -1 // Negativo es que espera para siempre
+#define POLL_NRO_FDS 2 // Uno para escuchar a la plataforma el otro para el inotify
+
 //Posicion inicial del personaje.
 #define INI_X 0
 #define INI_Y 0
+
+typedef struct {
+	tNivel   * pNivel;
+	tEnemigo * pEnemigo;
+} tParamThreadEnemigo;
 
 typedef struct {
 	_Bool bloqueado;
@@ -47,10 +55,10 @@ typedef struct {
 } tPersonaje;
 
 typedef struct {
-	int number;
+	int ID;
 	int posX;
 	int posY;
-	pthread_t thread_enemy;
+	pthread_t thread;
 } tEnemigo;
 
 typedef struct {
@@ -103,18 +111,18 @@ void confirmacionPlataforma(tPaquete *paquete, tMensaje tipoMensaje, char *msjIn
 void solicitudError(tPaquete *paquete, tMensaje tipoMensaje, char *msjInfo);
 
 //Busquedas e iteraciones de listas
-pers_t *getPersonajeBySymbol(tSimbolo simbolo); //Busca en list_personajes
+tPersonaje *getPersonajeBySymbol(tSimbolo simbolo); //Busca en list_personajes
 ITEM_NIVEL *getItemById(char id_victima); //Busca en list_items
-void evitarRecurso(enemigo_t *enemigo);
-ITEM_NIVEL *getVictima(enemigo_t *enemigo);
+void evitarRecurso(tEnemigo *enemigo);
+ITEM_NIVEL *getVictima(tEnemigo *enemigo);
 
 
 //Nivel
-void CrearNuevoPersonaje(pers_t *pjNew, tSimbolo simbolo);
+void CrearNuevoPersonaje(tPersonaje *pjNew, tSimbolo simbolo);
 void levantarArchivoConf(char*);
 void actualizarInfoNivel(char* argumento);
 void liberarRecsPersonaje(char);
-static void personaje_destroyer(pers_t *personaje);
+static void personaje_destroyer(tPersonaje *personaje);
 
 //#undef NIVEL_H_
 #endif //NIVEL_H_

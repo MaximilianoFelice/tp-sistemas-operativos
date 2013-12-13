@@ -17,7 +17,7 @@ t_list *list_items = NULL;
 pthread_mutex_t semSockPaq;
 pthread_mutex_t semItems;
 
-void handshakeConPlataforna(int iSocket, tNivel *pNivel) {
+void handshakeConPlataforma(int iSocket, tNivel *pNivel) {
 	tPaquete paquete;
 	int largoNombre = strlen(pNivel->nombre) + 1;
 	paquete.type   = N_HANDSHAKE;
@@ -46,25 +46,31 @@ void handshakeConPlataforna(int iSocket, tNivel *pNivel) {
 	enviarPaquete(iSocket, &paquete, logger, "Se envia a la plataforma los criterios de planificacion");
 }
 
+typedef struct {
 
-void crearEnemigos(tNivel nivel) {
+};
+
+
+void crearEnemigos(tNivel *nivel) {
 	// CREANDO Y LANZANDO HILOS ENEMIGOS
-	if (nivel.cantEnemigos > 0) {
+	if (nivel->cantEnemigos > 0) {
 		int indexEnemigos;
 		tEnemigo *aHilosEnemigos;
-		aHilosEnemigos = calloc(nivel.cantEnemigos, sizeof(tEnemigo));
+		tParamThreadEnemigo *pParametrosEnemigo;
+		aHilosEnemigos = calloc(nivel->cantEnemigos, sizeof(tEnemigo));
 
-		for (indexEnemigos = 0; indexEnemigos < nivel.cantEnemigos; indexEnemigos++) {
-			aHilosEnemigos[indexEnemigos].number = indexEnemigos + 1; //El numero o id de enemigo
+		for (indexEnemigos = 0; indexEnemigos < nivel->cantEnemigos; indexEnemigos++) {
+			aHilosEnemigos[indexEnemigos].ID = indexEnemigos + 1; //El numero o id de enemigo
 
-			if (pthread_create(&aHilosEnemigos[indexEnemigos].thread_enemy, NULL, enemigo,(void*) &aHilosEnemigos[indexEnemigos])) {
+
+			if (pthread_create(&aHilosEnemigos[indexEnemigos].thread, NULL, enemigo, (void*) &aHilosEnemigos[indexEnemigos])) {
 				log_error(logger, "pthread_create: %s", strerror(errno));
 				exit(EXIT_FAILURE);
 			}
 		}
 
 	} else {
-		nivel_gui_dibujar(list_items, nivel.nombre);
+		nivel_gui_dibujar(list_items, nivel->nombre);
 	}
 }
 
@@ -84,7 +90,7 @@ void conexionPersonaje(int iSocket, char *sPayload) {
 	}
 }
 
-void movimientoPersonaje(int iSocket, char *sPayload) {
+void movimientoPersonaje(tNivel *pNivel, int iSocket, char *sPayload) {
 	tPaquete paquete;
 	tPersonaje *pPersonaje;
 	tPosicion posPersonaje;
@@ -98,15 +104,17 @@ void movimientoPersonaje(int iSocket, char *sPayload) {
 	pPersonaje = getPersonajeBySymbol(movPersonaje->simbolo);
 
 	if (pPersonaje != NULL && !pPersonaje->muerto) {
-		pPersonaje->bloqueado=false;
+		pPersonaje->bloqueado = false;
+
 
 		getPosPersonaje(list_items, movPersonaje->simbolo, &posPersonaje.x, &posPersonaje.y);
-		calcularMovimiento(movPersonaje.direccion, &posPersonaje.x, &posPersonaje.y);
+		calcularMovimiento(pNivel, movPersonaje.direccion, &posPersonaje.x, &posPersonaje.y);
 
 		pthread_mutex_lock(&semItems);
 		MoverPersonaje(list_items, movPersonaje->simbolo, &posPersonaje.x, &posPersonaje.y);
 		pthread_mutex_unlock(&semItems);
 		notificacionAPlataforma(iSocket, &paquete, N_CONFIRMACION_MOV, "Notificando a plataforma personaje movido correctamente");
+		pPersonaje->listoParaPerseguir = true;
 
 	} else {
 		notificacionAPlataforma(iSocket, &paquete, N_PERSONAJE_INEXISTENTE, "Notificando a plataforma personaje no existe");
@@ -226,12 +234,86 @@ void desconexionPersonaje(char *sPayload) {
 }
 
 
+void escucharConexiones(int iSocket, char* nombreNivel, int fdInotify, char* configFilePath) {
+	// Variables del Poll
+	struct pollfd uDescriptores[POLL_NRO_FDS];
+	uDescriptores[0].fd	    = iSocket;
+	uDescriptores[0].events = POLLIN;
+	uDescriptores[1].fd 	= fdInotify;
+	uDescriptores[1].events = POLLIN;
+	int iResultadoPoll;
+
+	// Variables iNotify
+	int bytesLeidos;
+	char bufferInotify[TAM_BUFFER];
+
+	char *sPayload;
+	tMensaje tipoDeMensaje;
+
+	while (1) {
+
+		if ((iResultadoPoll = poll(uDescriptores, POLL_NRO_FDS, POLL_TIMEOUT)) == -1) {
+			log_error(logger, "Error al escuchar en el polling");
+
+		} else {
+
+			if (uDescriptores[1].revents & POLLIN) { // Hay data lista para recibir
+				int bytes;
+				bytesLeidos = read(fdInotify, bufferInotify, TAM_BUFFER);
+				struct inotify_event* evento; // VER ESTO, PUEDE FALLAR EL CAMBIO DE WHILE A FOR
+
+				for (bytes = 0; bytes < bytesLeidos; bytes += TAM_EVENTO + evento->len) {
+
+					evento = (struct inotify_event*) &bufferInotify[bytes];
+
+					if (evento->mask & IN_MODIFY) {//avisar a planificador que cambio el archivo config
+						actualizarInfoNivel(configFilePath);
+					}
+				}
+			} //Preguntar por que si poll detecta actividad en el descriptor del inotify y este solo se acciona cuando ocurre in_modify => haria falta todo lo que sigue? o
+			 //simplemente podria actualizar los datos y listo?
+			if (uDescriptores[0].revents & POLLIN) { // Hay data lista para recibir
+
+				recibirPaquete(iSocket, &tipoDeMensaje, &sPayload, logger,"Recibiendo mensaje de plataforma");
+
+				switch(tipoDeMensaje) {
+				case PL_CONEXION_PERS:
+					conexionPersonaje(iSocket, sPayload);
+					break;
+
+				case PL_MOV_PERSONAJE:
+					movimientoPersonaje(iSocket, sPayload);
+					break;
+
+				case PL_POS_RECURSO:
+					posicionRecurso(iSocket, sPayload);
+					break;
+
+				case PL_SOLICITUD_RECURSO:
+					solicitudRecurso(iSocket, sPayload);
+					break;
+
+				case PL_DESCONEXION_PERSONAJE:// Un personaje termino o murio y debo liberar instancias de recursos que tenia asignado
+					desconexionPersonaje(sPayload);
+					break;
+				} //Fin del switch
+
+				pthread_mutex_lock(&semItems);
+				nivel_gui_dibujar(list_items, nombreNivel);
+
+				pthread_mutex_unlock(&semItems);
+			}
+		}
+	}
+}
+
+
 int main(int argc, char** argv) {
 	tNivel nivel;
 	tInfoInterbloqueo interbloqueo;
 	int iSocket;
-	char bufferInotify[TAM_BUFFER];
-	int rv, descriptorVigilador, bytesLeidos, descriptorInotify;
+	int descriptorVigilador, descriptorInotify;
+	char *configFilePath = argv[1];
 
 	signal(SIGINT, cerrarForzado);
 
@@ -255,7 +337,7 @@ int main(int argc, char** argv) {
 	list_personajes = list_create();
 	nivel_gui_inicializar();
 	nivel_gui_get_area_nivel(&nivel.maxRows, &nivel.maxRows);
-	levantarArchivoConf(argv[1], &nivel, &interbloqueo);
+	levantarArchivoConf(configFilePath, &nivel, &interbloqueo);
 
 	//SOCKETS
 	iSocket = connectToServer(nivel.plataforma.IP, nivel.plataforma.port, logger);
@@ -263,96 +345,24 @@ int main(int argc, char** argv) {
     	cerrarNivel("No se puede conectar con la plataforma");
     }
 
-    handshakeConPlataforna(iSocket, &nivel);
+    handshakeConPlataforma(iSocket, &nivel);
 
 	//INOTIFY
-	descriptorInotify=inotify_init();
-	descriptorVigilador=inotify_add_watch(descriptorInotify,argv[1],IN_MODIFY);
-	if (descriptorVigilador==-1) {
-		log_error(logger, "error en inotify add_watch");
+	descriptorInotify   = inotify_init();
+	descriptorVigilador = inotify_add_watch(descriptorInotify, configFilePath, IN_MODIFY);
+	if (descriptorVigilador == -1) {
+		log_error(logger, "Error en inotify add_watch");
 	}
 
-	//POLL
-	uDescriptores[0].fd=sockete;
-	uDescriptores[0].events=POLLIN;
-	uDescriptores[1].fd=descriptorInotify;
-	uDescriptores[1].events=POLLIN;
+	crearEnemigos(&nivel);
 
-	crearEnemigos(nivel);
-
-	//LANZANDO EL HILO DETECTOR DE INTERBLOQUEO
+	// LANZANDO EL HILO DETECTOR DE INTERBLOQUEO
 	pthread_t hiloInterbloqueo;
-	pthread_create(&hiloInterbloqueo,NULL,&deteccionInterbloqueo,NULL);
+	pthread_create(&hiloInterbloqueo, NULL, &deteccionInterbloqueo, NULL);
 
-	//WHILE PRINCIPAL
-	while (1) {
-		if ((rv=poll(uDescriptores,2,-1))==-1) {
-			perror("poll");
-		} else {
-			if (uDescriptores[1].revents&POLLIN) {
-				i = 0;
-				bytesLeidos = read(descriptorInotify,bufferInotify,TAM_BUFFER);
-				while (i<bytesLeidos) {
-					struct inotify_event* evento;
-					evento = (struct inotify_event*) &bufferInotify[i];
-					if (evento->mask & IN_MODIFY) {//avisar a planificador que cambio el archivo config
-						actualizarInfoNivel(argv[1]);
-						//ENVIANDO A PLATAFORMA NOTIFICACION DE ALGORITMO ASIGNADO
-						tInfoNivel infoDeNivel;
-						infoDeNivel.algoritmo=algoritmo;
-						infoDeNivel.quantum=quantum;
-						infoDeNivel.delay=retardo;
-						//serializacion propia porque la de protocolo no me andaba bien
-						pthread_mutex_lock(&semSockPaq);
-						serializarInfoNivel(N_ACTUALIZACION_CRITERIOS, infoDeNivel, &paquete);
-						enviarPaquete(sockete,&paquete,logger,"notificando a plataforma algoritmo");
-						pthread_mutex_unlock(&semSockPaq);
-					}
-					i+=TAM_EVENTO+evento->len;
-				}
-			}//Preguntar por que si poll detecta actividad en el descriptor del inotify y este solo se acciona cuando ocurre in_modify => haria falta todo lo que sigue? o
-			 //simplemente podria actualizar los datos y listo?
-			if (uDescriptores[0].revents & POLLIN) {
-				tPregPosicion* posConsultada = NULL;
-				pers_t* personaG = NULL;
-				ITEM_NIVEL* itemRec = NULL;
-				tDesconexionPers* persDesconectado;
-				recibirPaquete(sockete, &tipoDeMensaje, &sPayload, logger,"Recibiendo mensaje de plataforma");
+	escucharConexiones(iSocket, nivel.nombre,descriptorInotify, configFilePath);
 
-				switch(tipoDeMensaje){
-				case PL_CONEXION_PERS:
-					conexionPersonaje(iSocket, sPayload);
-					break;
-
-				case PL_MOV_PERSONAJE:
-					movimientoPersonaje(iSocket, sPayload);
-					break;
-
-				case PL_POS_RECURSO:
-					posicionRecurso(iSocket, sPayload);
-					break;
-
-				case PL_SOLICITUD_RECURSO:
-					solicitudRecurso(iSocket, sPayload);
-					break;
-
-				case PL_DESCONEXION_PERSONAJE:// Un personaje termino o murio y debo liberar instancias de recursos que tenia asignado
-					desconexionPersonaje(sPayload)
-					break;
-				} //Fin del switch
-
-				pthread_mutex_lock(&semItems);
-				nivel_gui_dibujar(list_items, nivel.nombre);
-
-				if (tipoMsj==PL_MOV_PERSONAJE) {
-					personaG->listoParaPerseguir = true;
-				}
-				pthread_mutex_unlock(&semItems);
-			}
-		}
-	}
-
-	inotify_rm_watch(descriptorInotify,descriptorVigilador);
+	inotify_rm_watch(descriptorInotify, descriptorVigilador);
 	close(descriptorInotify);
 	log_destroy(logger);
 	return EXIT_SUCCESS;
@@ -457,86 +467,117 @@ void levantarArchivoConf(char* pathConfigFile, tNivel *pNivel, tInfoInterbloqueo
 	config_destroy(configNivel);
 }
 
-void actualizarInfoNivel(char* argumento){
-	extern tAlgoritmo algoritmo;
-	extern int quantum;
-	extern uint32_t retardo;
+void actualizarInfoNivel(char* configFilePath, int iSocket, tNivel *pNivel) {
 	char* algoritmoAux;
 	t_config *configNivel;
 
-	while(1){ //------------------------------------->despues de muchos dias de putear esta era la solucion (hay un retraso que produce un seg.fault)
-		configNivel  = config_create(argumento);
-		if(!config_has_property(configNivel,"Algoritmo")){
-			usleep(10);
-
-			config_destroy(configNivel);
-		}
-		else break;
+	configNivel  = config_create(configFilePath);
+	while(!config_has_property(configNivel,"Algoritmo")) {
+		usleep(10);
+		config_destroy(configNivel);
 	}
-
 
 	algoritmoAux = config_get_string_value(configNivel, "Algoritmo");
-	char *rr="RR";
-	if (strcmp(algoritmoAux,rr)==0) {
-		algoritmo = RR;
+
+	if (strcmp(algoritmoAux,"RR") == 0) {
+		pNivel->plataforma.algPlanif = RR;
+		pNivel->plataforma.valorAlgorimo = config_get_int_value(configNivel, "Quantum");
 	} else {
-		algoritmo = SRDF;
+		pNivel->plataforma.algPlanif = SRDF;
 	}
-	quantum = config_get_int_value(configNivel, "Quantum");
-	retardo = config_get_int_value(configNivel, "Retardo");
-	log_debug(logger,"se produjo un cambio en el archivo config, Algorimo: %s quantum:%i retardo:%i",algoritmoAux,quantum,retardo);
+
+	pNivel->plataforma.delay = config_get_int_value(configNivel, "Retardo");
+	log_debug(logger, "Se produjo un cambio en el archivo configuracion, Algoritmo: %s quantum:%i retardo:%i", algoritmoAux, quantum, retardo);
+	free(algoritmoAux);
 	config_destroy(configNivel);
+
+	tPaquete paquete;
+	//ENVIANDO A PLATAFORMA NOTIFICACION DE ALGORITMO ASIGNADO
+	tInfoNivel infoDeNivel;
+	infoDeNivel.algoritmo = pNivel->plataforma.algPlanif;
+	infoDeNivel.quantum   = pNivel->plataforma.valorAlgorimo;
+	infoDeNivel.delay     = pNivel->plataforma.delay;
+	//serializacion propia porque la de protocolo no me andaba bien
+
+	serializarInfoNivel(N_ACTUALIZACION_CRITERIOS, infoDeNivel, &paquete);
+	enviarPaquete(iSocket, &paquete, logger, "Notificando cambio de algoritmo a plataforma");
 }
 
 void *enemigo(void * args) {
-	enemigo_t *enemigo;
-	enemigo = (enemigo_t *) args;
-	extern t_list *list_items;
-	extern tPaquete paquete;
-	int cantPersonajesActivos;
+	tParamThreadEnemigo *pParametros;
+	enemigo = (tParamThreadEnemigo *) args;
+
+	tNivel   *pNivel;
+	tEnemigo *enemigo;
+
+	//Variables de movimiento
 	int contMovimiento = 3;
-	char victimaAsignada='0';
-	char ultimoMov='a';
-	char dirMov='b';
-	int dist1,dist2=9999999,i;
-	ITEM_NIVEL* item;
-	pers_t* persVictima;
+	char ultimoMov     = 'a';
+	char dirMov	       = 'b';
+	//Variables de persecucion de victima
+	int distFinal=9999999;
+	tPersonaje* persVictima;
 
 	//chequeando que la posicion del enemigo no caiga en un recurso
-	enemigo->posX = 1+(rand() % maxCols);
-	enemigo->posY = 1+(rand() % maxRows);
-	bool esUnRecurso(ITEM_NIVEL *itemNiv){ return (itemNiv->item_type==RECURSO_ITEM_TYPE&&itemNiv->posx==enemigo->posX&&itemNiv->posy==enemigo->posY);}
+
+	enemigo->posX = 1+(rand() % pNivel->maxCols);
+	enemigo->posY = 1+(rand() % pNivel->maxRows);
+	bool esUnRecurso(ITEM_NIVEL *itemNiv){
+		return (itemNiv->item_type==RECURSO_ITEM_TYPE && itemNiv->posx==enemigo->posX && itemNiv->posy==enemigo->posY);
+	}
 	while(list_any_satisfy(list_items,(void*)esUnRecurso)){
-		enemigo->posX=1+(rand() % maxCols);
-		enemigo->posY=1+(rand() % maxRows);
+		enemigo->posX=1+(rand() % pNivel->maxCols);
+		enemigo->posY=1+(rand() % pNivel->maxRows);
 	}
 	pthread_mutex_lock(&semItems);
-	CreateEnemy(list_items,enemigo->num_enemy,enemigo->posX,enemigo->posY);
+	CreateEnemy(list_items,enemigo->ID,enemigo->posX,enemigo->posY);
 	pthread_mutex_unlock(&semItems);
 
+	bool movimientoAleatorio;
+
+
 	while (1) {
-		bool personajeBloqueado(pers_t* personaje){return(personaje->bloqueado==false && personaje->muerto==false && personaje->listoParaPerseguir==true);}
-		cantPersonajesActivos=list_count_satisfying(list_personajes,(void*)personajeBloqueado);
-		if (cantPersonajesActivos == 0) {
-			/* para hacer el movimiento de caballo uso la var ultimoMov que puede ser:
-			 * a:el ultimo movimiento fue horizontal por primera vez b:el utlimo movimiento fue horizontal por segunda vez
-			 * c:el ultimo movimiento fue vertical por primera vez
-			 * y la variable dirMov que indicara en que direccion se esta moviendo
-			 * a:abajo-derecha b:abajo-izquierda c:arriba-derecha d:arriba-izquierda
+
+		log_debug(logger, "Movimiento aleatorio");
+
+		movimientoAleatorio = analizarMovimientoDeEnemigo();
+
+		if (movimientoAleatorio) {
+			/*
+			 * Para hacer el movimiento de caballo uso la var ultimoMov que puede ser:
+			 * 		a:el ultimo movimiento fue horizontal por primera vez
+			 * 		b:el ultimo movimiento fue horizontal por segunda vez
+			 * 		c:el ultimo movimiento fue vertical por primera vez
+			 *
+			 * La variable dirMov que indicara en que direccion se esta moviendo
+			 * 		a:abajo-derecha
+			 * 		b:abajo-izquierda
+			 * 		c:arriba-derecha
+			 * 		d:arriba-izquierda
 			*/
 			if(enemigo->posY<1){ //se esta en el limite vertical superior
-				if((enemigo->posX<1)||(dirMov=='c')) dirMov='a';
-				if((enemigo->posX>maxCols)||(dirMov=='d')) dirMov='b';
+				if((enemigo->posX<1)||(dirMov=='c'))
+					dirMov='a';
+				if((enemigo->posX>pNivel->maxCols)||(dirMov=='d'))
+					dirMov='b';
 			}
-			if(enemigo->posY>maxRows){ //se esta en el limite vertical inferior
-				if((enemigo->posX<1)||(dirMov=='a')) dirMov='c';
-				if((enemigo->posX>maxCols)||(dirMov=='b'))dirMov='d';
+			if(enemigo->posY>pNivel->maxRows){ //se esta en el limite vertical inferior
+				if((enemigo->posX<1)||(dirMov=='a'))
+					dirMov='c';
+				if((enemigo->posX>pNivel->maxCols)||(dirMov=='b'))
+					dirMov='d';
 			}
 			if(enemigo->posX<=0){ //se esta en el limite horizontal izquierdo
-				if(dirMov=='b') dirMov='a';else dirMov='c';
+				if(dirMov=='b')
+					dirMov='a';
+				else
+					dirMov='c';
 			}
-			if(enemigo->posX>maxCols){
-				if(dirMov=='a') dirMov='b';else dirMov='d';
+			if(enemigo->posX>pNivel->maxCols){
+				if(dirMov=='a')
+					dirMov='b';
+				else
+					dirMov='d';
 			}
 			//calculando el movimiento segun lo anterior y la direccion con la que viene
 			switch(dirMov){
@@ -600,90 +641,144 @@ void *enemigo(void * args) {
 			actualizaPosicion(&contMovimiento, &(enemigo->posX),&(enemigo->posY));
 			void esUnRecurso(ITEM_NIVEL *ite){
 				if ((ite->item_type==RECURSO_ITEM_TYPE)&&((ite->posx==enemigo->posX)&&(ite->posy==enemigo->posY))){
-					if(ultimoMov=='a'||ultimoMov=='b')enemigo->posY++;
-					else enemigo->posX--;
+					if(ultimoMov=='a'||ultimoMov=='b')
+						enemigo->posY++;
+					else
+						enemigo->posX--;
 				}
 			}
 			list_iterate(list_items,(void*)esUnRecurso);
 		}
 		else { //ELEGIR O PERSEGUIR A LA VICTIMA
 
-			if(victimaAsignada=='0'){//No tiene victima => selecciono una victima
+			log_debug(logger, "antes de asignar victima");
+			pthread_mutex_lock(&semItems);
+			ITEM_NIVEL *victima = asignarVictima(enemigo, distFinal);
+			pthread_mutex_unlock(&semItems);
 
-				for(i=0;i<list_size(list_items);i++){
-					item=list_get(list_items,i);
-					dist1=(enemigo->posX-item->posx)*(enemigo->posX-item->posx)+(enemigo->posY-item->posy)*(enemigo->posY-item->posy);
-					if((dist1<dist2)&&(item->item_type==PERSONAJE_ITEM_TYPE)){
-						victimaAsignada=item->id;
-						dist2=dist1;
+			if(perseguirVictima(victima)){
+
+				log_debug(logger, "Elegi la victima %c", victima->id);
+
+				pthread_mutex_lock(&semListPersonajes);
+				persVictima = getPersonajeBySymbol((tSimbolo)victima->id);
+				pthread_mutex_unlock(&semListPersonajes);
+
+				log_debug(logger, "Tengo el personaje");
+
+				if(persVictima!=NULL && !persVictima->bloqueado){
+
+					acercarmeALaVictima(enemigo, victima, &contMovimiento);
+
+					actualizaPosicion(&contMovimiento, &(enemigo->posX),&(enemigo->posY));
+
+					evitarRecurso(enemigo);
+
+					log_debug(logger, "me acerque a la victima");
+					if(victima->posx==enemigo->posX && victima->posy==enemigo->posY && victima->muerto==false){
+						log_debug(logger, "estoy por matarla");
+						pthread_mutex_lock(&semItems);
+						victima->muerto = true;
+						pthread_mutex_unlock(&semItems);
+						log_debug(logger, "%s: Hilo %d: Alcance a la victima %c",nom_nivel, enemigo->ID, victima->id);
 					}
 				}
 			}
-			else{//Ya tiene una victima asignada => busco la victimaAsignada en la lista de items y la coloco en persVictima
 
-				persVictima = getPersonajeBySymbol((tSimbolo)victimaAsignada);
-
-				if(persVictima->bloqueado || persVictima->muerto || !persVictima->listoParaPerseguir){
-					//Si estaba bloqueado o ya matado(pero aun no lo saque) => busco nueva victima
-					victimaAsignada='0';
-				}
-				else{ //Me acerco a la victima
-					item = getItemById(victimaAsignada);
-
-					//Elijo el eje por el que me voy a acercar
-					if(enemigo->posY==item->posy){
-						if(enemigo->posX<item->posx){
-							contMovimiento=1;
-						}
-						if(enemigo->posX>item->posx){
-							contMovimiento=3;
-						}
-						if(enemigo->posX==item->posx){//se esta en la misma posicion que la victima =>matarla
-							//un semaforo para que no mande mensaje al mismo tiempo que otros enemigos o el while principal
-							//otro semaforo para que no desasigne y se esten evaluando otros
-							pers_t *unPersonaje = getPersonajeBySymbol((tSimbolo)item->id);
-							if(!unPersonaje->muerto){ //Si no esta muerto, matar
-								unPersonaje->muerto = true;
-								matarPersonaje((tSimbolo *)&unPersonaje->simbolo);
-							}
-							victimaAsignada='0';
-						}
-					}
-					else{ //acercarse por fila
-						if(enemigo->posY<item->posy) contMovimiento=4;
-						if(enemigo->posY>item->posy) contMovimiento=2;
-				    }
-				}
-				//TODO agregar si se llega a "chocar" con un personaje que no es su victima-->no habia contemplado este caso
-
-				actualizaPosicion(&contMovimiento, &(enemigo->posX),&(enemigo->posY));
-
-				evitarRecurso(enemigo);
-
-				ITEM_NIVEL *personajeItem = getVictima(enemigo);
-
-				if(personajeItem!= NULL){
-					pers_t *unPersonaje = getPersonajeBySymbol((tSimbolo)personajeItem->id);
-					if(!unPersonaje->muerto){ //Si no esta muerto, matar
-						unPersonaje->muerto = true;
-						matarPersonaje((tSimbolo *)&unPersonaje->simbolo);
-					}
-				}
-			}
 		}
 
+
 		pthread_mutex_lock(&semItems);
-		MoveEnemy(list_items, enemigo->num_enemy, enemigo->posX,enemigo->posY);
-		nivel_gui_dibujar(list_items, nom_nivel);
+		MoveEnemy(list_items, enemigo->ID, enemigo->posX,enemigo->posY);
+		nivel_gui_dibujar(list_items, pNivel->nombre);
 		pthread_mutex_unlock(&semItems);
-		usleep(sleep_enemigos);
+		usleep(pNivel->sleepEnemigos);
 
 	} //Fin de while(1)
 	pthread_exit(NULL );
 }
 
+_Bool perseguirVictima(ITEM_NIVEL *victima){
+	bool perseguir;
+	perseguir =(victima!=NULL) && (victima->muerto == false);
+	return perseguir;
+}
+
+_Bool analizarMovimientoDeEnemigo(){
+
+	int cantPersonajesActivos;
+	bool personajeBloqueado(tPersonaje* personaje){
+		return (personaje->bloqueado==false)&&(personaje->listoParaPersguir==true);
+	}
+	cantPersonajesActivos = list_count_satisfying(list_personajes,(void*)personajeBloqueado);
+
+	return (cantPersonajesActivos==0);
+
+}
+
+void acercarmeALaVictima(tEnemigo *enemigo, ITEM_NIVEL *item, int *contMovimiento){
+
+	//Elijo el eje por el que me voy a acercar
+	if (enemigo->posY == item->posy) {
+
+		if (enemigo->posX < item->posx) {
+			*contMovimiento=1;
+		}
+
+		if (enemigo->posX > item->posx) {
+			*contMovimiento=3;
+		}
+	} else { //acercarse por fila
+
+		if (enemigo->posY < item->posy) {
+			*contMovimiento=4;
+		}
+
+		if (enemigo->posY > item->posy) {
+			*contMovimiento=2;
+		}
+	}
+
+}
+
+
+ITEM_NIVEL *asignarVictima(tEnemigo *enemigo, int dist1){
+
+	int dist2=999999;
+	int i;
+	ITEM_NIVEL *itemReturn;
+	for(i=0;i<list_size(list_items);i++){
+		ITEM_NIVEL *item=list_get(list_items,i);
+
+		if(esUnPersonaje(item)){
+			dist1 = calcularDistancia(enemigo, item);
+			if((dist1<dist2)){
+				itemReturn = item;
+				dist2=dist1;
+			}
+		}
+	}
+
+	return itemReturn;
+
+}
+
+_Bool esUnPersonaje (ITEM_NIVEL *item) {
+	return (item->item_type==PERSONAJE_ITEM_TYPE);
+
+}
+
+int calcularDistancia(tEnemigo *enemigo, ITEM_NIVEL *item){
+
+	int terminoX = (enemigo->posX-item->posx) * (enemigo->posX-item->posx);
+	int terminoY = (enemigo->posY-item->posy) * (enemigo->posY-item->posy);
+
+	return (terminoX + terminoY);
+
+}
+
 //Buscar en list_items y me devuelve el personaje que cumple la condicion
-ITEM_NIVEL *getVictima(enemigo_t *enemigo){
+ITEM_NIVEL *getVictimaSiExiste(tEnemigo *enemigo){
 	ITEM_NIVEL *personajeItem;
 	bool esUnPersonaje(ITEM_NIVEL *item){
 		return (item->item_type==PERSONAJE_ITEM_TYPE)&&((item->posx==enemigo->posX)&&(item->posy==enemigo->posY));
@@ -703,7 +798,7 @@ ITEM_NIVEL *getItemById(char id_victima){
 }
 
 //Mueve el enemigo atras en x si se paro en un recurso
-void evitarRecurso(enemigo_t *enemigo){
+void evitarRecurso(tEnemigo *enemigo){
 
 	void esUnRecurso(ITEM_NIVEL *iten){
 		if ((iten->item_type==RECURSO_ITEM_TYPE)&&((iten->posx==enemigo->posX)&&(iten->posy==enemigo->posY)))
@@ -722,10 +817,11 @@ tPersonaje *getPersonajeBySymbol(tSimbolo simbolo){
 	return unPersonaje;
 }
 
-void crearNuevoPersonaje(tSimbolo simbolo) {
+
+void crearNuevoPersonaje (tSimbolo simbolo) {
 	tPersonaje *pPersonajeNuevo = malloc(sizeof(tPersonaje));
-	pPersonajeNuevo->simbolo  = simbolo;
-	pPersonajeNuevo->bloqueado  = false;
+	pPersonajeNuevo->simbolo = simbolo;
+	pPersonajeNuevo->bloqueado = false;
 	pPersonajeNuevo->muerto = false;
 	pPersonajeNuevo->listoParaPerseguir = false;
 	pPersonajeNuevo->recursos = list_create();
@@ -736,6 +832,18 @@ void crearNuevoPersonaje(tSimbolo simbolo) {
 	log_info(logger, "<<< Se agrego al personaje %c a la lista", simbolo);
 }
 
+_Bool hayAlgunEnemigoArribaMio(int posPerX, int posPerY) {
+
+	int i;
+	int posEnemyX, posEnemyY;
+	for (i = 0; i < cant_enemigos; i++) {
+		getPosEnemy(list_items, i, &posEnemyX, &posEnemyY);
+		if (posPerX == posEnemyX && posPerY == posEnemyY)
+			return true;
+	}
+	return false;
+}
+
 void notificacionAPlataforma(int iSocket, tPaquete *paquete, tMensaje tipoMensaje, char *msjInfo){
 	pthread_mutex_lock(&semSockPaq);
 	paquete->type   = tipoMensaje;
@@ -744,48 +852,72 @@ void notificacionAPlataforma(int iSocket, tPaquete *paquete, tMensaje tipoMensaj
 	pthread_mutex_unlock(&semSockPaq);
 }
 
-void calcularMovimiento(tDirMovimiento direccion, int *posX, int *posY){
+void calcularMovimiento(tNivel *pNivel, tDirMovimiento direccion, int *posX, int *posY){
 	switch (direccion) {
 		case arriba:
-			if (*posY > 1) (*posY)--;
-		break;
+			if (*posY > 1) {
+				(*posY)--;
+			}
+			break;
 		case abajo:
-			if (*posY < maxRows) (*posY)++;
-		break;
+			if (*posY < pNivel->maxRows) {
+				(*posY)++;
+			}
+			break;
 		case izquierda:
-			if (*posX > 1) (*posX)--;
-		break;
+			if (*posX > 1) {
+				(*posX)--;
+			}
+			break;
 		case derecha:
-			if (*posX < maxCols) (*posX)++;
-		break;
+			if (*posX < pNivel->maxCols) {
+				(*posX)++;
+			}
+			break;
 		default:
 			log_error(logger, "ERROR: no detecto una direccion de movimiento valida: %d", direccion);
-		break;
+			break;
 	}
 }
 
 void matarPersonaje(tSimbolo *simboloItem){
-	pthread_mutex_lock(&semItems);
-	BorrarItem(list_items, (char)*simboloItem);
+
+	log_debug(logger, "-> Un enemigo alcanzo al personaje %c <-", *simboloItem);
+	log_debug(logger, "Eliminando al personaje...");
+	pthread_mutex_lock(&semListPersonajes);
+	bool buscarPersonaje(tPersonaje* perso){return(perso->simbolo==*simboloItem);}
+	tPersonaje *personajeOut = list_remove_by_condition(list_personajes,(void*)buscarPersonaje);
+	pthread_mutex_unlock(&semListPersonajes);
+
+
 	pthread_mutex_unlock(&semItems);
+	BorrarItem(list_items, *simboloItem);
+	nivel_gui_dibujar(list_items, nom_nivel);
+	pthread_mutex_unlock(&semItems);
+
+
 	pthread_mutex_lock(&semSockPaq);
 	paquete.type=N_MUERTO_POR_ENEMIGO;
 	memcpy(paquete.payload, simboloItem,sizeof(tSimbolo));
 	paquete.length=sizeof(tSimbolo);
 	enviarPaquete(sockete,&paquete,logger,"enviando notificacion de muerte de personaje a plataforma");
 	pthread_mutex_unlock(&semSockPaq);
+	personaje_destroyer(personajeOut);
 }
 
-void *deteccionInterbloqueo (void *parametro){
+void *deteccionInterbloqueo (void *parametro) {
 	extern t_list* list_items;
 	extern tPaquete paquete;
 
 	tSimbolo* caja;
-	tSimbolo perso;
+	tSimbolo personaje;
+
+	tNivel *pNivel; //Pasarle el nivel
+
 
 	int i,j,k,fila;
 	ITEM_NIVEL* itemRec = NULL;
-	pers_t* personaje   = NULL;
+	tPersonaje* personaje   = NULL;
 	struct timespec dormir;
 	dormir.tv_sec  = (time_t)(timeCheck/1000);
 	dormir.tv_nsec = (long)((timeCheck%1000) * 1000000);
@@ -885,18 +1017,18 @@ void *deteccionInterbloqueo (void *parametro){
 							//cargar el simbolo de ese personaje
 							log_debug(logger,"en el if del while");
 							personaje = list_get(list_personajes,i);
-							perso = personaje->simbolo;
+							personaje = personaje->simbolo;
 							log_debug(logger,"en el if del while2");
 							encontrado = '1';
 						}
 						log_debug(logger,"saliendo del if");
 					}
 					log_debug(logger,"saliendo del while");
-					log_debug(logger,"antes de enviar paquete con perso(caja):%c",perso);
+					log_debug(logger,"antes de enviar paquete con perso(caja):%c",personaje);
 					pthread_mutex_lock(&semSockPaq);
 					paquete.type = N_MUERTO_POR_DEADLOCK;
 					paquete.length = sizeof(tSimbolo);
-					paquete.payload[0] = perso;
+					paquete.payload[0] = personaje;
 					enviarPaquete(sockete,&paquete,logger,"enviando notificacion de bloqueo de personajes a plataforma");
 					pthread_mutex_unlock(&semSockPaq);
 					//eliminar personaje y devolver recursos
@@ -923,9 +1055,9 @@ void *deteccionInterbloqueo (void *parametro){
 }
 
 void liberarRecsPersonaje(char id){
-	pers_t* personaje;
+	tPersonaje* personaje;
 
-	bool buscarPersonaje(pers_t* perso){return(perso->simbolo==id);}
+	bool buscarPersonaje(tPersonaje* perso){return(perso->simbolo==id);}
 	//eliminar al personaje de list_personajes y devolverlo para desasignar sus recursos:
 	personaje=list_find(list_personajes,(void*)buscarPersonaje);
 	list_remove_by_condition(list_personajes,(void*)buscarPersonaje);//elimina el personaje de la lista list_personajes
@@ -972,7 +1104,7 @@ void cerrarNivel(char* msjLog) {
 }
 //--------------------------------------Señal SIGINT
 
-static void personaje_destroyer(pers_t *personaje) {
+static void personaje_destroyer(tPersonaje *personaje) {
 	list_destroy_and_destroy_elements(personaje->recursos, free);
 	free(personaje);
 }
