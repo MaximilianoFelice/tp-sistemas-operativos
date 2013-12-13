@@ -44,15 +44,14 @@ typedef struct {
 	_Bool listoParaPerseguir; //Se activa cuando se empieza a mover el personaje; es para que no lo persiga si el chabon todavia no empezo a moverse
 	tSimbolo simbolo;
 	t_list* recursos;
-} pers_t;
+} tPersonaje;
 
 typedef struct {
-	int num_enemy;
-	int sockP;
+	int number;
 	int posX;
 	int posY;
 	pthread_t thread_enemy;
-} enemigo_t;
+} tEnemigo;
 
 typedef struct {
 	char IP[INET_ADDRSTRLEN];
