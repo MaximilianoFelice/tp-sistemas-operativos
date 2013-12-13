@@ -17,6 +17,61 @@ t_list *list_items = NULL;
 pthread_mutex_t semSockPaq;
 pthread_mutex_t semItems;
 
+
+int main(int argc, char** argv) {
+	tNivel nivel;
+	tInfoInterbloqueo interbloqueo;
+	int iSocket;
+	int descriptorVigilador, descriptorInotify;
+	char *configFilePath = argv[1];
+
+	signal(SIGINT, cerrarForzado);
+
+	pthread_mutex_init(&semSockPaq, NULL);
+	pthread_mutex_init(&semItems,NULL);
+
+	//LOG
+	logger = logInit(argv, "NIVEL");
+
+	/*
+	 * FUNCION INIT
+	 */
+	// INICIALIZANDO GRAFICA DE MAPAS
+	list_items 	    = list_create();
+	list_personajes = list_create();
+	nivel_gui_inicializar();
+	nivel_gui_get_area_nivel(&nivel.maxRows, &nivel.maxRows);
+	levantarArchivoConf(configFilePath, &nivel, &interbloqueo);
+
+	//SOCKETS
+	iSocket = connectToServer(nivel.plataforma.IP, nivel.plataforma.port, logger);
+    if (iSocket == EXIT_FAILURE) {
+    	cerrarNivel("No se puede conectar con la plataforma");
+    }
+
+    handshakeConPlataforma(iSocket, &nivel);
+
+	//INOTIFY
+	descriptorInotify   = inotify_init();
+	descriptorVigilador = inotify_add_watch(descriptorInotify, configFilePath, IN_MODIFY);
+	if (descriptorVigilador == -1) {
+		log_error(logger, "Error en inotify add_watch");
+	}
+
+	crearEnemigos(&nivel);
+
+	// LANZANDO EL HILO DETECTOR DE INTERBLOQUEO
+	pthread_t hiloInterbloqueo;
+	pthread_create(&hiloInterbloqueo, NULL, &deteccionInterbloqueo, NULL);
+
+	escucharConexiones(&nivel, iSocket, descriptorInotify, configFilePath);
+
+	inotify_rm_watch(descriptorInotify, descriptorVigilador);
+	close(descriptorInotify);
+	log_destroy(logger);
+	return EXIT_SUCCESS;
+}
+
 void handshakeConPlataforma(int iSocket, tNivel *pNivel) {
 	tPaquete paquete;
 	int largoNombre = strlen(pNivel->nombre) + 1;
@@ -45,11 +100,6 @@ void handshakeConPlataforma(int iSocket, tNivel *pNivel) {
 
 	enviarPaquete(iSocket, &paquete, logger, "Se envia a la plataforma los criterios de planificacion");
 }
-
-typedef struct {
-
-};
-
 
 void crearEnemigos(tNivel *nivel) {
 	// CREANDO Y LANZANDO HILOS ENEMIGOS
@@ -82,7 +132,7 @@ void conexionPersonaje(int iSocket, char *sPayload) {
 	pPersonaje = getPersonajeBySymbol((int8_t)*sPayload);
 	free(sPayload);
 
-	if (tPersonaje == NULL) {
+	if (pPersonaje == NULL) {
 		crearNuevoPersonaje(movPersonaje.simbolo);
 		notificacionAPlataforma(iSocket, &paquete, N_CONEXION_EXITOSA, "Se notifica a plataforma que el personaje se onecto exitosamente");
 	} else {//se encontro=>el personaje ya existe
@@ -108,10 +158,10 @@ void movimientoPersonaje(tNivel *pNivel, int iSocket, char *sPayload) {
 
 
 		getPosPersonaje(list_items, movPersonaje->simbolo, &posPersonaje.x, &posPersonaje.y);
-		calcularMovimiento(pNivel, movPersonaje.direccion, &posPersonaje.x, &posPersonaje.y);
+		calcularMovimiento(pNivel, movPersonaje->direccion, &posPersonaje.x, &posPersonaje.y);
 
 		pthread_mutex_lock(&semItems);
-		MoverPersonaje(list_items, movPersonaje->simbolo, &posPersonaje.x, &posPersonaje.y);
+		MoverPersonaje(list_items, movPersonaje->simbolo, posPersonaje.x, posPersonaje.y);
 		pthread_mutex_unlock(&semItems);
 		notificacionAPlataforma(iSocket, &paquete, N_CONFIRMACION_MOV, "Notificando a plataforma personaje movido correctamente");
 		pPersonaje->listoParaPerseguir = true;
@@ -234,7 +284,7 @@ void desconexionPersonaje(char *sPayload) {
 }
 
 
-void escucharConexiones(int iSocket, char* nombreNivel, int fdInotify, char* configFilePath) {
+void escucharConexiones(tNivel *pNivel, int iSocket, int fdInotify, char* configFilePath) {
 	// Variables del Poll
 	struct pollfd uDescriptores[POLL_NRO_FDS];
 	uDescriptores[0].fd	    = iSocket;
@@ -267,7 +317,7 @@ void escucharConexiones(int iSocket, char* nombreNivel, int fdInotify, char* con
 					evento = (struct inotify_event*) &bufferInotify[bytes];
 
 					if (evento->mask & IN_MODIFY) {//avisar a planificador que cambio el archivo config
-						actualizarInfoNivel(configFilePath);
+						actualizarInfoNivel(pNivel, iSocket, configFilePath);
 					}
 				}
 			} //Preguntar por que si poll detecta actividad en el descriptor del inotify y este solo se acciona cuando ocurre in_modify => haria falta todo lo que sigue? o
@@ -282,7 +332,7 @@ void escucharConexiones(int iSocket, char* nombreNivel, int fdInotify, char* con
 					break;
 
 				case PL_MOV_PERSONAJE:
-					movimientoPersonaje(iSocket, sPayload);
+					movimientoPersonaje(pNivel, iSocket, sPayload);
 					break;
 
 				case PL_POS_RECURSO:
@@ -296,76 +346,18 @@ void escucharConexiones(int iSocket, char* nombreNivel, int fdInotify, char* con
 				case PL_DESCONEXION_PERSONAJE:// Un personaje termino o murio y debo liberar instancias de recursos que tenia asignado
 					desconexionPersonaje(sPayload);
 					break;
+
+				default:
+					break;
 				} //Fin del switch
 
 				pthread_mutex_lock(&semItems);
-				nivel_gui_dibujar(list_items, nombreNivel);
+				nivel_gui_dibujar(list_items, pNivel->nombre);
 
 				pthread_mutex_unlock(&semItems);
 			}
 		}
 	}
-}
-
-
-int main(int argc, char** argv) {
-	tNivel nivel;
-	tInfoInterbloqueo interbloqueo;
-	int iSocket;
-	int descriptorVigilador, descriptorInotify;
-	char *configFilePath = argv[1];
-
-	signal(SIGINT, cerrarForzado);
-
-	pthread_mutex_init(&semSockPaq, NULL);
-	pthread_mutex_init(&semItems,NULL);
-
-	tPosicion posPersonaje;
-	posPersonaje.x = 0;
-	posPersonaje.y = 0;
-
-	tRtaPosicion posRespondida;
-
-	//LOG
-	logger = logInit(argv, "NIVEL");
-
-	/*
-	 * FUNCION INIT
-	 */
-	// INICIALIZANDO GRAFICA DE MAPAS
-	list_items 	    = list_create();
-	list_personajes = list_create();
-	nivel_gui_inicializar();
-	nivel_gui_get_area_nivel(&nivel.maxRows, &nivel.maxRows);
-	levantarArchivoConf(configFilePath, &nivel, &interbloqueo);
-
-	//SOCKETS
-	iSocket = connectToServer(nivel.plataforma.IP, nivel.plataforma.port, logger);
-    if (iSocket == EXIT_FAILURE) {
-    	cerrarNivel("No se puede conectar con la plataforma");
-    }
-
-    handshakeConPlataforma(iSocket, &nivel);
-
-	//INOTIFY
-	descriptorInotify   = inotify_init();
-	descriptorVigilador = inotify_add_watch(descriptorInotify, configFilePath, IN_MODIFY);
-	if (descriptorVigilador == -1) {
-		log_error(logger, "Error en inotify add_watch");
-	}
-
-	crearEnemigos(&nivel);
-
-	// LANZANDO EL HILO DETECTOR DE INTERBLOQUEO
-	pthread_t hiloInterbloqueo;
-	pthread_create(&hiloInterbloqueo, NULL, &deteccionInterbloqueo, NULL);
-
-	escucharConexiones(iSocket, nivel.nombre,descriptorInotify, configFilePath);
-
-	inotify_rm_watch(descriptorInotify, descriptorVigilador);
-	close(descriptorInotify);
-	log_destroy(logger);
-	return EXIT_SUCCESS;
 }
 
 void levantarArchivoConf(char* pathConfigFile, tNivel *pNivel, tInfoInterbloqueo *pInterbloqueo) {
@@ -376,7 +368,6 @@ void levantarArchivoConf(char* pathConfigFile, tNivel *pNivel, tInfoInterbloqueo
 	bool hayCajas = false;
 	char* sLineaCaja;
 	char** aCaja;
-	char** dirYpuerto;
 	char* datosPlataforma;
 
 	configNivel = config_create(pathConfigFile);
@@ -461,13 +452,13 @@ void levantarArchivoConf(char* pathConfigFile, tNivel *pNivel, tInfoInterbloqueo
 	datosPlataforma = config_get_string_value(configNivel, "Plataforma");
 
 	char ** aDatosPlataforma = string_split(datosPlataforma, ":");
-	pNivel->plataforma.IP    = aDatosPlataforma[0];
+	strcpy(pNivel->plataforma.IP, aDatosPlataforma[0]);
 	pNivel->plataforma.port  = atoi(aDatosPlataforma[1]);
 
 	config_destroy(configNivel);
 }
 
-void actualizarInfoNivel(char* configFilePath, int iSocket, tNivel *pNivel) {
+void actualizarInfoNivel(tNivel *pNivel, int iSocket, char* configFilePath) {
 	char* algoritmoAux;
 	t_config *configNivel;
 
@@ -487,7 +478,8 @@ void actualizarInfoNivel(char* configFilePath, int iSocket, tNivel *pNivel) {
 	}
 
 	pNivel->plataforma.delay = config_get_int_value(configNivel, "Retardo");
-	log_debug(logger, "Se produjo un cambio en el archivo configuracion, Algoritmo: %s quantum:%i retardo:%i", algoritmoAux, quantum, retardo);
+	log_debug(logger, "Se produjo un cambio en el archivo configuracion, Algoritmo: %s quantum:%i retardo:%i",
+			algoritmoAux, pNivel->plataforma.valorAlgorimo, pNivel->plataforma.delay);
 	free(algoritmoAux);
 	config_destroy(configNivel);
 
@@ -844,7 +836,7 @@ _Bool hayAlgunEnemigoArribaMio(int posPerX, int posPerY) {
 	return false;
 }
 
-void notificacionAPlataforma(int iSocket, tPaquete *paquete, tMensaje tipoMensaje, char *msjInfo){
+void notificacionAPlataforma(int iSocket, tPaquete *paquete, tMensaje tipoMensaje, char *msjInfo) {
 	pthread_mutex_lock(&semSockPaq);
 	paquete->type   = tipoMensaje;
 	paquete->length = 0;
@@ -852,7 +844,7 @@ void notificacionAPlataforma(int iSocket, tPaquete *paquete, tMensaje tipoMensaj
 	pthread_mutex_unlock(&semSockPaq);
 }
 
-void calcularMovimiento(tNivel *pNivel, tDirMovimiento direccion, int *posX, int *posY){
+void calcularMovimiento(tNivel *pNivel, tDirMovimiento direccion, int *posX, int *posY) {
 	switch (direccion) {
 		case arriba:
 			if (*posY > 1) {

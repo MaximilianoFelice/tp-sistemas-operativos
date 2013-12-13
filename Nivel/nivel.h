@@ -42,11 +42,6 @@
 #define INI_Y 0
 
 typedef struct {
-	tNivel   * pNivel;
-	tEnemigo * pEnemigo;
-} tParamThreadEnemigo;
-
-typedef struct {
 	_Bool bloqueado;
 	_Bool muerto; //Para que no lo intente matar dos veces seguidas
 	_Bool listoParaPerseguir; //Se activa cuando se empieza a mover el personaje; es para que no lo persiga si el chabon todavia no empezo a moverse
@@ -90,10 +85,28 @@ typedef struct {
 } tPosicion;
 
 
-typedef struct{
+typedef struct {
 	int cantidadInstancias;
 	char simbolo;
-}t_caja;
+} t_caja;
+
+typedef struct {
+	tNivel   * pNivel;
+	tEnemigo * pEnemigo;
+} tParamThreadEnemigo;
+
+void handshakeConPlataforma(int iSocket, tNivel *pNivel);
+void crearEnemigos(tNivel *nivel);
+void conexionPersonaje(int iSocket, char *sPayload);
+void movimientoPersonaje(tNivel *pNivel, int iSocket, char *sPayload);
+void posicionRecurso(int iSocket, char *sPayload);
+void solicitudRecurso(int iSocket, char *sPayload);
+void desconexionPersonaje(char *sPayload) ;
+void escucharConexiones(tNivel *pNivel, int iSocket, int fdInotify, char* configFilePath);
+void levantarArchivoConf(char* pathConfigFile, tNivel *pNivel, tInfoInterbloqueo *pInterbloqueo);
+void actualizarInfoNivel(tNivel *pNivel, int iSocket, char* configFilePath);
+void crearNuevoPersonaje (tSimbolo simbolo);
+void notificacionAPlataforma(int iSocket, tPaquete *paquete, tMensaje tipoMensaje, char *msjInfo);
 
 //Señales
 void cerrarNivel(char*);
@@ -103,7 +116,7 @@ void cerrarForzado(int sig);
 void *enemigo(void * args);
 void *deteccionInterbloqueo (void *parametro);
 void actualizaPosicion(int *contMovimiento, int *posX, int *posY);
-void calcularMovimiento(tDirMovimiento direccion, int *posX, int *posY);
+void calcularMovimiento(tNivel *pNivel, tDirMovimiento direccion, int *posX, int *posY);
 void matarPersonaje(tSimbolo *simboloItem);
 
 //Mensajes
@@ -119,8 +132,6 @@ ITEM_NIVEL *getVictima(tEnemigo *enemigo);
 
 //Nivel
 void CrearNuevoPersonaje(tPersonaje *pjNew, tSimbolo simbolo);
-void levantarArchivoConf(char*);
-void actualizarInfoNivel(char* argumento);
 void liberarRecsPersonaje(char);
 static void personaje_destroyer(tPersonaje *personaje);
 
