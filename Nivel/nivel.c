@@ -512,19 +512,24 @@ void *enemigo(void * args) {
 	char dirMov	       = 'b';
 	//Variables de persecucion de victima
 	tPersonaje* persVictima;
+	bool estaEnRecurso = false;
 
-	enemigo->posX = 1+(rand() % enemigo->pNivel->maxCols);
-	enemigo->posY = 1+(rand() % enemigo->pNivel->maxRows);
 	bool esUnRecurso(ITEM_NIVEL *itemNiv){
 		return (itemNiv->item_type==RECURSO_ITEM_TYPE && itemNiv->posx==enemigo->posX && itemNiv->posy==enemigo->posY);
 	}
-	while(list_any_satisfy(list_items,(void*)esUnRecurso)){
-		enemigo->posX=1+(rand() % enemigo->pNivel->maxCols);
-		enemigo->posY=1+(rand() % enemigo->pNivel->maxRows);
-	}
+
 	pthread_mutex_lock(&semItems);
-	CreateEnemy(list_items,enemigo->ID,enemigo->posX,enemigo->posY);
+
+	do {
+		enemigo->posX = 1 + (rand() % enemigo->pNivel->maxCols);
+		enemigo->posY = 1 + (rand() % enemigo->pNivel->maxRows);
+		estaEnRecurso = list_any_satisfy(list_items,(void*)esUnRecurso);
+	} while (estaEnRecurso);
+
+	CreateEnemy(list_items, enemigo->ID, enemigo->posX, enemigo->posY);
+	log_info(logger, "Se crea el enemigo %d", enemigo->ID);
 	pthread_mutex_unlock(&semItems);
+
 
 	bool movimientoAleatorio;
 
