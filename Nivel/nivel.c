@@ -511,7 +511,6 @@ void *enemigo(void * args) {
 	char ultimoMov     = 'a';
 	char dirMov	       = 'b';
 	//Variables de persecucion de victima
-	int distFinal=9999999;
 	tPersonaje* persVictima;
 
 	enemigo->posX = 1+(rand() % enemigo->pNivel->maxCols);
@@ -640,13 +639,11 @@ void *enemigo(void * args) {
 				}
 			}
 			list_iterate(list_items,(void*)esUnRecurso);
-		}
-		else { //ELEGIR O PERSEGUIR A LA VICTIMA
+		} else { //ELEGIR O PERSEGUIR A LA VICTIMA
 
 			////PERSECUCION DE PERSONAJE
-			pthread_mutex_lock(&semItems);
-			ITEM_NIVEL *victima = asignarVictima(enemigo, &distFinal);
-			pthread_mutex_unlock(&semItems);
+			ITEM_NIVEL *victima = asignarVictima(enemigo);
+
 
 			persVictima = getPersonajeBySymbol((tSimbolo)victima->id);
 
@@ -726,21 +723,29 @@ _Bool acercarmeALaVictima(tEnemigo *enemigo, ITEM_NIVEL *item, int *contMovimien
 
 }
 
-ITEM_NIVEL *asignarVictima(tEnemigo *enemigo, int *distFinal){
-
-	int dist2=999999;
-	int i;
+ITEM_NIVEL *asignarVictima(tEnemigo *enemigo) {
+	int iDistanciaFinal;
+	int iDistanciaMenor = 999999;
+	int iIndexItems, iCantidadItems;
 	ITEM_NIVEL *itemReturn = NULL;
-	for(i=0;i<list_size(list_items);i++){
-		ITEM_NIVEL *item=list_get(list_items,i);
-		if(esUnPersonaje(item)){
-			*distFinal = calcularDistancia(enemigo, item);
-			if((*distFinal<dist2)){
+
+	pthread_mutex_lock(&semItems);
+	iCantidadItems = list_size(list_items);
+
+	for (iIndexItems = 0; iIndexItems < iCantidadItems; iIndexItems++) {
+		ITEM_NIVEL *item = list_get(list_items, iIndexItems);
+
+		if (esUnPersonaje(item)) {
+			iDistanciaFinal = calcularDistancia(enemigo, item);
+
+			if (iDistanciaFinal < iDistanciaMenor) {
 				itemReturn = item;
-				dist2=*distFinal;
+				iDistanciaMenor = iDistanciaFinal;
 			}
 		}
 	}
+	pthread_mutex_unlock(&semItems);
+
 	return itemReturn;
 }
 
@@ -751,11 +756,10 @@ _Bool esUnPersonaje(ITEM_NIVEL *item){
 
 int calcularDistancia(tEnemigo *enemigo, ITEM_NIVEL *item){
 
-	int terminoX = (enemigo->posX-item->posx)*(enemigo->posX-item->posx);
-	int terminoY = (enemigo->posY-item->posy)*(enemigo->posY-item->posy);
+	int terminoEnX = abs(item->posx - enemigo->posX);
+	int terminoEnY = abs(item->posy - enemigo->posY);
 
-	return (terminoX + terminoY);
-
+	return (terminoEnX + terminoEnY);
 }
 
 //Buscar en list_items y me devuelve el personaje que cumple la condicion

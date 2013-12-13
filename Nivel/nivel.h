@@ -122,7 +122,7 @@ void *deteccionInterbloqueo (void *parametro);
 void actualizaPosicion(int *contMovimiento, int *posX, int *posY);
 void calcularMovimiento(tNivel *pNivel, tDirMovimiento direccion, int *posX, int *posY);
 void matarPersonaje(tNivel *, tSimbolo *simboloItem);
-ITEM_NIVEL *asignarVictima(tEnemigo *enemigo, int *distFinal);
+ITEM_NIVEL *asignarVictima(tEnemigo *enemigo);
 int calcularDistancia(tEnemigo *enemigo, ITEM_NIVEL *item);
 _Bool analizarMovimientoDeEnemigo();
 _Bool esUnPersonaje(ITEM_NIVEL *item);
