@@ -537,6 +537,8 @@ void *planificador(void * pvNivel) {
 
             case(N_MUERTO_POR_ENEMIGO):
 				muertePorEnemigoPersonaje(pNivel, &pPersonajeActual, iSocketConexion, sPayload);
+            	if(pPersonajeActual==NULL)
+            		iEnviarTurno = true;
             	break;
 
             case(N_MUERTO_POR_DEADLOCK):
@@ -778,7 +780,7 @@ void muertePorEnemigoPersonaje(tNivel *pNivel, tPersonaje** pPersonajeActual, in
 
 		log_info(logger, "If: Se desconecto el personaje %c", (*pPersonajeActual)->simbolo);
 		int lenghtRecursos = list_size((*pPersonajeActual)->recursos);
-		if(lenghtRecursos > 0 ){
+		//if(lenghtRecursos > 0 ){
 			char *recursosNoAsignados = liberarRecursos((*pPersonajeActual), pNivel);
 			tPaquete pkgDesconexionPers;
 			tDesconexionPers desconexionPersonaje;
@@ -790,7 +792,7 @@ void muertePorEnemigoPersonaje(tNivel *pNivel, tPersonaje** pPersonajeActual, in
 
 			enviarPaquete(pNivel->socket, &pkgDesconexionPers, logger, "Se envia desconexion del personaje al nivel");
 			free(recursosNoAsignados);
-		}
+		//}
 
 		avisarAlPersonajeDeMuerte(socketPersonaje, *simbolo);
 
@@ -807,7 +809,7 @@ void muertePorEnemigoPersonaje(tNivel *pNivel, tPersonaje** pPersonajeActual, in
 
 		int lenghtRecursos = list_size(personajeMuerto->recursos);
 
-		if(lenghtRecursos > 0){
+//		if(lenghtRecursos > 0){
 			char *recursosNoAsignados = liberarRecursos(personajeMuerto, pNivel);
 			tPaquete pkgDesconexionPers;
 			tDesconexionPers desconexionPersonaje;
@@ -819,7 +821,7 @@ void muertePorEnemigoPersonaje(tNivel *pNivel, tPersonaje** pPersonajeActual, in
 
 			enviarPaquete(pNivel->socket, &pkgDesconexionPers, logger, "Se envia desconexion del personaje al nivel");
 			free(recursosNoAsignados);
-		}
+//		}
 
 		avisarAlPersonajeDeMuerte(socketPersonaje, *simbolo);
 		free(personajeMuerto);
