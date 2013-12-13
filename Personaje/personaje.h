@@ -69,7 +69,7 @@ void matarHilos();
 void enviarDesconexionATodos();
 void enviarDesconexion();
 
-
+void liberarHilos();
 void notificarFinPlanNiveles();
 
 void enviarPaqueteFinPlan(personajeIndividual_t* personajePorNivel);
@@ -127,6 +127,8 @@ void sig_aumentar_vidas();
 void restarVida();
 
 void muertoPorSenial();
+
+void _liberar_personaje_individual(personajeIndividual_t* personaje);
 
 
 #endif /* PERSONAJE_H_ */
