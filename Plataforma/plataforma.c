@@ -791,7 +791,7 @@ void muertePorEnemigoPersonaje(tNivel *pNivel, tPersonaje** pPersonajeActual, in
 			serializarDesconexionPers(PL_LIBERA_RECURSOS, desconexionPersonaje, &pkgDesconexionPers);
 
 			enviarPaquete(pNivel->socket, &pkgDesconexionPers, logger, "Se envia desconexion del personaje al nivel");
-			free(recursosNoAsignados);
+			if (recursosNoAsignados!=NULL) free(recursosNoAsignados);
 		}
 
 		avisarAlPersonajeDeMuerte(socketPersonaje, *simbolo);
@@ -1014,7 +1014,7 @@ int liberarRecursosYDesbloquearPersonajes(tNivel *pNivel, tPersonaje *pPersonaje
 	avisarDesconexionAlNivel(pNivel, pPersonaje, lenghtRecursos, &recursosNoAsignados);
 
 	free(pPersonaje);
-	free(recursosNoAsignados);
+	if (recursosNoAsignados!=NULL) free(recursosNoAsignados);
 	return EXIT_SUCCESS;
 }
 
@@ -1086,9 +1086,12 @@ char *liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel) {
 
 					list_add(pPersonajeLiberado->recursos, pRecurso);
 					queue_push(pNivel->cListos, pPersonajeLiberado);
+
 				}
+
 			}
 		}
+
 		return getRecursosNoAsignados(pPersMuerto->recursos);
 	}
 }
@@ -1109,9 +1112,11 @@ char *getRecursosNoAsignados(t_list *recursos){
 			pRecurso = (tSimbolo*) list_get(recursos, i);
 			recursosNoAsignados[i] = (char)*pRecurso;
 		}
+		log_debug(logger, "antes de destruir           SSSSSSSSSSss");
 		list_destroy_and_destroy_elements(recursos, free);
+		log_debug(logger, "despues de destruir           SSSSSSSSSSss");
 		return recursosNoAsignados;
-	}
+	}log_debug(logger, "NO ENTra AL IF QQQQQQQ");
 	return NULL;
 }
 
