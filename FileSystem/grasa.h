@@ -23,6 +23,11 @@
 #include <commons/string.h>
 #include "grasa_cache.h"
 
+/* Opciones de FUSE. Esta redefinicion le indica cuales son las opciones que se utilizaran. */
+#define FUSE_USE_VERSION 27
+#define _FILE_OFFSET_BITS 64
+
+/* Fin opciones de fuse */
 
 #define GFILEBYTABLE 1024
 #define GFILEBYBLOCK 1
