@@ -23,7 +23,6 @@ char * puerto_orq;
 int socketOrquestador;
 
 int main(int argc, char*argv[]) {
-	int cantidadNiveles;
 
 	pthread_mutex_init(&semModificadorDeVidas, NULL);
 	sem_init(&semReinicio, 0, 0);
@@ -49,14 +48,11 @@ int main(int argc, char*argv[]) {
 
 	// Creamos el archivo de Configuración
 	cargarArchivoConfiguracion(argv[1]);
-	cantidadNiveles = list_size(personaje.lPersonajes);
 	//Me conecto con la plataforma para despues de terminar todos los niveles correctamente avisarle
 	socketOrquestador = connectToServer(ip_plataforma, atoi(puerto_orq), logger);
 	log_debug(logger, "El personaje se conecto con el orquestador");
 
 	//vuelve a tirar todos los hilos por todos los niveles
-	int iNivel;
-	char *resultadoThread;
 
 	do {
 		log_debug(logger, "Tiro los hilos para jugar en cada nivel");
