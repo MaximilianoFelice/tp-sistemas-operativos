@@ -494,8 +494,7 @@ void *planificador(void * pvNivel) {
     // Ciclo donde se multiplexa para escuchar personajes que se conectan
     while (1) {
 
-    	if(tipoMensaje!=N_MUERTO_POR_ENEMIGO)
-    		waitPersonajes(pNivel, pPersonajeActual, &iEnviarTurno);
+   		waitPersonajes(pNivel, pPersonajeActual, &iEnviarTurno);
 
        	seleccionarJugador(&pPersonajeActual, pNivel, iEnviarTurno);
 
@@ -537,7 +536,8 @@ void *planificador(void * pvNivel) {
 
             case(N_MUERTO_POR_ENEMIGO):
 				muertePorEnemigoPersonaje(pNivel, &pPersonajeActual, iSocketConexion, sPayload);
-            	if(pPersonajeActual==NULL)
+            	cantidadListos = queue_size(pNivel->cListos);
+            	if(pPersonajeActual==NULL || cantidadListos > 0) //Ojala esto sea
             		iEnviarTurno = true;
             	break;
 
