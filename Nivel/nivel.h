@@ -97,20 +97,20 @@ typedef struct {
 } tEnemigo;
 
 
+//Acciones de los mensajes
 void handshakeConPlataforma(tNivel *pNivel);
 void crearEnemigos(tNivel *nivel);
 void conexionPersonaje(int iSocket, char *sPayload);
 void movimientoPersonaje(tNivel *pNivel, int iSocket, char *sPayload);
-void posicionRecurso(int iSocket, char *sPayload);
-void solicitudRecurso(int iSocket, char *sPayload);
+void posicionRecurso(tNivel *pNivel, int iSocket, char *sPayload);
+void solicitudRecurso(tNivel *pNivel, int iSocket, char *sPayload);
 void desconexionPersonaje(char *sPayload) ;
 void escucharConexiones(tNivel *pNivel, int fdInotify, char* configFilePath);
 void levantarArchivoConf(char* pathConfigFile, tNivel *pNivel);
 void actualizarInfoNivel(tNivel *pNivel, int iSocket, char* configFilePath);
 void crearNuevoPersonaje (tSimbolo simbolo);
-void notificacionAPlataforma(int iSocket, tPaquete *paquete, tMensaje tipoMensaje, char *msjInfo);
-void confirmacionPlataforma(int sock, tMensaje tipoMensaje, char *msjInfo);
-void solicitudError(int sock, tMensaje tipoMensaje, char *msjInfo);
+void notificacionAPlataforma(int iSocket, tMensaje tipoMensaje, char *msjInfo);
+void liberarRecursosPersonajeMuerto(tNivel *pNivel, char *sPayload);
 
 //Señales
 void cerrarNivel(char*);

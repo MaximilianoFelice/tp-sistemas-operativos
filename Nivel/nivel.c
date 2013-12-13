@@ -10,9 +10,9 @@
 #define TAM_EVENTO (sizeof(struct inotify_event)+24)
 #define TAM_BUFFER (1024*TAM_EVENTO)//podria ser 1 en lugar de 1024? (ya que es cant.de eventos simultaneos y yo solo pregunto por un evento)
 
-t_log  *logger = NULL;
-t_list *list_personajes = NULL;
-t_list *list_items = NULL;
+t_log  *logger;
+t_list *list_personajes;
+t_list *list_items;
 
 pthread_mutex_t semSockPaq;
 pthread_mutex_t semItems;
@@ -58,9 +58,6 @@ int main(int argc, char** argv) {
 	if (descriptorVigilador == -1) {
 		log_error(logger, "Error en inotify add_watch");
 	}
-
-	//TODO borrar
-	log_debug(logger, "\n maxCols=%d \n maxRows = %d", nivel.maxCols, nivel.maxRows);
 
 	crearEnemigos(&nivel);
 
@@ -113,11 +110,8 @@ void crearEnemigos(tNivel *nivel) {
 
 		for (indexEnemigos = 0; indexEnemigos < nivel->cantEnemigos; indexEnemigos++) {
 			aHilosEnemigos[indexEnemigos].ID = indexEnemigos + 1; //El numero o id de enemigo
-			//memcpy(aHilosEnemigos[indexEnemigos].pNivel, &nivel, sizeof(tNivel));
-
 			aHilosEnemigos[indexEnemigos].pNivel = nivel;
 
-			log_debug(logger, "Hilo %d : Ya hice los memcpy", indexEnemigos+1);
 			if (pthread_create(&aHilosEnemigos[indexEnemigos].thread, NULL, enemigo, (void*)&aHilosEnemigos[indexEnemigos] )) {
 				log_error(logger, "pthread_create: %s", strerror(errno));
 				exit(EXIT_FAILURE);
@@ -130,19 +124,20 @@ void crearEnemigos(tNivel *nivel) {
 }
 
 void conexionPersonaje(int iSocket, char *sPayload) {
-	tPaquete paquete;
 	tPersonaje *pPersonaje;
-	tMovimientoPers movPersonaje;
+	tSimbolo *simbolo = deserializarSimbolo(sPayload);
 
-	pPersonaje = getPersonajeBySymbol((int8_t)*sPayload);
-	free(sPayload);
+	pPersonaje = getPersonajeBySymbol(*simbolo);
 
 	if (pPersonaje == NULL) {
-		crearNuevoPersonaje(movPersonaje.simbolo);
-		notificacionAPlataforma(iSocket, &paquete, N_CONEXION_EXITOSA, "Se notifica a plataforma que el personaje se onecto exitosamente");
+		crearNuevoPersonaje(*simbolo);
+		notificacionAPlataforma(iSocket, N_CONEXION_EXITOSA, "Se notifica a plataforma que el personaje se onecto exitosamente");
 	} else {//se encontro=>el personaje ya existe
-		notificacionAPlataforma(iSocket, &paquete, N_PERSONAJE_YA_EXISTENTE, "Se notifica a plataforma que el personaje ya existe");
+		notificacionAPlataforma(iSocket, N_PERSONAJE_YA_EXISTENTE, "Se notifica a plataforma que el personaje ya existe");
 	}
+
+	free(simbolo);
+	free(sPayload);
 }
 
 void movimientoPersonaje(tNivel *pNivel, int iSocket, char *sPayload) {
@@ -151,7 +146,7 @@ void movimientoPersonaje(tNivel *pNivel, int iSocket, char *sPayload) {
 	tMovimientoPers* movPersonaje;
 
 	movPersonaje = deserializarMovimientoPers(sPayload);
-	free(sPayload);
+
 
 	log_debug(logger, "<<< %s: Solicitud de movimiento del personaje %c", pNivel->nombre, movPersonaje->simbolo);
 
@@ -168,64 +163,57 @@ void movimientoPersonaje(tNivel *pNivel, int iSocket, char *sPayload) {
 
 			calcularMovimiento(pNivel, movPersonaje->direccion, &posPersonaje.x, &posPersonaje.y);
 
-			pthread_mutex_lock(&semItems);
 			MoverPersonaje(list_items,symbol, posPersonaje.x, posPersonaje.y);
 			nivel_gui_dibujar(list_items, pNivel->nombre);
-			pthread_mutex_unlock(&semItems);
-			confirmacionPlataforma(iSocket, N_CONFIRMACION_MOV, "Notificando a plataforma personaje movido correctamente");
+			notificacionAPlataforma(iSocket, N_CONFIRMACION_MOV, "Notificando a plataforma personaje movido correctamente");
 		}
 		else {
 			matarPersonaje(pNivel, &movPersonaje->simbolo);
 		}
 	}
 
+	free(sPayload);
 	free(movPersonaje);
 
 }
 
-void posicionRecurso(int iSocket, char *sPayload) {
-	tPregPosicion *posConsultada;
+void posicionRecurso(tNivel *pNivel, int iSocket, char *sPayload) {
 	tPaquete paquete;
-	posConsultada = deserializarPregPosicion(sPayload);
-	free(sPayload);
+	tPregPosicion *posConsultada = deserializarPregPosicion(sPayload);
 
-	log_debug(logger, "<<< Personaje %c solicita la posicion del recurso %c", posConsultada->simbolo, posConsultada->recurso);
+	log_debug(logger, "<<< %s Personaje %c solicita la posicion del recurso %c", pNivel->nombre, posConsultada->simbolo, posConsultada->recurso);
+
 	bool buscarRecurso(ITEM_NIVEL *item){
-		return ((item->id == posConsultada->recurso) && (item->item_type == RECURSO_ITEM_TYPE));
+		return ((item->item_type == RECURSO_ITEM_TYPE) && (item->id == posConsultada->recurso) );
 	}
 
 	ITEM_NIVEL* pRecurso;
 	pRecurso = list_find(list_items, (void*)buscarRecurso);
 
 	if (pRecurso != NULL) {
-		pthread_mutex_lock(&semSockPaq);
 		tRtaPosicion rtaPosicion;
 		rtaPosicion.posX = pRecurso->posx;
 		rtaPosicion.posY = pRecurso->posy;
-		pthread_mutex_lock(&semSockPaq);
 		serializarRtaPosicion(N_POS_RECURSO, rtaPosicion, &paquete);
 
 		enviarPaquete(iSocket, &paquete, logger, "Se envia posicion de recurso a la plataforma");
-		pthread_mutex_unlock(&semSockPaq);
 
 	} else {
-		notificacionAPlataforma(iSocket, &paquete, N_RECURSO_INEXISTENTE, "El recurso solicitado no existe");
+		notificacionAPlataforma(iSocket, N_RECURSO_INEXISTENTE, "El recurso solicitado no existe");
 	}
 
 	free(posConsultada);
+	free(sPayload);
 }
 
-void solicitudRecurso(int iSocket, char *sPayload) {
+void solicitudRecurso(tNivel *pNivel, int iSocket, char *sPayload) {
 	tPregPosicion *posConsultada;
 	tPaquete paquete;
 	posConsultada = deserializarPregPosicion(sPayload);
-	free(sPayload);
 
-	log_debug(logger, "<<< Personaje %c solicita una instancia del recurso %c", (char)posConsultada->simbolo, (char)posConsultada->recurso);
+	log_debug(logger, "<<< %s: Personaje %c solicita una instancia del recurso %c", pNivel->nombre, (char)posConsultada->simbolo, (char)posConsultada->recurso);
 	// Calculo la cantidad de instancias
-	pthread_mutex_lock(&semItems);
 	int cantInstancias = restarInstanciasRecurso(list_items, posConsultada->recurso);
-	pthread_mutex_unlock(&semItems);
 
 	tPersonaje *pPersonaje;
 	pPersonaje = getPersonajeBySymbol(posConsultada->simbolo);
@@ -233,6 +221,7 @@ void solicitudRecurso(int iSocket, char *sPayload) {
 	if (cantInstancias >= 0) { //SE LO OTORGO EL RECURSO PEDIDO
 
 		log_info(logger, "Al personaje %c se le dio el recurso %c",posConsultada->simbolo,posConsultada->recurso);
+
 
 		//Agrego el recurso a la lista de recursos del personaje y lo desbloquea si estaba bloqueado
 		void agregaRecursoYdesboquea(tPersonaje *personaje){
@@ -243,11 +232,9 @@ void solicitudRecurso(int iSocket, char *sPayload) {
 		}
 
 		list_iterate(list_personajes,(void*) agregaRecursoYdesboquea);
-		pthread_mutex_lock(&semSockPaq);
 		serializarSimbolo(N_ENTREGA_RECURSO, posConsultada->recurso, &paquete);
 		// Envio mensaje donde confirmo la otorgacion del recurso pedido
 		enviarPaquete(iSocket, &paquete, logger, "Se envia confirmacion de otorgamiento de recurso a plataforma");
-		pthread_mutex_unlock(&semSockPaq);
 
 	} else { //ESTA BLOQUEADO
 
@@ -263,8 +250,26 @@ void solicitudRecurso(int iSocket, char *sPayload) {
 		list_iterate(list_personajes,(void*)agregaRecursoYbloquea);
 	}
 
+	free(sPayload);
 	free(posConsultada);
 }
+
+
+void liberarRecursosPersonajeMuerto(tNivel *pNivel, char *sPayload){
+	tDesconexionPers *persDesconectado = deserializarDesconexionPers(sPayload);
+
+
+	log_debug(logger, "%s: Liberando recursos del personaje %c", pNivel->nombre, persDesconectado->simbolo);
+
+	int i;
+	for (i=0; i<persDesconectado->lenghtRecursos; i++) {
+			sumarRecurso(list_items,persDesconectado->recursos[i]);
+			log_debug(logger, "Libere una instancia del recurso %c", persDesconectado->recursos[i]);
+	}
+	free(persDesconectado);
+	free(sPayload);
+}
+
 
 void desconexionPersonaje(char *sPayload) {
 	tDesconexionPers *persDesconectado;
@@ -346,16 +351,20 @@ void escucharConexiones(tNivel *pNivel, int fdInotify, char* configFilePath) {
 					conexionPersonaje(iSocket, sPayload);
 					break;
 
+				case PL_POS_RECURSO:
+					posicionRecurso(pNivel, iSocket, sPayload);
+					break;
+
 				case PL_MOV_PERSONAJE:
 					movimientoPersonaje(pNivel, iSocket, sPayload);
 					break;
 
-				case PL_POS_RECURSO:
-					posicionRecurso(iSocket, sPayload);
+				case PL_SOLICITUD_RECURSO:
+					solicitudRecurso(pNivel, iSocket, sPayload);
 					break;
 
-				case PL_SOLICITUD_RECURSO:
-					solicitudRecurso(iSocket, sPayload);
+				case PL_LIBERA_RECURSOS:
+					liberarRecursosPersonajeMuerto(pNivel, sPayload);
 					break;
 
 				case PL_DESCONEXION_PERSONAJE:// Un personaje termino o murio y debo liberar instancias de recursos que tenia asignado
@@ -386,8 +395,6 @@ void levantarArchivoConf(char* pathConfigFile, tNivel *pNivel) {
 	char* datosPlataforma;
 
 	configNivel = config_try_create(pathConfigFile, "Nombre,Recovery,Enemigos,Sleep_Enemigos,Algoritmo,Quantum,Retardo,TiempoChequeoDeadlock,Plataforma");
-
-	log_debug(logger, "levante el config");
 
 	sLineaCaja = string_from_format("Caja%i", iCaja);
 
@@ -499,7 +506,6 @@ void *enemigo(void * args) {
 	tEnemigo *enemigo;
 	enemigo = (tEnemigo *)args;
 
-
 	//Variables de movimiento
 	int contMovimiento = 3;
 	char ultimoMov     = 'a';
@@ -507,9 +513,6 @@ void *enemigo(void * args) {
 	//Variables de persecucion de victima
 	int distFinal=9999999;
 	tPersonaje* persVictima;
-	log_debug(logger, "hice el casteo");
-	//chequeando que la posicion del enemigo no caiga en un recurso
-	log_debug(logger, "\n maxCols=%d \n maxRows = %d", enemigo->pNivel->maxCols, enemigo->pNivel->maxRows);
 
 	enemigo->posX = 1+(rand() % enemigo->pNivel->maxCols);
 	enemigo->posY = 1+(rand() % enemigo->pNivel->maxRows);
@@ -657,15 +660,13 @@ void *enemigo(void * args) {
 
 				evitarOrigen(enemigo);
 
-				if(hayAlgunEnemigoArriba(enemigo->pNivel, victima->posx, victima->posy)){
-					pthread_mutex_lock(&semItems);
-					if(!persVictima->muerto){
-						persVictima->muerto=true;
-						MoveEnemy(list_items, enemigo->ID, enemigo->posX,enemigo->posY);
-						nivel_gui_dibujar(list_items, enemigo->pNivel->nombre);
-					}
-					pthread_mutex_unlock(&semItems);
-				}
+//				if(hayAlgunEnemigoArriba(enemigo->pNivel, victima->posx, victima->posy)){
+//					if(!persVictima->muerto){
+//						persVictima->muerto=true;
+//						MoveEnemy(list_items, enemigo->ID, enemigo->posX,enemigo->posY);
+//						nivel_gui_dibujar(list_items, enemigo->pNivel->nombre);
+//					}
+//				}
 			}
 
 
@@ -810,7 +811,7 @@ _Bool hayAlgunEnemigoArriba(tNivel *pNivel, int posPerX, int posPerY) {
 
 	int i;
 	int posEnemyX, posEnemyY;
-	for (i = 0; i < pNivel->cantEnemigos; i++) {
+	for (i = 1; i <= pNivel->cantEnemigos; i++) {
 		getPosEnemy(list_items, i, &posEnemyX, &posEnemyY);
 		if (posPerX == posEnemyX && posPerY == posEnemyY)
 			return true;
@@ -842,12 +843,11 @@ void crearNuevoPersonaje (tSimbolo simbolo) {
 	log_info(logger, "<<< Se agrego al personaje %c a la lista", simbolo);
 }
 
-void notificacionAPlataforma(int iSocket, tPaquete *paquete, tMensaje tipoMensaje, char *msjInfo) {
-	pthread_mutex_lock(&semSockPaq);
-	paquete->type   = tipoMensaje;
-	paquete->length = 0;
-	enviarPaquete(iSocket, paquete, logger, msjInfo);
-	pthread_mutex_unlock(&semSockPaq);
+void notificacionAPlataforma(int iSocket, tMensaje tipoMensaje, char *msjInfo) {
+	tPaquete paquete;
+	paquete.type   = tipoMensaje;
+	paquete.length = 0;
+	enviarPaquete(iSocket, &paquete, logger, msjInfo);
 }
 
 void calcularMovimiento(tNivel *pNivel, tDirMovimiento direccion, int *posX, int *posY) {
@@ -1091,19 +1091,6 @@ void actualizaPosicion(int *contMovimiento, int *posX, int *posY) {
 		(*posY)++; //ABAJO
 		break;
 	}
-}
-
-void confirmacionPlataforma(int iSocket, tMensaje tipoMensaje, char *msjInfo){
-	tPaquete paquete;
-	pthread_mutex_lock(&semSockPaq);
-	paquete.type=tipoMensaje;
-	paquete.length=0;
-	enviarPaquete(iSocket, &paquete, logger, msjInfo);
-	pthread_mutex_unlock(&semSockPaq);
-}
-
-void solicitudError(int iSocket, tMensaje tipoMensaje, char *msjInfo){
-        confirmacionPlataforma(iSocket, tipoMensaje, msjInfo);
 }
 
 
