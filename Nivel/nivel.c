@@ -90,11 +90,11 @@ void levantarArchivoConf(char* pathConfigFile, tNivel *pNivel) {
 
 	while (config_has_property(configNivel, sLineaCaja)) {
 		hayCajas = true;
-		aCaja = config_get_array_value(configNivel, sLineaCaja);
+		aCaja	 = config_get_array_value(configNivel, sLineaCaja);
 		free(sLineaCaja);
 
-		posCaja.x  = atoi(aCaja[3]);
-		posCaja.y  = atoi(aCaja[4]);
+		posCaja.x = atoi(aCaja[3]);
+		posCaja.y = atoi(aCaja[4]);
 
 		if (posCaja.y > pNivel->maxRows || posCaja.y > pNivel->maxCols || posCaja.y < 1 || posCaja.y < 1) {
 			char* messageLimitErr;
@@ -111,6 +111,9 @@ void levantarArchivoConf(char* pathConfigFile, tNivel *pNivel) {
 		iCaja++;
 		sLineaCaja = string_from_format("Caja%i", iCaja);
 	};
+
+	free(sLineaCaja);
+	free(*aCaja);
 
 	if (!hayCajas) {
 		cerrarNivel("No hay cajas disponibles");
@@ -139,8 +142,6 @@ void levantarArchivoConf(char* pathConfigFile, tNivel *pNivel) {
 		pNivel->plataforma.algPlanif = SRDF;
 	}
 
-	free(algoritmoAux);
-
 	pNivel->plataforma.delay = config_get_int_value(configNivel, "Retardo");
 
 	datosPlataforma = config_get_string_value(configNivel, "Plataforma");
@@ -148,6 +149,9 @@ void levantarArchivoConf(char* pathConfigFile, tNivel *pNivel) {
 	char ** aDatosPlataforma = string_split(datosPlataforma, ":");
 	strcpy(pNivel->plataforma.IP, aDatosPlataforma[0]);
 	pNivel->plataforma.port  = atoi(aDatosPlataforma[1]);
+	free(aDatosPlataforma[0]);
+	free(aDatosPlataforma[1]);
+	free(aDatosPlataforma);
 
 	config_destroy(configNivel);
 }
