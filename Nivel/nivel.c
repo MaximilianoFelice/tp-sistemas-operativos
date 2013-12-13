@@ -678,12 +678,13 @@ void *enemigo(void * args) {
 					nivel_gui_dibujar(list_items, enemigo->pNivel->nombre);
 
 					if(estoyArriba(enemigo, persVictima) || hayAlgunEnemigoArriba(enemigo->pNivel, persVictima->posicion.x, persVictima->posicion.y)){
-							ITEM_NIVEL *item = getItemById(persVictima->simbolo);
-							item->num_enemy = -99;
-							persVictima->muerto=true;
-							hayQueAsesinar = false;
+						ITEM_NIVEL *item = getItemById(persVictima->simbolo);
+						item->num_enemy = -99; //Trampita
+						persVictima->muerto=true;
+						hayQueAsesinar = false;
 					}
 				}
+
 				pthread_mutex_unlock(&semItems);
 				usleep(enemigo->pNivel->sleepEnemigos);
 
