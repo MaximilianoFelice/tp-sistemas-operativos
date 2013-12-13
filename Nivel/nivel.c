@@ -651,9 +651,10 @@ void *enemigo(void * args) {
 						enemigo->posX--;
 				}
 			}
-			list_iterate(list_items,(void*)esUnRecurso);
+
 			////PERSECUCION DE PERSONAJE
 			pthread_mutex_lock(&semItems);
+			list_iterate(list_items,(void*)esUnRecurso);
 			MoveEnemy(list_items, enemigo->ID, enemigo->posX,enemigo->posY);
 			nivel_gui_dibujar(list_items, enemigo->pNivel->nombre);
 			pthread_mutex_unlock(&semItems);
