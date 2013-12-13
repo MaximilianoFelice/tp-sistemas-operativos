@@ -537,6 +537,8 @@ void *planificador(void * pvNivel) {
 
             case(N_MUERTO_POR_ENEMIGO):
 				muertePorEnemigoPersonaje(pNivel, &pPersonajeActual, iSocketConexion, sPayload);
+            	if(pPersonajeActual==NULL)
+            		iEnviarTurno = true;
             	break;
 
             case(N_MUERTO_POR_DEADLOCK):
