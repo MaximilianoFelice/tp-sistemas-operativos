@@ -65,11 +65,13 @@ int main(int argc, char*argv[]) {
 
 		crearTodosLosHilos();
 
-		//FIXME Ver cuando termina el plan de niveles -- hipoteticamente solucionado :D
 		sem_wait(&semReinicio);
 		sem_wait(&semFinPlan);
 		//Ya terminaron todos los hilos. Si murio el ultimo me va a decir que reinicie o no.
-		if (reiniciar) log_debug(logger, "El personaje %c termina su conexion y reinicia todos los niveles", personaje.simbolo);
+		if (reiniciar) {
+			liberarHilos();
+			log_debug(logger, "El personaje %c termina su conexion y reinicia todos los niveles", personaje.simbolo);
+		}
 
 	} while (reiniciar);
 
@@ -78,18 +80,22 @@ int main(int argc, char*argv[]) {
 
 	log_destroy(logger);
 	config_destroy(configPersonaje);
-	int cantidadPersonajes = list_size(personaje.lPersonajes);
-
-	for (iNivel = 0; iNivel < cantidadPersonajes; iNivel++) {
-		personajeIndividual_t *pPersonajeNivel = (personajeIndividual_t *) list_get(personaje.lPersonajes, iNivel);
-		list_destroy(pPersonajeNivel->Objetivos);
-		free(pPersonajeNivel->thread);
-	}
-
-	list_destroy(personaje.lPersonajes);
-
+	list_destroy_and_destroy_elements(personaje.lPersonajes, (void*) _liberar_personaje_individual);
 	exit(EXIT_SUCCESS);
 
+}
+void liberarHilos(){
+	void _liberarHilos(personajeIndividual_t* personajePorNivel){
+		free(personajePorNivel->thread);
+	}
+	list_iterate(personaje.lPersonajes, (void*)_liberarHilos);
+}
+
+void _liberar_personaje_individual(personajeIndividual_t* personaje) {
+	list_destroy_and_destroy_elements(personaje->Objetivos, free);
+	free(personaje->thread);
+	free(personaje->nomNivel);
+	free(personaje);
 }
 
 bool finalizoPlan(){
@@ -141,15 +147,16 @@ void cargarArchivoConfiguracion(char* archivoConfiguracion){
 		listaObjetivos = list_create();
 		for (nroObjetivo = 0; objetivos[nroObjetivo] != NULL; nroObjetivo++) {
 			list_add_new(listaObjetivos, objetivos[nroObjetivo], sizeof(char)); //Agrego a la lista
+			free(objetivos[nroObjetivo]);
 		}
 		personajeNivel = (personajeIndividual_t*) malloc(sizeof(personajeIndividual_t));
 		personajeNivel->nomNivel = string_duplicate(niveles[nroNivel]);
-//		strcpy(personajeNivel->nomNivel, niveles[nroNivel]);
 		personajeNivel->Objetivos = listaObjetivos;
 		list_add(personaje.lPersonajes, personajeNivel);
+		free(objetivos);
 	}
-
-//	free(stringABuscar);
+	string_iterate_lines(niveles, (void *)free);
+	free(niveles);
 }
 
 void crearTodosLosHilos() {
@@ -159,11 +166,16 @@ void crearTodosLosHilos() {
 		personajeIndividual_t *personajeNivel = (personajeIndividual_t *)list_get(personaje.lPersonajes, iIndexPj);
 		personajeNivel->thread = malloc(sizeof(pthread_t));
 
+		pthread_attr_t attr; // thread attribute
+		pthread_attr_init(&attr);
+		pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+
 		//Tiro el hilo para jugar de cada nivel
-		if (pthread_create(personajeNivel->thread, NULL, jugar, (void *) personajeNivel)) {
+		if (pthread_create(personajeNivel->thread, &attr, jugar, (void *) personajeNivel)) {
 			log_error(logger, "pthread_create: %s", strerror(errno));
 			exit(EXIT_FAILURE);
 		}
+//		pthread_detach(*(personajeNivel->thread));
 	}
 
 
@@ -241,11 +253,11 @@ void *jugar(void *vPersonajeNivel) {
 				desconectarPersonaje(pPersonajePorNivel);
 				reiniciar = consultarReinicio(); //Aqui es donde me asesino
 				pthread_mutex_unlock(&semModificadorDeVidas);
-				if (reiniciar) {
+//				if (reiniciar) { // Se saco porque al salir con un NO, se trababa.
 					sem_post(&semReinicio); //SIGNAL(sem)
 					sem_post(&semFinPlan);
 					pthread_exit(NULL);
-				}
+//				}
 			}
 
 		}
@@ -355,7 +367,7 @@ void solicitarRecurso(personajeIndividual_t* personajePorNivel, char *recurso){
 			break;
 		}
 	}
-
+//	free(sPayload);
 }
 
 
@@ -411,6 +423,7 @@ tDirMovimiento calcularYEnviarMovimiento(personajeIndividual_t *personajePorNive
 		
 	}
 
+//	free(sPayload);
 	return personajePorNivel->ultimoMovimiento;
 
 }
@@ -450,6 +463,7 @@ void recibirMensajeTurno(personajeIndividual_t *personajePorNivel){
 			exit(EXIT_FAILURE);
 			break;
 	}
+	free(sPayload);
 }
 
 void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurso){
@@ -484,6 +498,7 @@ void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurs
 			personajePorNivel->posRecursoX = rtaSolicitudRecurso->posX;
 			personajePorNivel->posRecursoY = rtaSolicitudRecurso->posY;
 			log_debug(logger, "%s: Recurso %c en posicion (%d, %d)", personajePorNivel->nomNivel, *recurso, personajePorNivel->posRecursoX, personajePorNivel->posRecursoY);
+			free(rtaSolicitudRecurso);
 			break;
 		}
 		case PL_RECURSO_INEXISTENTE:{
@@ -502,6 +517,7 @@ void pedirPosicionRecurso(personajeIndividual_t* personajePorNivel, char* recurs
 			break;
 		}
 	}
+	free(sPayload);
 }
 
 void handshake_plataforma(personajeIndividual_t* personajePorNivel){
@@ -513,6 +529,7 @@ void handshake_plataforma(personajeIndividual_t* personajePorNivel){
 	/* Se crea el paquete */
 	tPaquete pkgHandshake;
 	serializarHandshakePers(P_HANDSHAKE, handshakePers, &pkgHandshake);
+	free(handshakePers.nombreNivel);
 	char *msjInfo = malloc(100); //Lo agrego para saber que hilo de cual nivel hizo la solicitud
 	sprintf(msjInfo, "%s: Se envia saludo a la plataforma", personajePorNivel->nomNivel);
 
@@ -550,6 +567,7 @@ void handshake_plataforma(personajeIndividual_t* personajePorNivel){
 			break;
 
 	}
+//	free(sPayload);
 }
 
 void cerrarConexion(int * socketPlataforma){
