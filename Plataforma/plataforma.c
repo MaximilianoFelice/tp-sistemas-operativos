@@ -1130,14 +1130,14 @@ char *liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel) {
 	} else {
 
 		int iIndexBloqueados, iIndexRecursos;
-		tPersonajeBloqueado *pPersonajeBloqueado;
 		tPersonaje *pPersonajeLiberado;
 		tSimbolo *pRecurso;
 
 		/* Respetando el orden en que se bloquearon voy viendo si se libero el recurso que esperaban */
 		for (iIndexBloqueados = 0; iIndexBloqueados < list_size(pNivel->lBloqueados); iIndexBloqueados++) {
-			pPersonajeBloqueado = (tPersonajeBloqueado *)list_get(pNivel->lBloqueados, iIndexBloqueados);
+			tPersonajeBloqueado *pPersonajeBloqueado = (tPersonajeBloqueado *)list_get(pNivel->lBloqueados, iIndexBloqueados);
 
+			log_debug(logger, "ESto es una pija==> %c", pPersonajeBloqueado->pPersonaje->simbolo);
 			for (iIndexRecursos = 0; iIndexRecursos < list_size(pPersMuerto->recursos); iIndexRecursos++) {
 				pRecurso = (tSimbolo *)list_get(pPersMuerto->recursos, iIndexRecursos);
 
@@ -1146,27 +1146,24 @@ char *liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel) {
 					log_debug(logger, "Entre al if del list_remove");
 					/* Como saco un personaje de la lista, actualizo la iteracion de los bloqueados */
 					iIndexBloqueados--;
-//					iCantidadBloqueados--;
 					pPersonajeLiberado = pPersonajeBloqueado->pPersonaje;
 					free(pPersonajeBloqueado);
 
 					pRecurso = (tSimbolo *)list_remove(pPersMuerto->recursos, iIndexRecursos);
 					/* Como saco un recurso de la lista, actualizo la iteracion de los recursos */
 					iIndexRecursos--;
-//					iCantidadRecursos--;
 
 					log_info(logger, "Por la muerte de %c se desbloquea %c que estaba esperando por el recurso %c",
 							pPersMuerto->simbolo, pPersonajeLiberado->simbolo, *pRecurso);
 
 					list_add(pPersonajeLiberado->recursos, pRecurso);
 					queue_push(pNivel->cListos, pPersonajeLiberado);
-					log_debug(logger, "Lo meti a listos");
+					log_debug(logger, "Lo meti a listos al personaje %c", pPersonajeLiberado->simbolo);
 					break;
 				}
-
 			}
 		}
-
+		log_debug(logger, "Voy a hacer el get recursos no asignados");
 		return getRecursosNoAsignados(pPersMuerto->recursos);
 	}
 }
