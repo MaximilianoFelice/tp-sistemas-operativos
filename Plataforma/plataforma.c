@@ -605,8 +605,9 @@ void *planificador(void * pvNivel) {
             case(N_MUERTO_POR_ENEMIGO):
 				muertePorEnemigoPersonaje(pNivel, &pPersonajeActual, iSocketConexion, sPayload);
             	cantidadListos = queue_size(pNivel->cListos);
-            	if(pPersonajeActual==NULL || cantidadListos > 0)
+            	if(pPersonajeActual==NULL && (cantidadListos == 1 || cantidadListos == 0))
             		iEnviarTurno = true;
+
             	break;
 
             case(N_MUERTO_POR_DEADLOCK):
