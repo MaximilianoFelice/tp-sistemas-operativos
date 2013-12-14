@@ -55,8 +55,8 @@ int main(int argc, char** argv) {
 	crearEnemigos(&nivel);
 
 	// LANZANDO EL HILO DETECTOR DE INTERBLOQUEO
-//	pthread_t hiloInterbloqueo;
-//	pthread_create(&hiloInterbloqueo, NULL, &deteccionInterbloqueo, (void *)&nivel);
+	pthread_t hiloInterbloqueo;
+	pthread_create(&hiloInterbloqueo, NULL, &deteccionInterbloqueo, (void *)&nivel);
 
 	escucharConexiones(&nivel, configFilePath);
 
@@ -439,7 +439,7 @@ void solicitudRecurso(tNivel *pNivel, int iSocket, char *sPayload) {
 
 		list_iterate(list_personajes,(void*)agregaRecursoYbloquea);
 
-		notificacionAPlataforma(iSocket,N_BLOQUEADO_RECURSO, "Un personaje se bloqueo porque no quedaban instancias del recurso");
+//		notificacionAPlataforma(iSocket,N_BLOQUEADO_RECURSO, "Un personaje se bloqueo porque no quedaban instancias del recurso");
 	}
 
 	free(sPayload);
