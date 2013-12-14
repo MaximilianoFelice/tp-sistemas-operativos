@@ -8,6 +8,8 @@
 
 #include "plataforma.h"
 
+#include <stdbool.h>
+
 pthread_mutex_t semNivel;
 pthread_mutex_t mtxlNiveles;
 t_list 	 *listaNiveles;
@@ -20,6 +22,8 @@ fd_set setSocketsOrquestador;
 int iSocketMaximoOrquestador;
 char *pathKoopa;
 char *pathScript;
+
+t_list* personajes_jugando;
 
 /*
  * Funciones privadas
@@ -77,6 +81,14 @@ bool esElPersonajeQueTieneElTurno(int socketActual, int socketConexion);
 /*
  * PLATAFORMA
  */
+
+t_estado_personaje* crear_estado_personaje(char *simbolo) {
+	t_estado_personaje* estado = malloc(sizeof(t_estado_personaje));
+	estado->estado = FALSE;
+	estado->simbolo = simbolo;
+	return estado;
+}
+
 
 
 int main(int argc, char*argv[]) {
@@ -212,6 +224,11 @@ void *orquestador(void *vPuerto) {
 				break;
 
 			case DESCONEXION:
+				//FIXME ver que onda?
+				break;
+
+			case P_FIN_PLAN_NIVELES:
+				//TODO buscar el simbolo
 				orquestadorTerminaJuego();
 				break;
 
@@ -226,37 +243,44 @@ void *orquestador(void *vPuerto) {
 }
 
 void orquestadorTerminaJuego() {
-	int indiceNivel;
-	int cantidadNiveles;
-	tNivel *nivelLevantador;
+//	int indiceNivel;
+//	int cantidadNiveles;
+//	tNivel *nivelLevantador;
+//
+//	pthread_mutex_lock(&mtxlNiveles);
+//	log_debug(logger, "Verificando niveles...");
+//	cantidadNiveles = list_size(listaNiveles);
+//	bool noHayPersonajes = (cantidadNiveles == 0 ? false : true);
+//	nroConexiones--; //Me llego una desconexion, resto.
+//
+//	//Reviso los niveles
+//	for (indiceNivel=0; indiceNivel < cantidadNiveles; indiceNivel++) {
+//		nivelLevantador = list_get(listaNiveles, indiceNivel);
+//
+//		if (!nivelVacio(nivelLevantador)) {
+//			log_debug(logger, "El %s todavia tiene chaboncitos", nivelLevantador->nombre);
+//			noHayPersonajes = false;
+//			break;
+//		}
+//		log_debug(logger, "El %s esta vacio", nivelLevantador->nombre);
+//	}
 
-	pthread_mutex_lock(&mtxlNiveles);
-	log_debug(logger, "Verificando niveles...");
-	cantidadNiveles = list_size(listaNiveles);
-	bool noHayPersonajes = (cantidadNiveles == 0 ? false : true);
-	nroConexiones--; //Me llego una desconexion, resto.
 
-	//Reviso los niveles
-	for (indiceNivel=0; indiceNivel < cantidadNiveles; indiceNivel++) {
-		nivelLevantador = list_get(listaNiveles, indiceNivel);
+//	if (noHayPersonajes && soloQuedanNiveles()) {
+//		log_debug(logger, "No hay tipitos jugando entonces ejecuto koopa y cierro todo");
 
-		if (!nivelVacio(nivelLevantador)) {
-			log_debug(logger, "El %s todavia tiene chaboncitos", nivelLevantador->nombre);
-			noHayPersonajes = false;
-			break;
-		}
-		log_debug(logger, "El %s esta vacio", nivelLevantador->nombre);
+	bool _termino_plan(t_estado_personaje* estado) {
+		return estado->estado == TRUE;
 	}
 
-
-	if (noHayPersonajes && soloQuedanNiveles()) {
-		log_debug(logger, "No hay tipitos jugando entonces ejecuto koopa y cierro todo");
+	if (list_all_satisfy(personajes_jugando, (void*) _termino_plan)) {
 		cerrarTodo();
 		executeKoopa(pathKoopa, pathScript);
-		pthread_mutex_unlock(&mtxlNiveles);
-		exit(EXIT_FAILURE);
 	}
-	pthread_mutex_unlock(&mtxlNiveles);
+//		pthread_mutex_unlock(&mtxlNiveles);
+//		exit(EXIT_FAILURE);
+//	}
+//	pthread_mutex_unlock(&mtxlNiveles);
 }
 
 
@@ -370,6 +394,10 @@ int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char*
 			pkgHandshake.length = 0;
 			// Le contesto el handshake
 			enviarPaquete(iSocketComunicacion, &pkgHandshake, logger, "Handshake de la plataforma al personaje");
+
+			t_estado_personaje* estado = crear_estado_personaje(string_from_format("%d", pHandshakePers->simbolo));
+			list_add(personajes_jugando, estado);
+
 			return EXIT_SUCCESS;
 
 		} else {

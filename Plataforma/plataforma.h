@@ -40,6 +40,11 @@ typedef struct {
 } tPersonaje;
 
 typedef struct {
+	char* simbolo;
+	bool estado;
+} t_estado_personaje;
+
+typedef struct {
 	int   socket; 			 // Socket de conexion con el nivel
 	char* nombre; 			 // Nombre del nivel
 	t_queue* cListos; 		 // Cola de listos
