@@ -746,7 +746,7 @@ void enviarTurno(tPersonaje *pPersonaje, int delay) {
 	pkgProximoTurno.type   = PL_OTORGA_TURNO;
 	pkgProximoTurno.length = 0;
 	usleep(delay);
-	log_debug(logger, ">>> %s: Turno");
+	log_debug(logger, ">>> %c: Turno", pPersonaje->simbolo);
 	enviarPaquete(pPersonaje->socket, &pkgProximoTurno, logger, "Se otorga un turno al personaje");
 }
 
