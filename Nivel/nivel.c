@@ -1046,9 +1046,10 @@ void *deteccionInterbloqueo (void *parametro) {
 	int *vecSatisfechos = NULL;
 	t_caja *vecCajas    = NULL;
 	int indice,cantPersonajesSatisfechos;
-	char encontrado;
+	int encuentra;
 
 	while(1){
+		    pthread_mutex_lock (&semItems);// Nadie mueve un pelo hasta que no se evalue el interbloqueo
 	    cantPersonajes = list_size(list_personajes);
 		indice=0;
 		cantPersonajesSatisfechos=0;
@@ -1064,7 +1065,6 @@ void *deteccionInterbloqueo (void *parametro) {
 				matSolicitud[i]  = (int*) malloc(sizeof(int) * pNivel->cantRecursos);
 			}
 
-		    pthread_mutex_lock (&semItems);// Nadie mueve un pelo hasta que no se evalue el interbloqueo
 			log_debug(logger, "ANALIZANDO INTERBLOQUEO...");
 		    // Inicializando matrices
 			for (i=0; i<cantPersonajes; i++) {
@@ -1122,23 +1122,26 @@ void *deteccionInterbloqueo (void *parametro) {
 				    i = -1;//para volver a recorrer la matriz con los recursos disponibles actualizados
 			   	}
 			}
+			// LA i SALE CON VALOR cantPersonajes.
+
 			if (cantPersonajesSatisfechos==cantPersonajes) {
 				log_debug(logger, "no hay interbloqueo");
 				//NO HAY INTERBLOQUEO
 			} else {
 				log_debug(logger,"hay interbloqueo");
 				if (deadlock.recovery==1) {//notificar a plataforma, entonces vecSatisfechos contendra -1-->el personaje quedo interbloqueado
-					encontrado='0';
+					encuentra=0;
 
-					while (encontrado == '0') {
+//					while (encontrado == '0') {
+					for(i=0 ;( (encuentra == 0) && (i < cantPersonajes) ); i++){// FIXME ES ESTA LA LINEA DEL ERROR. SI SE DEJA EL WHILE COMO ESTABA, i SE EXEDE DEL RANGO.
 //						log_debug(logger,"en el while");
 						if (vecSatisfechos[i] != 0) {
 							//cargar el simbolo de ese personaje
 							log_debug(logger,"en el if del while");
-							personaje = list_get(list_personajes,i);
+							personaje = list_get(list_personajes,i); // i se va al carajo.
 							personajeSimbolo = personaje->simbolo;
 							log_debug(logger,"en el if del while2");
-							encontrado = '1';
+							encuentra = 1;
 						}
 //						log_debug(logger,"saliendo del if");
 					}
@@ -1152,7 +1155,6 @@ void *deteccionInterbloqueo (void *parametro) {
 //					
 				}
 			}
-			pthread_mutex_unlock(&semItems);
 			for (i=1;i<cantPersonajes;i++) {//i=1 o 0?
 				free(matSolicitud[i]);
 				free(matAsignacion[i]);
@@ -1163,6 +1165,7 @@ void *deteccionInterbloqueo (void *parametro) {
 			free(vecSatisfechos);
 			free(vecCajas);
 		}
+			pthread_mutex_unlock(&semItems);
 		usleep(pNivel->deadlock.checkTime);
 		//nanosleep(&dormir,NULL);
 	}
