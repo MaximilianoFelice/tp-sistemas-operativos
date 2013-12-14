@@ -40,7 +40,7 @@ pthread_mutex_init(&semItems,NULL);
 	list_personajes = list_create();
 	nivel_gui_inicializar();
 	nivel_gui_get_area_nivel(&nivel.maxRows, &nivel.maxCols);
-	log_debug(logger, "Apunto de levantar el archivo de configuracion");
+	log_debug(logger, "Se va a levantar el archivo de configuracion...");
 	levantarArchivoConf(configFilePath, &nivel);
 
 	//SOCKETS
@@ -85,7 +85,6 @@ void levantarArchivoConf(char* pathConfigFile, tNivel *pNivel) {
 	char* datosPlataforma;
 
 	configNivel = config_try_create(pathConfigFile, "Nombre,Recovery,Enemigos,Sleep_Enemigos,Algoritmo,Quantum,Retardo,TiempoChequeoDeadlock,Plataforma");
-
 	sLineaCaja = string_from_format("Caja%i", iCaja);
 
 	while (config_has_property(configNivel, sLineaCaja)) {
@@ -95,11 +94,10 @@ void levantarArchivoConf(char* pathConfigFile, tNivel *pNivel) {
 
 		posCaja.x = atoi(aCaja[3]);
 		posCaja.y = atoi(aCaja[4]);
-
-		if (posCaja.y > pNivel->maxRows || posCaja.y > pNivel->maxCols || posCaja.y < 1 || posCaja.y < 1) {
+		if (posCaja.y > pNivel->maxRows || posCaja.x > pNivel->maxCols || posCaja.y < 1 || posCaja.x < 1) {
 			char* messageLimitErr;
 			messageLimitErr = string_from_format(
-				"La caja %s excede los limites de la pantalla. CajaPos=(%d,%d) - Limites=(%d,%d)",
+				"La caja %d excede los limites de la pantalla. CajaPos=(%d,%d) - Limites=(%d,%d)",
 				iCaja, posCaja.x, posCaja.y, pNivel->maxCols, pNivel->maxRows
 			);
 			cerrarNivel(messageLimitErr);
@@ -107,25 +105,23 @@ void levantarArchivoConf(char* pathConfigFile, tNivel *pNivel) {
 
 		// Si la validacion fue exitosa creamos la caja de recursos
 		CrearCaja(list_items, *aCaja[1],atoi(aCaja[3]),atoi(aCaja[4]),atoi(aCaja[2]));
-
 		iCaja++;
 		sLineaCaja = string_from_format("Caja%i", iCaja);
 	};
-
 	free(sLineaCaja);
 	free(*aCaja);
 
 	if (!hayCajas) {
 		cerrarNivel("No hay cajas disponibles");
 	}
-
+	log_info(logger, "1");
 	log_info(logger, "Archivo correcto, se procede a levantar los valores");
 
 	pNivel->cantRecursos   = list_size(list_items);
 
 	pNivel->deadlock.recovery  = config_get_int_value(configNivel, "Recovery");
 	pNivel->deadlock.checkTime = config_get_int_value(configNivel, "TiempoChequeoDeadlock");
-
+	log_info(logger, "2");
 	pNivel->nombre = string_duplicate(config_get_string_value(configNivel,"Nombre"));
 
 	pNivel->cantEnemigos  = config_get_int_value(configNivel, "Enemigos");
@@ -330,8 +326,8 @@ void movimientoPersonaje(tNivel *pNivel, int iSocket, char *sPayload) {
 			pPersonaje->posicion.x = posPersonaje.x;
 			pPersonaje->posicion.y = posPersonaje.y;
 			notificacionAPlataforma(iSocket, N_CONFIRMACION_MOV, "Notificando a plataforma personaje movido correctamente");
-		}
-		else {
+
+		} else {
 			matarPersonaje(pNivel, &movPersonaje->simbolo);
 			hayQueAsesinar = true;
 		}
@@ -643,12 +639,13 @@ void *enemigo(void * args) {
 				break;
 			}
 			actualizaPosicion(dirMovimiento, &(enemigo->posX),&(enemigo->posY));
-			void esUnRecurso(ITEM_NIVEL *ite){
-				if ((ite->item_type==RECURSO_ITEM_TYPE)&&((ite->posx==enemigo->posX)&&(ite->posy==enemigo->posY))){
-					if(ultimoMov=='a'||ultimoMov=='b')
+			void esUnRecurso(ITEM_NIVEL *item){
+				if ((item->item_type==RECURSO_ITEM_TYPE) && ((item->posx==enemigo->posX) && (item->posy==enemigo->posY))) {
+					if (ultimoMov=='a'||ultimoMov=='b') {
 						enemigo->posY++;
-					else
+					} else {
 						enemigo->posX--;
+					}
 				}
 			}
 
