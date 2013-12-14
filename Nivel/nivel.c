@@ -1042,9 +1042,9 @@ void deteccionInterbloqueo(void* parametro) {
 	extern t_list* list_items;
 	t_list * bloqueados;
 
-	tSimbolo* caja;
-	tPersonaje *personaje;
-	tSimbolo personajeSimbolo;
+//	tSimbolo* caja;
+//	tPersonaje *personaje;
+//	tSimbolo personajeSimbolo;
 
 	tInfoInterbloqueo deadlock = pNivel->deadlock;
 
@@ -1092,6 +1092,12 @@ void deteccionInterbloqueo(void* parametro) {
 
 		};
 
+		bool personajeBloqueado(tPersonaje* personaje){
+			return (personaje->marcado==false);
+		}
+		int cant = list_count_satisfying(list_personajes,(void*)personajeBloqueado);
+
+
 		//Estan en DeadLock los que no esten marcados
 		for (contPer1 = 0; contPer1 < list_size(list_personajes); contPer1++) {
 			levantador1 = list_get(list_personajes, contPer1);
@@ -1103,18 +1109,16 @@ void deteccionInterbloqueo(void* parametro) {
 
 		//--Si la lista tiene más de 1 deadlockeados, se la mandamos al orquestador
 		if ((list_size(bloqueados) > 1) && (deadlock.recovery)) {
-			while (list_size(bloqueados) != 0) {
-				//--Envía un header con la cantidad de personajes
-				tPaquete paquete;
-				tPersonaje* pPersonajeBloq;
-				pPersonajeBloq = list_remove(bloqueados, 0);
-				paquete.type    = N_MUERTO_POR_DEADLOCK;
-				paquete.length  = sizeof(tSimbolo);
-				paquete.payload = pPersonajeBloq->simbolo;
-				enviarPaquete(pNivel->plataforma.socket, &paquete, logger, "Enviando notificacion de bloqueo de personajes a plataforma");
-				log_debug(logger, "El personaje %c se elimino por participar en un interbloqueo", paquete.payload);
+			//--Envía un header con la cantidad de personajes
+			tPaquete paquete;
+			tPersonaje* pPersonajeBloq;
+			pPersonajeBloq = list_remove(bloqueados, 0);
+			paquete.type    = N_MUERTO_POR_DEADLOCK;
+			paquete.length  = sizeof(tSimbolo);
+			memcpy(paquete.payload, &(pPersonajeBloq->simbolo), sizeof(tSimbolo));
+			enviarPaquete(pNivel->plataforma.socket, &paquete, logger, "Enviando notificacion de bloqueo de personajes a plataforma");
+			log_debug(logger, "El personaje %c se elimino por participar en un interbloqueo", paquete.payload);
 
-			}
 			list_destroy_and_destroy_elements(bloqueados, free);
 		}
 

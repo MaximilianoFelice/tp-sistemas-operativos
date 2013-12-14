@@ -523,9 +523,11 @@ void agregarPersonaje(tNivel *pNivel, tSimbolo simbolo, int socket) {
 	pPersonajeNuevo->quantumUsado      = 0;
 	pPersonajeNuevo->remainingDistance = pNivel->rdDefault;
 
-	queue_push(pNivel->cListos, pPersonajeNuevo);
-	log_debug(logger, "Se agrego personaje a la cola de listos");
+	log_debug(logger, "Se agrega personaje a la cola de listos");
 	imprimirLista(pNivel, NULL);
+	queue_push(pNivel->cListos, pPersonajeNuevo);
+	imprimirLista(pNivel, NULL);
+
 }
 
 
@@ -589,7 +591,8 @@ void *planificador(void * pvNivel) {
             case(P_SOLICITUD_RECURSO):
                 solicitudRecursoPersonaje(iSocketConexion, sPayload, pNivel, &pPersonajeActual);
             	cantidadListos = queue_size(pNivel->cListos);
-            	if (cantidadListos == 0 || cantidadListos == 1) {
+
+				if (cantidadListos == 0 || cantidadListos == 1) {
 					iEnviarTurno = false; //AL reves que N_ENTREGA_RECURSO
 				}
             	if(cantidadListos > 1) {
@@ -676,7 +679,10 @@ int seleccionarJugador(tPersonaje** pPersonaje, tNivel* nivel, bool iEnviarTurno
             } else {
                 // Termina su quantum vuelve a la cola
                 (*pPersonaje)->quantumUsado = 0;
+                log_debug(logger, "Seagrega un personaje a listos por fin de quantum");
+                imprimirLista(nivel, NULL);
             	queue_push(nivel->cListos, *pPersonaje);
+            	imprimirLista(nivel, NULL);
             }
             break;
 
@@ -710,13 +716,19 @@ int seleccionarJugador(tPersonaje** pPersonaje, tNivel* nivel, bool iEnviarTurno
 
     } else if (iTamanioColaListos == 1) {
     	//Si estan aqui es porque su quantum terminó
+    	log_debug(logger, "SE saca un personaje de la cola de LISTOS");
+    	imprimirLista(nivel, NULL);
         *pPersonaje = queue_pop(nivel->cListos);
+        imprimirLista(nivel, NULL);
 
     } else if (iTamanioColaListos > 1) {
         switch(nivel->algoritmo) {
         case RR:
         	log_debug(logger, "Planificando RR...");
+        	log_debug(logger, "Se saca un personaje de la cola de listos");
+        	imprimirLista(nivel, NULL);
             *pPersonaje = queue_pop(nivel->cListos);
+            imprimirLista(nivel, NULL);
             (*pPersonaje)->quantumUsado = 0;
             iEnviarTurno = true;
             break;
@@ -791,8 +803,9 @@ tPersonaje* planificacionSRDF(tNivel *nivel) {
     }
 
     //Lo saco de listos
+    imprimirLista(nivel, NULL);
     pPersonaje = list_remove(nivel->cListos->elements, indicePersonajeElegido);
-
+    imprimirLista(nivel, pPersonaje);
     return pPersonaje;
 }
 
@@ -971,7 +984,10 @@ int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNi
 
 			if (pPersonajeActual != NULL) {
 				pPersonajeActual->quantumUsado = 0;
+				log_debug(logger, "Pongo un personaje en la cola de listos");
+				imprimirLista(pNivel, NULL);
 				queue_push(pNivel->cListos, pPersonajeActual);
+				imprimirLista(pNivel, NULL);
 			}
 
 			bool _menorRemainingDistance(tPersonaje *unPersonaje, tPersonaje *otroPersonaje) {
@@ -1031,7 +1047,10 @@ void recepcionRecurso(tNivel *pNivel, char *sPayload) {
 		pkgRecursoOtorgado.length = 0;
 		enviarPaquete(pPersonaje->socket, &pkgRecursoOtorgado, logger, "Se confirma otorgamiento de recurso al personaje");
 
+		log_debug(logger, "Agrego personaje a listos");
+		imprimirLista(pNivel, pPersonaje);
 		queue_push(pNivel->cListos, pPersonaje);
+		imprimirLista(pNivel, pPersonaje);
 
 	} else {
 		log_error(logger, "No se encontro ningun personaje esperando por el recurso %c", *pSimbolo);
@@ -1049,6 +1068,7 @@ int desconectarNivel(tNivel *pNivel){
 		log_error(logger, "No se encontro el nivel desconectado");
 		exit(EXIT_FAILURE);
 	}
+
 	pNivel = list_remove(listaNiveles, indiceNivel);
 	destroyNivel(pNivel);
 	pthread_mutex_unlock(&mtxlNiveles);
@@ -1153,8 +1173,10 @@ char *liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel, int *lengthRecurs
 				pRecurso = (tSimbolo *)list_get(pPersMuerto->recursos, iIndexRecursos);
 
 				if (pPersonajeBloqueado->recursoEsperado == *pRecurso) {
+					imprimirLista(pNivel, NULL);
 					pPersonajeBloqueado = (tPersonajeBloqueado *)list_remove(pNivel->lBloqueados, iIndexBloqueados);
-					log_debug(logger, "Entre al if del list_remove");
+					imprimirLista(pNivel, NULL);
+
 					/* Como saco un personaje de la lista, actualizo la iteracion de los bloqueados */
 					if(iIndexBloqueados>1) iIndexBloqueados--;
 //					iCantidadBloqueados--;
@@ -1169,7 +1191,10 @@ char *liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel, int *lengthRecurs
 							pPersMuerto->simbolo, pPersonajeLiberado->simbolo, *pRecurso);
 
 					list_add(pPersonajeLiberado->recursos, pRecurso);
+					log_debug(logger, "Se agrega un perosnaje a listos");
+					imprimirLista(pNivel, NULL);
 					queue_push(pNivel->cListos, pPersonajeLiberado);
+					imprimirLista(pNivel, pPersonajeLiberado);
 					break;
 				}
 			}
@@ -1353,13 +1378,14 @@ tPersonaje *sacarPersonajeDeListas(tNivel *pNivel, int iSocket) {
 	iIndicePersonaje = existePersonaje(pNivel->cListos->elements, iSocket, bySocket);
 
 	if (iIndicePersonaje != -1) {
-
+		imprimirLista(pNivel, NULL);
 		return (list_remove(pNivel->cListos->elements, iIndicePersonaje)); // Y sacamos al personaje de la lista de bloqueados
 	}
 
 	iIndicePersonaje = existePersonaje(pNivel->lBloqueados, iSocket, bySocket);
 
 	if (iIndicePersonaje != -1) {
+		imprimirLista(pNivel, NULL);
 		return (list_remove(pNivel->lBloqueados, iIndicePersonaje));
 	}
 
