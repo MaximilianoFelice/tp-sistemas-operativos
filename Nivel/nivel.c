@@ -26,7 +26,7 @@ int main(int argc, char** argv) {
 	signal(SIGINT, cerrarForzado);
 
 	
-pthread_mutex_init(&semItems,NULL);
+	pthread_mutex_init(&semItems,NULL);
 
 	//LOG
 	logger = logInit(argv, "NIVEL");
@@ -75,7 +75,30 @@ void levantarArchivoConf(char* pathConfigFile, tNivel *pNivel) {
 	char** aCaja;
 	char* datosPlataforma;
 
-	configNivel = config_try_create(pathConfigFile, "Nombre,Recovery,Enemigos,Sleep_Enemigos,Algoritmo,Quantum,Retardo,TiempoChequeoDeadlock,Plataforma");
+
+	if (!file_exists(pathConfigFile)) {
+		char* messageLimitErr;
+		messageLimitErr = string_from_format("[ERROR] '%s' no encontrado o no disponible para la lectura.\n", pathConfigFile);
+		cerrarNivel(messageLimitErr);
+	}
+
+	configNivel = config_create(pathConfigFile);
+
+	char* str = strdup("Nombre,Recovery,Enemigos,Sleep_Enemigos,Algoritmo,Quantum,Retardo,TiempoChequeoDeadlock,Plataforma");
+    char* token;
+    token = strtok(str, ",");
+
+    while (token) {
+    	if (!(config_has_property(configNivel, token))) {
+    		char* messageLimitErr;
+			messageLimitErr = string_from_format("[ERROR] No se encontro '%s' en '%s'\n", token, pathConfigFile);
+			cerrarNivel(messageLimitErr);
+		}
+        token = strtok(NULL,","); //Pasa al siguiente token
+    }
+
+    free(str);
+
 	sLineaCaja = string_from_format("Caja%i", iCaja);
 
 	while (config_has_property(configNivel, sLineaCaja)) {
