@@ -39,7 +39,7 @@ pthread_mutex_init(&semItems,NULL);
 	list_personajes = list_create();
 	nivel_gui_inicializar();
 	nivel_gui_get_area_nivel(&nivel.maxRows, &nivel.maxCols);
-	log_debug(logger, "Apunto de levantar el archivo de configuracion");
+	log_debug(logger, "Se va a levantar el archivo de configuracion...");
 	levantarArchivoConf(configFilePath, &nivel);
 
 	//SOCKETS
@@ -76,7 +76,6 @@ void levantarArchivoConf(char* pathConfigFile, tNivel *pNivel) {
 	char* datosPlataforma;
 
 	configNivel = config_try_create(pathConfigFile, "Nombre,Recovery,Enemigos,Sleep_Enemigos,Algoritmo,Quantum,Retardo,TiempoChequeoDeadlock,Plataforma");
-
 	sLineaCaja = string_from_format("Caja%i", iCaja);
 
 	while (config_has_property(configNivel, sLineaCaja)) {
@@ -86,11 +85,10 @@ void levantarArchivoConf(char* pathConfigFile, tNivel *pNivel) {
 
 		posCaja.x = atoi(aCaja[3]);
 		posCaja.y = atoi(aCaja[4]);
-
-		if (posCaja.y > pNivel->maxRows || posCaja.y > pNivel->maxCols || posCaja.y < 1 || posCaja.y < 1) {
+		if (posCaja.y > pNivel->maxRows || posCaja.x > pNivel->maxCols || posCaja.y < 1 || posCaja.x < 1) {
 			char* messageLimitErr;
 			messageLimitErr = string_from_format(
-				"La caja %s excede los limites de la pantalla. CajaPos=(%d,%d) - Limites=(%d,%d)",
+				"La caja %d excede los limites de la pantalla. CajaPos=(%d,%d) - Limites=(%d,%d)",
 				iCaja, posCaja.x, posCaja.y, pNivel->maxCols, pNivel->maxRows
 			);
 			cerrarNivel(messageLimitErr);
@@ -98,25 +96,23 @@ void levantarArchivoConf(char* pathConfigFile, tNivel *pNivel) {
 
 		// Si la validacion fue exitosa creamos la caja de recursos
 		CrearCaja(list_items, *aCaja[1],atoi(aCaja[3]),atoi(aCaja[4]),atoi(aCaja[2]));
-
 		iCaja++;
 		sLineaCaja = string_from_format("Caja%i", iCaja);
 	};
-
 	free(sLineaCaja);
 	free(*aCaja);
 
 	if (!hayCajas) {
 		cerrarNivel("No hay cajas disponibles");
 	}
-
+	log_info(logger, "1");
 	log_info(logger, "Archivo correcto, se procede a levantar los valores");
 
 	pNivel->cantRecursos   = list_size(list_items);
 
 	pNivel->deadlock.recovery  = config_get_int_value(configNivel, "Recovery");
 	pNivel->deadlock.checkTime = config_get_int_value(configNivel, "TiempoChequeoDeadlock");
-
+	log_info(logger, "2");
 	pNivel->nombre = string_duplicate(config_get_string_value(configNivel,"Nombre"));
 
 	pNivel->cantEnemigos  = config_get_int_value(configNivel, "Enemigos");
@@ -333,8 +329,8 @@ void movimientoPersonaje(tNivel *pNivel, int iSocket, char *sPayload) {
 			pPersonaje->posicion.x = posPersonaje.x;
 			pPersonaje->posicion.y = posPersonaje.y;
 			notificacionAPlataforma(iSocket, N_CONFIRMACION_MOV, "Notificando a plataforma personaje movido correctamente");
-		}
-		else {
+
+		} else {
 			matarPersonaje(pNivel, &movPersonaje->simbolo);
 			hayQueAsesinar = true;
 		}
@@ -452,6 +448,10 @@ void desconexionPersonaje(char *sPayload) {
 
 	tPersonaje *personajeOut = list_remove_by_condition(list_personajes,(void*)buscarPersonaje);
 	
+	if (personajeOut == NULL) {
+		log_debug(logger, "No se encontro el personaje");
+	}
+
 	//agrego una instancia a list_items de todos los recursos que me manda planificador (que son todos los que no reasigno)
 	int iIndexRecurso;
 	for (iIndexRecurso=0; iIndexRecurso<persDesconectado->lenghtRecursos; iIndexRecurso++) {
@@ -525,7 +525,7 @@ void *enemigo(void * args) {
 	enemigo = (tEnemigo *)args;
 
 	//Variables de movimiento
-	int contMovimiento = 3;
+	tDirMovimiento dirMovimiento = vacio;
 	char ultimoMov     = 'a';
 	char dirMov	       = 'b';
 	//Variables de persecucion de victima
@@ -599,81 +599,82 @@ void *enemigo(void * args) {
 			switch(dirMov){
 			case'a':
 				if(ultimoMov=='a'){
-					contMovimiento=1;
+					dirMovimiento = derecha;
 					ultimoMov='b';
 				}else{
 					if(ultimoMov=='c'){
-						contMovimiento=1;
+						dirMovimiento = derecha;
 						ultimoMov='a';
 					}else{
-						contMovimiento=4;
+						dirMovimiento = abajo;
 						ultimoMov='c';
 					}
 				}
 				break;
 			case'b':
 				if(ultimoMov=='a'){
-					contMovimiento=3;
+					dirMovimiento = izquierda;
 					ultimoMov='b';
 				}else{
 					if(ultimoMov=='c'){
-						contMovimiento=3;
+						dirMovimiento = izquierda;
 						ultimoMov='a';
 					}else{
-						contMovimiento=4;
+						dirMovimiento=abajo;
 						ultimoMov='c';
 					}
 				}
 				break;
 			case 'c':
 				if(ultimoMov=='a'){
-					contMovimiento=1;
+					dirMovimiento=derecha;
 					ultimoMov='b';
 				}else{
 					if(ultimoMov=='c'){
-						contMovimiento=1;
+						dirMovimiento=derecha;
 						ultimoMov='a';
 					}else{
-						contMovimiento=2;
+						dirMovimiento=arriba;
 						ultimoMov='c';
 					}
 				}
 				break;
 			case 'd':
 				if(ultimoMov=='a'){
-					contMovimiento=3;
+					dirMovimiento=izquierda;
 					ultimoMov='b';
 				}else{
 					if(ultimoMov=='c'){
-						contMovimiento=3;
+						dirMovimiento=izquierda;
 						ultimoMov='a';
 					}else{
-						contMovimiento=2;
+						dirMovimiento=arriba;
 						ultimoMov='c';
 						}
 					}
 				break;
 			}
-			actualizaPosicion(&contMovimiento, &(enemigo->posX),&(enemigo->posY));
-			void esUnRecurso(ITEM_NIVEL *ite){
-				if ((ite->item_type==RECURSO_ITEM_TYPE)&&((ite->posx==enemigo->posX)&&(ite->posy==enemigo->posY))){
-					if(ultimoMov=='a'||ultimoMov=='b')
+			actualizaPosicion(dirMovimiento, &(enemigo->posX),&(enemigo->posY));
+			void esUnRecurso(ITEM_NIVEL *item){
+				if ((item->item_type==RECURSO_ITEM_TYPE) && ((item->posx==enemigo->posX) && (item->posy==enemigo->posY))) {
+					if (ultimoMov=='a'||ultimoMov=='b') {
 						enemigo->posY++;
-					else
+					} else {
 						enemigo->posX--;
+					}
 				}
 			}
-			list_iterate(list_items,(void*)esUnRecurso);
+
 			////PERSECUCION DE PERSONAJE
 			pthread_mutex_lock(&semItems);
+			list_iterate(list_items,(void*)esUnRecurso);
 			MoveEnemy(list_items, enemigo->ID, enemigo->posX,enemigo->posY);
 			nivel_gui_dibujar(list_items, enemigo->pNivel->nombre);
 			pthread_mutex_unlock(&semItems);
 			usleep(enemigo->pNivel->sleepEnemigos);
 
 
-		}
-		else { ////PERSECUCION DE PERSONAJE
+		} else { ////PERSECUCION DE PERSONAJE
 
 			if(hayQueAsesinar){
 				pthread_mutex_lock(&semItems);
@@ -682,9 +683,9 @@ void *enemigo(void * args) {
 
 				if(persVictima!=NULL && !persVictima->bloqueado){
 
-					acercarmeALaVictimaPersonaje(enemigo, persVictima, &contMovimiento);
+					acercarmeALaVictimaPersonaje(enemigo, persVictima, &dirMovimiento);
 
-					actualizaPosicion(&contMovimiento, &(enemigo->posX),&(enemigo->posY));
+					actualizaPosicion(dirMovimiento, &(enemigo->posX),&(enemigo->posY));
 
 					evitarRecurso(enemigo);
 
@@ -731,15 +732,15 @@ _Bool analizarMovimientoDeEnemigo(){
 }
 
 //Devuelve true si alcance la victima y false en caso contrario
-_Bool acercarmeALaVictima(tEnemigo *enemigo, ITEM_NIVEL *item, int *contMovimiento){
+_Bool acercarmeALaVictima(tEnemigo *enemigo, ITEM_NIVEL *item, tDirMovimiento *dirMovimiento){
 
 	//Elijo el eje por el que me voy a acercar
 	if(enemigo->posY == item->posy){
 		if(enemigo->posX < item->posx){
-			*contMovimiento=1;
+			*dirMovimiento = derecha;
 		}
 		if(enemigo->posX > item->posx){
-			*contMovimiento=3;
+			*dirMovimiento = izquierda;
 		}
 		if(enemigo->posX == item->posx){
 			return true;
@@ -747,23 +748,23 @@ _Bool acercarmeALaVictima(tEnemigo *enemigo, ITEM_NIVEL *item, int *contMovimien
 	}
 	else{ //acercarse por fila
 		if(enemigo->posY < item->posy)
-			*contMovimiento=4;
+			*dirMovimiento = abajo;
 		if(enemigo->posY > item->posy)
-			*contMovimiento=2;
+			*dirMovimiento = arriba;
 	}
 	return false;
 
 }
 
-_Bool acercarmeALaVictimaPersonaje(tEnemigo *enemigo, tPersonaje *personaje, int *contMovimiento){
+_Bool acercarmeALaVictimaPersonaje(tEnemigo *enemigo, tPersonaje *personaje, tDirMovimiento *dirMovimiento){
 
 	//Elijo el eje por el que me voy a acercar
 	if(enemigo->posY == personaje->posicion.y){
 		if(enemigo->posX < personaje->posicion.x){
-			*contMovimiento=1;
+			*dirMovimiento = derecha;
 		}
 		if(enemigo->posX > personaje->posicion.x){
-			*contMovimiento=3;
+			*dirMovimiento = izquierda;
 		}
 		if(enemigo->posX == personaje->posicion.x){
 			return true;
@@ -771,9 +772,9 @@ _Bool acercarmeALaVictimaPersonaje(tEnemigo *enemigo, tPersonaje *personaje, int
 	}
 	else{ //acercarse por fila
 		if(enemigo->posY < personaje->posicion.y)
-			*contMovimiento=4;
+			*dirMovimiento = abajo;
 		if(enemigo->posY > personaje->posicion.y)
-			*contMovimiento=2;
+			*dirMovimiento = arriba;
 	}
 	return false;
 
@@ -1160,20 +1161,22 @@ void liberarRecsPersonaje(char id){
 	personaje_destroyer(personaje);
 }
 
-void actualizaPosicion(int *contMovimiento, int *posX, int *posY) {
+void actualizaPosicion(tDirMovimiento dirMovimiento, int *posX, int *posY) {
 
-	switch (*contMovimiento) {
-	case 1:
+	switch (dirMovimiento) {
+	case derecha:
 		(*posX)++; //DERECHA
 		break;
-	case 2:
+	case arriba:
 		(*posY)--; //ARRIBA
 		break;
-	case 3:
+	case izquierda:
 		(*posX)--; //IZQUIERDA
 		break;
-	case 4:
+	case abajo:
 		(*posY)++; //ABAJO
+		break;
+	default:
 		break;
 	}
 }

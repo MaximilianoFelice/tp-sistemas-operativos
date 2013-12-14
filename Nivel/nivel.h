@@ -120,7 +120,7 @@ void cerrarForzado(int sig);
 //Enemigos
 void *enemigo(void * args);
 void *deteccionInterbloqueo (void *parametro);
-void actualizaPosicion(int *contMovimiento, int *posX, int *posY);
+void actualizaPosicion(tDirMovimiento dirMovimiento, int *posX, int *posY);
 void calcularMovimiento(tNivel *pNivel, tDirMovimiento direccion, int *posX, int *posY);
 void matarPersonaje(tNivel *, tSimbolo *simboloItem);
 ITEM_NIVEL *asignarVictima(tEnemigo *enemigo);
@@ -131,8 +131,8 @@ void evitarRecurso(tEnemigo *enemigo);
 void evitarOrigen(tEnemigo *enemigo);
 _Bool analizarMovimientoDeEnemigo();
 _Bool esUnPersonaje(ITEM_NIVEL *item);
-_Bool acercarmeALaVictima(tEnemigo *enemigo, ITEM_NIVEL *item, int *contMovimiento);
-_Bool acercarmeALaVictimaPersonaje(tEnemigo *enemigo, tPersonaje *personaje, int *contMovimiento);
+_Bool acercarmeALaVictima(tEnemigo *enemigo, ITEM_NIVEL *item, tDirMovimiento *dirMovimiento);
+_Bool acercarmeALaVictimaPersonaje(tEnemigo *enemigo, tPersonaje *personaje, tDirMovimiento *dirMovimiento);
 _Bool estoyArriba(tEnemigo *enemigo, tPersonaje *persVictima);
 _Bool hayAlgunEnemigoArriba(tNivel *pNivel, int posPerX, int posPerY);
 
