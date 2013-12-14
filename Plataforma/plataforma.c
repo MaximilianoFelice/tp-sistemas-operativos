@@ -1076,6 +1076,7 @@ int liberarRecursosYDesbloquearPersonajes(tNivel *pNivel, tPersonaje *pPersonaje
 	char *recursosNoAsignados;
 	log_info(logger, "Se desconecto el personaje %c", pPersonaje->simbolo);
 	int lenghtRecursos = list_size(pPersonaje->recursos);
+	log_debug(logger, "lenght = %d", lenghtRecursos);
 	recursosNoAsignados = liberarRecursos(pPersonaje, pNivel);
 	avisarDesconexionAlNivel(pNivel, pPersonaje, lenghtRecursos, &recursosNoAsignados);
 
@@ -1178,11 +1179,9 @@ char *getRecursosNoAsignados(t_list *recursos){
 			pRecurso = (tSimbolo*) list_get(recursos, i);
 			recursosNoAsignados[i] = (char)*pRecurso;
 		}
-		log_debug(logger, "antes de destruir           SSSSSSSSSSss");
 		list_destroy_and_destroy_elements(recursos, free);
-		log_debug(logger, "despues de destruir           SSSSSSSSSSss");
 		return recursosNoAsignados;
-	}log_debug(logger, "NO ENTra AL IF QQQQQQQ");
+	}
 	return NULL;
 }
 

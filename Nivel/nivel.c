@@ -455,7 +455,8 @@ void desconexionPersonaje(char *sPayload) {
 	//agrego una instancia a list_items de todos los recursos que me manda planificador (que son todos los que no reasigno)
 	int iIndexRecurso;
 	for (iIndexRecurso=0; iIndexRecurso<persDesconectado->lenghtRecursos; iIndexRecurso++) {
-		sumarRecurso(list_items, persDesconectado->recursos[iIndexRecurso]);
+		sumarInstanciasRecurso(list_items, (char) persDesconectado->recursos[iIndexRecurso]);
+//		sumarRecurso(list_items, persDesconectado->recursos[iIndexRecurso]); //Fucking shit
 		log_debug(logger, "Libere una instancia del recurso %c", persDesconectado->recursos[iIndexRecurso]);
 	}
 
