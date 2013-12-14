@@ -202,6 +202,16 @@ void *jugar(void *vPersonajeNivel) {
 
 	while (personaje.vidas>0 && !pPersonajePorNivel->bienTerminado) {
 
+		pPersonajePorNivel->posX = 0;
+		pPersonajePorNivel->posY = 0;
+		pPersonajePorNivel->posRecursoX=0;
+		pPersonajePorNivel->posRecursoY=0;
+		pPersonajePorNivel->recursoActual=0;
+		pPersonajePorNivel->socketPlataforma = -1;
+		pPersonajePorNivel->ultimoMovimiento = vacio;
+		pPersonajePorNivel->murioEnNivel 	 = false;
+
+
 		pPersonajePorNivel->socketPlataforma = connectToServer(ip_plataforma, atoi(puerto_orq), logger);
 		handshake_plataforma(pPersonajePorNivel);
 

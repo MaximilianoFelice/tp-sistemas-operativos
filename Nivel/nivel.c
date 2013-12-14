@@ -310,7 +310,7 @@ void movimientoPersonaje(tNivel *pNivel, int iSocket, char *sPayload) {
 
 	movPersonaje = deserializarMovimientoPers(sPayload);
 
-	log_debug(logger, "<<< %s: Solicitud de movimiento del personaje %c", pNivel->nombre, movPersonaje->simbolo);
+	log_debug(logger, "<<< %s: Solicitud de movimiento del personaje %c.", pNivel->nombre, movPersonaje->simbolo);
 
 	pPersonaje = getPersonajeBySymbol(movPersonaje->simbolo);
 
@@ -324,6 +324,7 @@ void movimientoPersonaje(tNivel *pNivel, int iSocket, char *sPayload) {
 			pPersonaje->bloqueado=false;
 
 			calcularMovimiento(pNivel, movPersonaje->direccion, &posPersonaje.x, &posPersonaje.y);
+			log_debug(logger, "Movimiento de %c en (%d, %d)", movPersonaje->simbolo, posPersonaje.x, posPersonaje.y);
 
 			MoverPersonaje(list_items,symbol, posPersonaje.x, posPersonaje.y);
 			pPersonaje->posicion.x = posPersonaje.x;

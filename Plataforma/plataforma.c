@@ -596,7 +596,6 @@ void *planificador(void * pvNivel) {
 
 			/* Mensajes que puede mandar el nivel */
             case(N_ACTUALIZACION_CRITERIOS):
-            		log_debug(logger, "llega a ACTUALIZACION CRITERIOS");
                 actualizacionCriteriosNivel(iSocketConexion, sPayload, pNivel, pPersonajeActual);
                 break;
 
