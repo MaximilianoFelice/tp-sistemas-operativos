@@ -55,8 +55,8 @@ int main(int argc, char** argv) {
 	crearEnemigos(&nivel);
 
 	// LANZANDO EL HILO DETECTOR DE INTERBLOQUEO
-	pthread_t hiloInterbloqueo;
-	pthread_create(&hiloInterbloqueo, NULL, &deteccionInterbloqueo, (void *)&nivel);
+//	pthread_t hiloInterbloqueo;
+//	pthread_create(&hiloInterbloqueo, NULL, &deteccionInterbloqueo, (void *)&nivel);
 
 	escucharConexiones(&nivel, configFilePath);
 

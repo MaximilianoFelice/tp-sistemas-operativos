@@ -417,9 +417,10 @@ int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char*
 			sendConnectionFail(iSocketComunicacion, PL_NIVEL_INEXISTENTE, "No se encontro el nivel pedido");
 		}
 
-		bool rta_nivel = avisoConexionANivel(pNivelPedido->socket, sPayload, pHandshakePers->simbolo);
+//		bool rta_nivel;
+		avisoConexionANivel(pNivelPedido->socket, sPayload, pHandshakePers->simbolo);
 
-		if (rta_nivel) {
+		if (true) { //Trampa
 			agregarPersonaje(pNivelPedido, pHandshakePers->simbolo, iSocketComunicacion);
 
 			free(pHandshakePers->nombreNivel);
@@ -439,7 +440,8 @@ int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char*
 
 			return EXIT_SUCCESS;
 
-		} else {
+		}
+		else {
 			log_error(logger, "El personaje ya esta jugando actualmente en ese nivel");
 			sendConnectionFail(iSocketComunicacion, PL_PERSONAJE_REPETIDO, "El personaje ya esta jugando ese nivel");
 
@@ -1059,6 +1061,9 @@ int desconectarPersonaje(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSoc
 
 	if ((*pPersonajeActual)!= NULL && (iSocketConexion == (*pPersonajeActual)->socket)) {
 		socketPersonajeQueSalio = iSocketConexion;
+		pthread_mutex_lock(&mtxlNiveles);
+		delegarConexion(&setSocketsOrquestador, &pNivel->masterfds, socketPersonajeQueSalio, &iSocketMaximoOrquestador);
+		pthread_mutex_unlock(&mtxlNiveles);
 		liberarRecursosYDesbloquearPersonajes(pNivel, *pPersonajeActual);
 		*pPersonajeActual = NULL;
 		return socketPersonajeQueSalio;
@@ -1067,6 +1072,9 @@ int desconectarPersonaje(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSoc
 	pPersonaje = sacarPersonajeDeListas(pNivel, iSocketConexion);
 	if (pPersonaje != NULL) {
 		socketPersonajeQueSalio = pPersonaje->socket;
+		pthread_mutex_lock(&mtxlNiveles);
+		delegarConexion(&setSocketsOrquestador, &pNivel->masterfds, socketPersonajeQueSalio, &iSocketMaximoOrquestador);
+		pthread_mutex_unlock(&mtxlNiveles);
 		liberarRecursosYDesbloquearPersonajes(pNivel, pPersonaje);
 		return socketPersonajeQueSalio;
 	} else {
@@ -1107,10 +1115,7 @@ int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexi
 	if (iSocketConexion == pNivel->socket) {
 		desconectarNivel(pNivel);
 	} else {
-		int socketQueSalio = desconectarPersonaje(pNivel, pPersonajeActual, iSocketConexion);
-		pthread_mutex_lock(&mtxlNiveles);
-		delegarConexion(&setSocketsOrquestador, &pNivel->masterfds, socketQueSalio, &iSocketMaximoOrquestador);
-		pthread_mutex_unlock(&mtxlNiveles);
+		desconectarPersonaje(pNivel, pPersonajeActual, iSocketConexion);
 	}
 
 	return EXIT_SUCCESS;
