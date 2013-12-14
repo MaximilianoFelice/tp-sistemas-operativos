@@ -71,6 +71,8 @@ int main(int argc, char*argv[]) {
 
 	} while (reiniciar);
 
+	notificarFinPlanNiveles();
+
 	cerrarConexion(&socketOrquestador);
 	log_debug(logger, "El personaje se desconecto del orquestador");
 
@@ -107,8 +109,10 @@ bool finalizoPlan(){
 void notificarFinPlanNiveles(){
 	tPaquete pkgDevolverRecursos;
 	pkgDevolverRecursos.type   = P_FIN_PLAN_NIVELES;
-	pkgDevolverRecursos.length = 0;
+	pkgDevolverRecursos.length = sizeof(tSimbolo);
 
+	memcpy(&(pkgDevolverRecursos.payload),&(personaje.simbolo),sizeof(tSimbolo));
+//	log_debug(logger, "SOY SIMBOLO %d Y MANDO %d", personaje.simbolo, (tSimbolo) *(pkgDevolverRecursos.payload));
 	enviarPaquete(socketOrquestador, &pkgDevolverRecursos, logger, "Se notifica al orquestador la finalizacion del plan de niveles del personaje correctamente");
 }
 

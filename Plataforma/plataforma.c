@@ -82,14 +82,29 @@ bool esElPersonajeQueTieneElTurno(int socketActual, int socketConexion);
  * PLATAFORMA
  */
 
-t_estado_personaje* crear_estado_personaje(char *simbolo) {
+t_estado_personaje* crear_estado_personaje(tSimbolo simbolo) {
 	t_estado_personaje* estado = malloc(sizeof(t_estado_personaje));
 	estado->estado = FALSE;
 	estado->simbolo = simbolo;
 	return estado;
 }
 
+void add_to_character_list(tSimbolo simbolo){
 
+		bool _mismoSimbolo(t_estado_personaje personaje){
+//			tSimbolo sim;
+//			memcpy(&sim, &(personaje.simbolo), sizeof(tSimbolo));
+			if (personaje.simbolo == simbolo) return TRUE;
+			else return FALSE;
+		}
+
+	if (!list_any_satisfy(personajes_jugando, (void*) _mismoSimbolo)){
+//		t_estado_personaje* estado = crear_estado_personaje(string_from_format("%d", simbolo));
+		t_estado_personaje* estado = crear_estado_personaje(simbolo);
+		list_add(personajes_jugando, estado);
+	}
+
+}
 
 int main(int argc, char*argv[]) {
 
@@ -185,6 +200,21 @@ void destroyPlanificador(pthread_t *pPlanificador){
 	free(pPlanificador);
 }
 
+void setAsFinished(char* sPayload){
+//	tSimbolo simbolo;
+//	memcpy(&simbolo,sPayload,sizeof(tSimbolo));
+//	t_estado_personaje *pj;
+////	log_debug(logger, "ME LLEGO EL SIMBOLO %d", simbolo);
+//
+//	bool _mismoSimbolo(t_estado_personaje personaje){
+//		if (personaje.simbolo == simbolo) return TRUE;
+//		else return FALSE;
+//	}
+//
+//	pj = list_find(personajes_jugando, (void*) _mismoSimbolo);
+//	pj->estado = TRUE;
+}
+
 /*
  * ORQUESTADOR
  */
@@ -232,6 +262,7 @@ void *orquestador(void *vPuerto) {
 
 			case P_FIN_PLAN_NIVELES:
 				//TODO buscar el simbolo
+				setAsFinished(sPayload);
 				orquestadorTerminaJuego();
 				break;
 
@@ -276,10 +307,14 @@ void orquestadorTerminaJuego() {
 		return estado->estado == TRUE;
 	}
 
+	pthread_mutex_lock(&mtxlNiveles);
+
 	if (list_all_satisfy(personajes_jugando, (void*) _termino_plan)) {
 		cerrarTodo();
 		executeKoopa(pathKoopa, pathScript);
 	}
+
+	pthread_mutex_unlock(&mtxlNiveles);
 //		pthread_mutex_unlock(&mtxlNiveles);
 //		exit(EXIT_FAILURE);
 //	}
@@ -398,8 +433,7 @@ int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char*
 			// Le contesto el handshake
 			enviarPaquete(iSocketComunicacion, &pkgHandshake, logger, "Handshake de la plataforma al personaje");
 
-			t_estado_personaje* estado = crear_estado_personaje(string_from_format("%d", pHandshakePers->simbolo));
-			list_add(personajes_jugando, estado);
+            add_to_character_list(pHandshakePers->simbolo);
 
 			return EXIT_SUCCESS;
 

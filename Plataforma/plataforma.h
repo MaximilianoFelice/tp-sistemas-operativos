@@ -40,7 +40,7 @@ typedef struct {
 } tPersonaje;
 
 typedef struct {
-	char* simbolo;
+	tSimbolo simbolo;
 	bool estado;
 } t_estado_personaje;
 
