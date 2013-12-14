@@ -281,6 +281,10 @@ signed int multiplexar(fd_set *master, fd_set *temp, int *maxSock, tMensaje* tip
 	int nBytes;
 	memcpy(temp, master, sizeof(fd_set));
 
+//	struct timeval timeout;
+//	timeout.tv_sec=1;
+//	timeout.tv_usec=0;
+
 	//--Multiplexa conexiones
 	if (select(*maxSock + 1, temp, NULL, NULL, NULL) == -1) {
 		log_error(logger, "select: %s", strerror(errno));
