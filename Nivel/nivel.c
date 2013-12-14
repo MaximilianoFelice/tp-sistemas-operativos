@@ -55,6 +55,7 @@ int main(int argc, char** argv) {
 	crearEnemigos(&nivel);
 
 	// LANZANDO EL HILO DETECTOR DE INTERBLOQUEO
+	//TODO descomentar cuando ande bien enemigos
 //	pthread_t hiloInterbloqueo;
 //	pthread_create(&hiloInterbloqueo, NULL, &deteccionInterbloqueo, (void *)&nivel);
 
@@ -1019,13 +1020,28 @@ void matarPersonaje(tNivel *pNivel, tSimbolo *simboloItem){
 	personaje_destroyer(personajeOut);
 }
 
-void *deteccionInterbloqueo (void *parametro) {
+_Bool tieneLoQueNecesito(tPersonaje* pPersonaje1, tPersonaje* pPersonaje2) {		//--Electrolitos
+	char* blkB = list_get(pPersonaje2->recursos, list_size(pPersonaje2->recursos) - 1); //--Guardar recurso por el que se bloquée B
+	log_trace(logger, "Se esta buscando %c", *blkB);
+
+	int contRec;
+	char* levantadorA;
+	for (contRec = 0; contRec < list_size(pPersonaje1->recursos) - (pPersonaje1->bloqueado ? 1 : 0); contRec++) {
+		levantadorA = list_get(pPersonaje1->recursos, contRec);
+		log_trace(logger, "\t\t%c tiene: %c", pPersonaje1->simbolo, *levantadorA);
+		if (*blkB == *levantadorA)
+			return true;
+	}
+	return false;
+}
+
+void deteccionInterbloqueo(void* parametro) {
 
 	tNivel *pNivel;
 	pNivel = (tNivel *)parametro;
 
 	extern t_list* list_items;
-	tPaquete paquete;
+	t_list * bloqueados;
 
 	tSimbolo* caja;
 	tPersonaje *personaje;
@@ -1033,143 +1049,81 @@ void *deteccionInterbloqueo (void *parametro) {
 
 	tInfoInterbloqueo deadlock = pNivel->deadlock;
 
+	int cantBloq = 0;
 
-	int i,j,k,fila;
-	ITEM_NIVEL* itemRec = NULL;
-//	struct timespec dormir;
-//	dormir.tv_sec  = (time_t)(deadlock.checkTime/1000);
-//	dormir.tv_nsec = (long)((deadlock.checkTime%1000) * 1000000);
+// Iteramos infinitamente
+	while (1) {
+		pthread_mutex_lock(&semItems);
+		cantBloq   = 0;
+		bloqueados = list_create();
 
-	int cantPersonajes;
-	int **matAsignacion = NULL;
-	int **matSolicitud  = NULL;
-	int *vecSatisfechos = NULL;
-	t_caja *vecCajas    = NULL;
-	int indice,cantPersonajesSatisfechos;
-	int encuentra;
+		int contPer1, contPer2;
+		tPersonaje *levantador1, *levantador2;
 
-	while(1){
-		    pthread_mutex_lock (&semItems);// Nadie mueve un pelo hasta que no se evalue el interbloqueo
-	    cantPersonajes = list_size(list_personajes);
-		indice=0;
-		cantPersonajesSatisfechos=0;
+		//--Recorrer los personajes
+		for (contPer1 = 0; contPer1 < list_size(list_personajes); contPer1++) {
+			levantador1 = list_get(list_personajes, contPer1);
 
-		if (cantPersonajes!=0) {
-			matAsignacion = (int**) malloc(sizeof(int*) * cantPersonajes);
-			matSolicitud  = (int**) malloc(sizeof(int*) * cantPersonajes);
-			vecSatisfechos= (int*)  malloc(sizeof(int)  * cantPersonajes);
-			vecCajas = (t_caja*) malloc(sizeof(t_caja) * pNivel->cantRecursos);
-
-			for (i=0; i<cantPersonajes; i++) {
-				matAsignacion[i] = (int*) malloc(sizeof(int) * pNivel->cantRecursos);
-				matSolicitud[i]  = (int*) malloc(sizeof(int) * pNivel->cantRecursos);
-			}
-
-			log_debug(logger, "ANALIZANDO INTERBLOQUEO...");
-		    // Inicializando matrices
-			for (i=0; i<cantPersonajes; i++) {
-
-				for (j=0; j<pNivel->cantRecursos; j++) {
-					matAsignacion[i][j] = 0;
-					*(*(matSolicitud+i)+j) = 0;
-				}
-				*(vecSatisfechos+i)=-1;
-			}
-			// Llenando las matrices con la info
-			for (i=0; i<list_size(list_items); i++) {
-				itemRec = list_get(list_items,i);
-
-				if (itemRec->item_type == RECURSO_ITEM_TYPE) {
-					vecCajas[indice].simbolo = itemRec->id;
-					vecCajas[indice].cantidadInstancias = itemRec->quantity;
-					indice++;
-				}
-			}
-
-			for(i=0; i<cantPersonajes; i++) { // Recorro la lista de personajes y por cada personaje
-				personaje=list_get(list_personajes,i);
-
-				for (j=0; j<list_size(personaje->recursos); j++) { // Recorro su lista de recursos y por cada recurso asignados:
-					caja = list_get(personaje->recursos,j);
-
-					for (k=0; k<pNivel->cantRecursos; k++) {               // Recorro a vecCajas (vector de recursos en list_items) viendo por c/u de sus elementos
-						if (vecCajas[k].simbolo == (char)*caja) {  // Si coincide con el recurso recorrido con j (esto es para que las matrices mantengan los indices)
-							// Me fijo si es el ultimo elemento de la lista(=>es el por el que el personaje esta bloqueado)
-							if ((j == list_size(personaje->recursos)-1) && (personaje->bloqueado==true)) {
-								matSolicitud[i][k]+=1;             // Entonces lo pongo en la ubicacion i k de la matriz de solicitud
-							} else {
-								matAsignacion[i][k]+=1;
-							}
-						}
-					}
-				}
-			}
-
-			//detectando el interbloqueo
-			for (i=0; i<cantPersonajes; i++) {
-				fila = 0;
-				for (j=0;j<pNivel->cantRecursos;j++) {
-					if ((matSolicitud[i][j]-vecCajas[j].cantidadInstancias) <= 0) {
-						fila++;
-					}
-				}//recDisponibles[j])<=0) fila++;}
-				if ((fila == pNivel->cantRecursos) && (vecSatisfechos[i] != 0)) { //los recursos disponibles satisfacen algun proceso
-					vecSatisfechos[i] = 0;
-					for (j=0; j<pNivel->cantRecursos; j++) {
-						vecCajas[j].cantidadInstancias +=matAsignacion[i][j];//recDisponibles[j] += matAsignacion[i][j];
-					}
-				    cantPersonajesSatisfechos++;
-				    i = -1;//para volver a recorrer la matriz con los recursos disponibles actualizados
-			   	}
-			}
-			// LA i SALE CON VALOR cantPersonajes.
-
-			if (cantPersonajesSatisfechos==cantPersonajes) {
-				log_debug(logger, "no hay interbloqueo");
-				//NO HAY INTERBLOQUEO
+			//--marca a los que no estan bloqueados
+			if (levantador1->bloqueado) {
+				levantador1->marcado = false;
+				cantBloq++;
 			} else {
-				log_debug(logger,"hay interbloqueo");
-				if (deadlock.recovery==1) {//notificar a plataforma, entonces vecSatisfechos contendra -1-->el personaje quedo interbloqueado
-					encuentra=0;
+				levantador1->marcado = true;
+			}
+		}
 
-//					while (encontrado == '0') {
-					for(i=0 ;( (encuentra == 0) && (i < cantPersonajes) ); i++){// FIXME ES ESTA LA LINEA DEL ERROR. SI SE DEJA EL WHILE COMO ESTABA, i SE EXEDE DEL RANGO.
-//						log_debug(logger,"en el while");
-						if (vecSatisfechos[i] != 0) {
-							//cargar el simbolo de ese personaje
-							log_debug(logger,"en el if del while");
-							personaje = list_get(list_personajes,i); // i se va al carajo.
-							personajeSimbolo = personaje->simbolo;
-							log_debug(logger,"en el if del while2");
-							encuentra = 1;
+		for (; cantBloq >= 0; cantBloq--) { //(En el peor de los casos, tiene que asignar 2n-1 veces)
+			//Por cada pj no marcado
+			for (contPer1 = 0; contPer1 < list_size(list_personajes); contPer1++) {
+				levantador1 = list_get(list_personajes, contPer1);
+				if (!levantador1->marcado) {
+					//Si necesita un recurso de uno marcado
+					for (contPer2 = 0; contPer2 < list_size(list_personajes); contPer2++) {
+						levantador2 = list_get(list_personajes, contPer2);
+
+						if (levantador2->marcado && tieneLoQueNecesito(levantador2, levantador1)) {
+							log_trace(logger, "Marque a %c", levantador1->simbolo);
+							levantador1->marcado = true;
+							break;
 						}
-//						log_debug(logger,"saliendo del if");
 					}
-//					log_debug(logger,"saliendo del while");
-					log_debug(logger,"antes de enviar paquete con perso(caja):%c",personaje);
-					paquete.type = N_MUERTO_POR_DEADLOCK;
-					paquete.length = sizeof(tSimbolo);
-					paquete.payload[0] = personajeSimbolo;
-					enviarPaquete(pNivel->plataforma.socket,&paquete,logger,"enviando notificacion de bloqueo de personajes a plataforma");
-					log_debug(logger, "El personaje %c se elimino por participar en un interbloqueo", paquete.payload[0]);
-//					
 				}
 			}
-			for (i=1;i<cantPersonajes;i++) {//i=1 o 0?
-				free(matSolicitud[i]);
-				free(matAsignacion[i]);
-			}
 
-			free(matAsignacion);
-			free(matSolicitud);
-			free(vecSatisfechos);
-			free(vecCajas);
+		};
+
+		//Estan en DeadLock los que no esten marcados
+		for (contPer1 = 0; contPer1 < list_size(list_personajes); contPer1++) {
+			levantador1 = list_get(list_personajes, contPer1);
+			if (!levantador1->marcado) {
+				list_add_new(bloqueados, levantador1, sizeof(list_personajes));
+				log_trace(logger, "%c esta en Deadlock", levantador1->simbolo);
+			}
 		}
-			pthread_mutex_unlock(&semItems);
-		usleep(pNivel->deadlock.checkTime);
-		//nanosleep(&dormir,NULL);
+
+		//--Si la lista tiene más de 1 deadlockeados, se la mandamos al orquestador
+		if ((list_size(bloqueados) > 1) && (deadlock.recovery)) {
+			while (list_size(bloqueados) != 0) {
+				//--Envía un header con la cantidad de personajes
+				tPaquete paquete;
+				tPersonaje* pPersonajeBloq;
+				pPersonajeBloq = list_remove(bloqueados, 0);
+				paquete.type    = N_MUERTO_POR_DEADLOCK;
+				paquete.length  = sizeof(tSimbolo);
+				paquete.payload = pPersonajeBloq->simbolo;
+				enviarPaquete(pNivel->plataforma.socket, &paquete, logger, "Enviando notificacion de bloqueo de personajes a plataforma");
+				log_debug(logger, "El personaje %c se elimino por participar en un interbloqueo", paquete.payload);
+
+			}
+			list_destroy_and_destroy_elements(bloqueados, free);
+		}
+
+		// Mandamos el proceso a dormir para que espere el tiempo definido por archivo de config.
+		pthread_mutex_unlock(&semItems);
+		usleep(deadlock.checkTime);
+		log_trace(logger, ">>>Revisando DL<<<");
 	}
-	return 0;
 }
 
 //TODO esta no sirve
