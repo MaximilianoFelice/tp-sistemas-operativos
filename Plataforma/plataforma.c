@@ -89,22 +89,22 @@ t_estado_personaje* crear_estado_personaje(tSimbolo simbolo) {
 	return estado;
 }
 
-void add_to_character_list(tSimbolo simbolo){
-
-		bool _mismoSimbolo(t_estado_personaje personaje){
-//			tSimbolo sim;
-//			memcpy(&sim, &(personaje.simbolo), sizeof(tSimbolo));
-			if (personaje.simbolo == simbolo) return TRUE;
-			else return FALSE;
-		}
-
-	if (!list_any_satisfy(personajes_jugando, (void*) _mismoSimbolo)){
-//		t_estado_personaje* estado = crear_estado_personaje(string_from_format("%d", simbolo));
-		t_estado_personaje* estado = crear_estado_personaje(simbolo);
-		list_add(personajes_jugando, estado);
-	}
-
-}
+//void add_to_character_list(tSimbolo simbolo){
+//
+//		bool _mismoSimbolo(t_estado_personaje personaje){
+////			tSimbolo sim;
+////			memcpy(&sim, &(personaje.simbolo), sizeof(tSimbolo));
+//			if (personaje.simbolo == simbolo) return TRUE;
+//			else return FALSE;
+//		}
+//
+//	if (!list_any_satisfy(personajes_jugando, (void*) _mismoSimbolo)){
+////		t_estado_personaje* estado = crear_estado_personaje(string_from_format("%d", simbolo));
+//		t_estado_personaje* estado = crear_estado_personaje(simbolo);
+//		list_add(personajes_jugando, estado);
+//	}
+//
+//}
 
 int main(int argc, char*argv[]) {
 
@@ -200,20 +200,20 @@ void destroyPlanificador(pthread_t *pPlanificador){
 	free(pPlanificador);
 }
 
-void setAsFinished(char* sPayload){
-//	tSimbolo simbolo;
-//	memcpy(&simbolo,sPayload,sizeof(tSimbolo));
-//	t_estado_personaje *pj;
-////	log_debug(logger, "ME LLEGO EL SIMBOLO %d", simbolo);
-//
-//	bool _mismoSimbolo(t_estado_personaje personaje){
-//		if (personaje.simbolo == simbolo) return TRUE;
-//		else return FALSE;
-//	}
-//
-//	pj = list_find(personajes_jugando, (void*) _mismoSimbolo);
-//	pj->estado = TRUE;
-}
+//void setAsFinished(char* sPayload){
+////	tSimbolo simbolo;
+////	memcpy(&simbolo,sPayload,sizeof(tSimbolo));
+////	t_estado_personaje *pj;
+//////	log_debug(logger, "ME LLEGO EL SIMBOLO %d", simbolo);
+////
+////	bool _mismoSimbolo(t_estado_personaje personaje){
+////		if (personaje.simbolo == simbolo) return TRUE;
+////		else return FALSE;
+////	}
+////
+////	pj = list_find(personajes_jugando, (void*) _mismoSimbolo);
+////	pj->estado = TRUE;
+//}
 
 /*
  * ORQUESTADOR
@@ -257,17 +257,15 @@ void *orquestador(void *vPuerto) {
 				break;
 
 			case DESCONEXION:
-				//FIXME ver que onda?
-				break;
-
-			case P_FIN_PLAN_NIVELES:
-				//TODO buscar el simbolo
-				setAsFinished(sPayload);
 				orquestadorTerminaJuego();
 				break;
-
+//			 case P_FIN_PLAN_NIVELES:
+//				//TODO buscar el simbolo
+//				setAsFinished(sPayload);
+//				orquestadorTerminaJuego();
+//				break;
 			default:
-				log_debug(logger, "ORQUESTADOR: %s", enumToString(tipoMensaje));
+				log_debug(logger, "ORQUESTADOR: default");
 				break;
 			}
 		}
@@ -277,44 +275,48 @@ void *orquestador(void *vPuerto) {
 }
 
 void orquestadorTerminaJuego() {
-//	int indiceNivel;
-//	int cantidadNiveles;
-//	tNivel *nivelLevantador;
-//
-//	pthread_mutex_lock(&mtxlNiveles);
-//	log_debug(logger, "Verificando niveles...");
-//	cantidadNiveles = list_size(listaNiveles);
-//	bool noHayPersonajes = (cantidadNiveles == 0 ? false : true);
-//	nroConexiones--; //Me llego una desconexion, resto.
-//
-//	//Reviso los niveles
-//	for (indiceNivel=0; indiceNivel < cantidadNiveles; indiceNivel++) {
-//		nivelLevantador = list_get(listaNiveles, indiceNivel);
-//
-//		if (!nivelVacio(nivelLevantador)) {
-//			log_debug(logger, "El %s todavia tiene chaboncitos", nivelLevantador->nombre);
-//			noHayPersonajes = false;
-//			break;
-//		}
-//		log_debug(logger, "El %s esta vacio", nivelLevantador->nombre);
+	int indiceNivel;
+	int cantidadNiveles;
+	tNivel *nivelLevantador;
+
+	pthread_mutex_lock(&mtxlNiveles);
+	log_debug(logger, "Verificando niveles...");
+	cantidadNiveles = list_size(listaNiveles);
+	bool noHayPersonajes = (cantidadNiveles == 0 ? false : true);
+	nroConexiones--; //Me llego una desconexion, resto.
+
+	//Reviso los niveles
+	for (indiceNivel=0; indiceNivel < cantidadNiveles; indiceNivel++) {
+		nivelLevantador = list_get(listaNiveles, indiceNivel);
+
+		if (!nivelVacio(nivelLevantador)) {
+			log_debug(logger, "El %s todavia tiene chaboncitos", nivelLevantador->nombre);
+			noHayPersonajes = false;
+			break;
+		}
+		log_debug(logger, "El %s esta vacio", nivelLevantador->nombre);
+	}
+
+
+	if (noHayPersonajes && soloQuedanNiveles()) {
+		log_debug(logger, "No hay tipitos jugando entonces ejecuto koopa y cierro todo");
+		cerrarTodo();
+		executeKoopa(pathKoopa, pathScript);
+		pthread_mutex_unlock(&mtxlNiveles);
+		exit(EXIT_SUCCESS);
+	}
+	pthread_mutex_unlock(&mtxlNiveles);
+//	bool _termino_plan(t_estado_personaje* estado) {
+//		return estado->estado == TRUE;
 //	}
 
 
-//	if (noHayPersonajes && soloQuedanNiveles()) {
-//		log_debug(logger, "No hay tipitos jugando entonces ejecuto koopa y cierro todo");
 
-	bool _termino_plan(t_estado_personaje* estado) {
-		return estado->estado == TRUE;
-	}
+//	if (list_all_satisfy(personajes_jugando, (void*) _termino_plan)) {
+//		cerrarTodo();
+//		executeKoopa(pathKoopa, pathScript);
+//	}
 
-	pthread_mutex_lock(&mtxlNiveles);
-
-	if (list_all_satisfy(personajes_jugando, (void*) _termino_plan)) {
-		cerrarTodo();
-		executeKoopa(pathKoopa, pathScript);
-	}
-
-	pthread_mutex_unlock(&mtxlNiveles);
 //		pthread_mutex_unlock(&mtxlNiveles);
 //		exit(EXIT_FAILURE);
 //	}
@@ -433,7 +435,7 @@ int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char*
 			// Le contesto el handshake
 			enviarPaquete(iSocketComunicacion, &pkgHandshake, logger, "Handshake de la plataforma al personaje");
 
-            add_to_character_list(pHandshakePers->simbolo);
+//            add_to_character_list(pHandshakePers->simbolo);
 
 			return EXIT_SUCCESS;
 
@@ -559,8 +561,9 @@ void *planificador(void * pvNivel) {
     // Ciclo donde se multiplexa para escuchar personajes que se conectan
     while (1) {
 
-    	if(tipoMensaje!=N_MUERTO_POR_ENEMIGO)
+    	if(tipoMensaje!=N_MUERTO_POR_ENEMIGO){
     		waitPersonajes(pNivel, pPersonajeActual, &iEnviarTurno);
+    	}
 
        	seleccionarJugador(&pPersonajeActual, pNivel, iEnviarTurno);
 
@@ -579,17 +582,15 @@ void *planificador(void * pvNivel) {
             case(P_MOVIMIENTO):
                 movimientoPersonaje(iSocketConexion, sPayload, pNivel, &pPersonajeActual);
             	iEnviarTurno = coordinarAccesoMultiplesPersonajes(pPersonajeActual, iSocketConexion, false);
-            	if(pPersonajeActual == NULL){ //Significa que estaba muerto, entonces lo mate
-            		iEnviarTurno = true;
-            	}
-                break;
+            	break;
 
             case(P_SOLICITUD_RECURSO):
                 solicitudRecursoPersonaje(iSocketConexion, sPayload, pNivel, &pPersonajeActual);
             	cantidadListos = queue_size(pNivel->cListos);
             	if (cantidadListos == 0 || cantidadListos == 1) {
 					iEnviarTurno = false; //AL reves que N_ENTREGA_RECURSO
-				} else if(cantidadListos > 1) {
+				}
+            	if(cantidadListos > 1) {
 					iEnviarTurno = true;
 				}
                 break;
@@ -602,7 +603,7 @@ void *planificador(void * pvNivel) {
             case(N_MUERTO_POR_ENEMIGO):
 				muertePorEnemigoPersonaje(pNivel, &pPersonajeActual, iSocketConexion, sPayload);
             	cantidadListos = queue_size(pNivel->cListos);
-            	if(pPersonajeActual==NULL || cantidadListos > 0) //Ojala esto sea
+            	if(pPersonajeActual==NULL || cantidadListos > 0)
             		iEnviarTurno = true;
             	break;
 
@@ -618,6 +619,10 @@ void *planificador(void * pvNivel) {
 				} else if (cantidadListos > 1) {
 					iEnviarTurno = false;
 				}
+            	break;
+
+            case(N_BLOQUEADO_RECURSO):
+            	iEnviarTurno = true;
             	break;
 
             case(N_CONFIRMACION_MOV):
@@ -843,7 +848,6 @@ void muertePorEnemigoPersonaje(tNivel *pNivel, tPersonaje** pPersonajeActual, in
 
 		int socketPersonaje = (*pPersonajeActual)->socket;
 
-		log_info(logger, "If: Se desconecto el personaje %c", (*pPersonajeActual)->simbolo);
 		int lenghtRecursos = list_size((*pPersonajeActual)->recursos);
 		if(lenghtRecursos > 0 ){
 			char *recursosNoAsignados = liberarRecursos((*pPersonajeActual), pNivel);
@@ -1103,7 +1107,10 @@ int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexi
 	if (iSocketConexion == pNivel->socket) {
 		desconectarNivel(pNivel);
 	} else {
-		desconectarPersonaje(pNivel, pPersonajeActual, iSocketConexion);
+		int socketQueSalio = desconectarPersonaje(pNivel, pPersonajeActual, iSocketConexion);
+		pthread_mutex_lock(&mtxlNiveles);
+		delegarConexion(&setSocketsOrquestador, &pNivel->masterfds, socketQueSalio, &iSocketMaximoOrquestador);
+		pthread_mutex_unlock(&mtxlNiveles);
 	}
 
 	return EXIT_SUCCESS;
@@ -1494,7 +1501,7 @@ void imprimirConexiones(fd_set *master_planif, int maxSock, char* host) {
 
 void waitPersonajes(tNivel *pNivel, tPersonaje *personajeActual, bool *iEnviarTurno) {
 	if (nivelVacio(pNivel) && personajeActual==NULL) {
-
+		log_debug(logger, "Wait");
 		pthread_mutex_lock(&semNivel);
 		pthread_cond_wait(&pNivel->hayPersonajes, &semNivel);
 		pthread_mutex_unlock(&semNivel);

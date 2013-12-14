@@ -287,17 +287,20 @@ void escucharConexiones(tNivel *pNivel, char* configFilePath) {
 }
 
 void conexionPersonaje(int iSocket, char *sPayload) {
-	tPersonaje *pPersonaje;
+//	tPersonaje *pPersonaje;
 	tSimbolo *simbolo = deserializarSimbolo(sPayload);
 
-	pPersonaje = getPersonajeBySymbol(*simbolo);
+	//pPersonaje = getPersonajeBySymbol(*simbolo);
+	crearNuevoPersonaje(*simbolo);
+	notificacionAPlataforma(iSocket, N_CONEXION_EXITOSA, "Se notifica a plataforma que el personaje se onecto exitosamente");
 
-	if (pPersonaje == NULL) {
-		crearNuevoPersonaje(*simbolo);
-		notificacionAPlataforma(iSocket, N_CONEXION_EXITOSA, "Se notifica a plataforma que el personaje se onecto exitosamente");
-	} else {//se encontro=>el personaje ya existe
-		notificacionAPlataforma(iSocket, N_PERSONAJE_YA_EXISTENTE, "Se notifica a plataforma que el personaje ya existe");
-	}
+//	if (pPersonaje == NULL) {
+//		crearNuevoPersonaje(*simbolo);
+//		notificacionAPlataforma(iSocket, N_CONEXION_EXITOSA, "Se notifica a plataforma que el personaje se onecto exitosamente");
+//	}
+//	else {//se encontro=>el personaje ya existe
+//		notificacionAPlataforma(iSocket, N_PERSONAJE_YA_EXISTENTE, "Se notifica a plataforma que el personaje ya existe");
+//	}
 
 	free(simbolo);
 	free(sPayload);
@@ -413,6 +416,8 @@ void solicitudRecurso(tNivel *pNivel, int iSocket, char *sPayload) {
 		}
 
 		list_iterate(list_personajes,(void*)agregaRecursoYbloquea);
+
+		notificacionAPlataforma(iSocket,N_BLOQUEADO_RECURSO, "Un personaje se bloqueo porque no quedaban instancias del recurso");
 	}
 
 	free(sPayload);
@@ -423,13 +428,12 @@ void solicitudRecurso(tNivel *pNivel, int iSocket, char *sPayload) {
 void liberarRecursosPersonajeMuerto(tNivel *pNivel, char *sPayload){
 	tDesconexionPers *persDesconectado = deserializarDesconexionPers(sPayload);
 
-
 	log_debug(logger, "%s: Liberando recursos del personaje %c", pNivel->nombre, persDesconectado->simbolo);
 
 	int i;
 	for (i=0; i<persDesconectado->lenghtRecursos; i++) {
-			sumarRecurso(list_items,persDesconectado->recursos[i]);
-			log_debug(logger, "Libere una instancia del recurso %c", persDesconectado->recursos[i]);
+		sumarInstanciasRecurso(list_items, (char) persDesconectado->recursos[i]);
+		log_debug(logger, "Libere una instancia del recurso %c", persDesconectado->recursos[i]);
 	}
 	free(persDesconectado);
 	free(sPayload);
