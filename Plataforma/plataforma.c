@@ -1135,31 +1135,33 @@ char *liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel) {
 		tSimbolo *pRecurso;
 
 		/* Respetando el orden en que se bloquearon voy viendo si se libero el recurso que esperaban */
-		for (iIndexBloqueados = 0; iIndexBloqueados < iCantidadBloqueados; iIndexBloqueados++) {
+		for (iIndexBloqueados = 0; iIndexBloqueados < list_size(pNivel->lBloqueados); iIndexBloqueados++) {
 			pPersonajeBloqueado = (tPersonajeBloqueado *)list_get(pNivel->lBloqueados, iIndexBloqueados);
 
-			for (iIndexRecursos = 0; iIndexRecursos < iCantidadRecursos; iIndexRecursos++) {
+			for (iIndexRecursos = 0; iIndexRecursos < list_size(pPersMuerto->recursos); iIndexRecursos++) {
 				pRecurso = (tSimbolo *)list_get(pPersMuerto->recursos, iIndexRecursos);
 
 				if (pPersonajeBloqueado->recursoEsperado == *pRecurso) {
 					pPersonajeBloqueado = (tPersonajeBloqueado *)list_remove(pNivel->lBloqueados, iIndexBloqueados);
+					log_debug(logger, "Entre al if del list_remove");
 					/* Como saco un personaje de la lista, actualizo la iteracion de los bloqueados */
 					iIndexBloqueados--;
-					iCantidadBloqueados--;
+//					iCantidadBloqueados--;
 					pPersonajeLiberado = pPersonajeBloqueado->pPersonaje;
 					free(pPersonajeBloqueado);
 
 					pRecurso = (tSimbolo *)list_remove(pPersMuerto->recursos, iIndexRecursos);
 					/* Como saco un recurso de la lista, actualizo la iteracion de los recursos */
 					iIndexRecursos--;
-					iCantidadRecursos--;
+//					iCantidadRecursos--;
 
 					log_info(logger, "Por la muerte de %c se desbloquea %c que estaba esperando por el recurso %c",
 							pPersMuerto->simbolo, pPersonajeLiberado->simbolo, *pRecurso);
 
 					list_add(pPersonajeLiberado->recursos, pRecurso);
 					queue_push(pNivel->cListos, pPersonajeLiberado);
-
+					log_debug(logger, "Lo meti a listos");
+					break;
 				}
 
 			}
