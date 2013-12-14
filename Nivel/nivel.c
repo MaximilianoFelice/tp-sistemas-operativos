@@ -55,9 +55,8 @@ pthread_mutex_init(&semItems,NULL);
 	crearEnemigos(&nivel);
 
 	// LANZANDO EL HILO DETECTOR DE INTERBLOQUEO
-	//TODO descomentar cuando ande bien enemigos
-//	pthread_t hiloInterbloqueo;
-//	pthread_create(&hiloInterbloqueo, NULL, &deteccionInterbloqueo, (void *)&nivel);
+	pthread_t hiloInterbloqueo;
+	pthread_create(&hiloInterbloqueo, NULL, &deteccionInterbloqueo, (void *)&nivel);
 
 	escucharConexiones(&nivel, configFilePath);
 

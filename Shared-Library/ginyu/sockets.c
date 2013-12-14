@@ -142,8 +142,13 @@ signed int getConnection(fd_set *setSockets, int *maxSock, int sockListener, tMe
 	socklen_t sinClientSize;
 	sinClientSize = sizeof(clientAddress);
 
+	//Trampa me chupa un huevo ya
+	struct timeval timeout;
+	timeout.tv_sec=2;
+	timeout.tv_usec=0;
+
 	//--Multiplexa conexiones
-	if (select(*maxSock + 1, &setTemporal, NULL, NULL, NULL) == -1) {
+	if (select(*maxSock + 1, &setTemporal, NULL, NULL, &timeout) == -1) {
 		log_error(logger, "select: %s", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
@@ -296,7 +301,7 @@ signed int multiplexar(fd_set *master, fd_set *temp, int *maxSock, tMensaje* tip
 					log_error(logger, "multiplexar :: recv in %d: %s", iSocket, strerror(errno));
 				}
 				//--Cierra la conexión y lo saca de la lista
-				close(iSocket);
+				//close(iSocket);
 				FD_CLR(iSocket, master);
 				*tipoMensaje = DESCONEXION;
 
