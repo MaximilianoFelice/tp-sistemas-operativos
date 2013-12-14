@@ -72,7 +72,7 @@ int enviarPaquete(int socketServidor, tPaquete* pPaqueteAEnviar, t_log* logger, 
 	int byteEnviados;
 	log_debug(logger, ">>> %s", info);
 
-	byteEnviados = send(socketServidor, (char *)pPaqueteAEnviar, sizeof(tHeader) + pPaqueteAEnviar->length, 0);
+	byteEnviados = send(socketServidor, (char *)pPaqueteAEnviar, sizeof(tHeader) + pPaqueteAEnviar->length, MSG_NOSIGNAL);
 
 	if (byteEnviados == -1) {
 		log_error(logger, "%s: %s", info, strerror(errno));

@@ -494,7 +494,8 @@ void *planificador(void * pvNivel) {
     // Ciclo donde se multiplexa para escuchar personajes que se conectan
     while (1) {
 
-   		waitPersonajes(pNivel, pPersonajeActual, &iEnviarTurno);
+    	if(tipoMensaje!=N_MUERTO_POR_ENEMIGO)
+    		waitPersonajes(pNivel, pPersonajeActual, &iEnviarTurno);
 
        	seleccionarJugador(&pPersonajeActual, pNivel, iEnviarTurno);
 
@@ -521,7 +522,6 @@ void *planificador(void * pvNivel) {
             case(P_SOLICITUD_RECURSO):
                 solicitudRecursoPersonaje(iSocketConexion, sPayload, pNivel, &pPersonajeActual);
             	cantidadListos = queue_size(pNivel->cListos);
-
             	if (cantidadListos == 0 || cantidadListos == 1) {
 					iEnviarTurno = false; //AL reves que N_ENTREGA_RECURSO
 				} else if(cantidadListos > 1) {
@@ -531,6 +531,7 @@ void *planificador(void * pvNivel) {
 
 			/* Mensajes que puede mandar el nivel */
             case(N_ACTUALIZACION_CRITERIOS):
+            		log_debug(logger, "llega a ACTUALIZACION CRITERIOS");
                 actualizacionCriteriosNivel(iSocketConexion, sPayload, pNivel, pPersonajeActual);
                 break;
 

@@ -21,7 +21,6 @@ pthread_mutex_t semItems;
 int main(int argc, char** argv) {
 	tNivel nivel;
 	int iSocket;
-	int descriptorVigilador, descriptorInotify;
 	char *configFilePath = argv[1];
 
 	signal(SIGINT, cerrarForzado);
@@ -50,14 +49,8 @@ pthread_mutex_init(&semItems,NULL);
     }
 
     nivel.plataforma.socket = iSocket;
+    log_debug(logger, "SOCKET %d", nivel.plataforma.socket);
     handshakeConPlataforma(&nivel);
-
-	//INOTIFY
-	descriptorInotify   = inotify_init();
-	descriptorVigilador = inotify_add_watch(descriptorInotify, configFilePath, IN_MODIFY);
-	if (descriptorVigilador == -1) {
-		log_error(logger, "Error en inotify add_watch");
-	}
 
 	crearEnemigos(&nivel);
 
@@ -66,10 +59,8 @@ pthread_mutex_init(&semItems,NULL);
 //	pthread_t hiloInterbloqueo;
 //	pthread_create(&hiloInterbloqueo, NULL, &deteccionInterbloqueo, (void *)&nivel);
 
-	escucharConexiones(&nivel, descriptorInotify, configFilePath);
+	escucharConexiones(&nivel, configFilePath);
 
-	inotify_rm_watch(descriptorInotify, descriptorVigilador);
-	close(descriptorInotify);
 	log_destroy(logger);
 	return EXIT_SUCCESS;
 }
@@ -206,18 +197,22 @@ void crearEnemigos(tNivel *nivel) {
 	}
 }
 
-void escucharConexiones(tNivel *pNivel, int fdInotify, char* configFilePath) {
+void escucharConexiones(tNivel *pNivel, char* configFilePath) {
 	// Variables del Poll
+
+	//INOTIFY
+	int descriptorInotify   = inotify_init();
+	int watch_id = inotify_add_watch(descriptorInotify, configFilePath, IN_MODIFY);
+	if (watch_id == -1) {
+		log_error(logger, "Error en inotify add_watch");
+	}
+
 	struct pollfd uDescriptores[POLL_NRO_FDS];
 	uDescriptores[0].fd	    = pNivel->plataforma.socket;
 	uDescriptores[0].events = POLLIN;
-	uDescriptores[1].fd 	= fdInotify;
+	uDescriptores[1].fd 	= descriptorInotify;
 	uDescriptores[1].events = POLLIN;
 	int iResultadoPoll;
-
-	// Variables iNotify
-	int bytesLeidos;
-	char bufferInotify[TAM_BUFFER];
 
 	char *sPayload;
 	tMensaje tipoDeMensaje;
@@ -231,19 +226,27 @@ void escucharConexiones(tNivel *pNivel, int fdInotify, char* configFilePath) {
 		} else {
 
 			if (uDescriptores[1].revents & POLLIN) { // Hay data lista para recibir
-				int bytes;
-				bytesLeidos = read(fdInotify, bufferInotify, TAM_BUFFER);
-				struct inotify_event* evento; // VER ESTO, PUEDE FALLAR EL CAMBIO DE WHILE A FOR
-
-				for (bytes = 0; bytes < bytesLeidos; bytes += TAM_EVENTO + evento->len) {
-
-					evento = (struct inotify_event*) &bufferInotify[bytes];
-
-					if (evento->mask & IN_MODIFY) {//avisar a planificador que cambio el archivo config
-						actualizarInfoNivel(pNivel, iSocket, configFilePath);
-					}
+				struct inotify_event evento;
+				int i = read(descriptorInotify, &evento, sizeof(struct inotify_event));
+				if (i <= 0) {
+					perror("la cague");
 				}
-			} //Preguntar por que si poll detecta actividad en el descriptor del inotify y este solo se acciona cuando ocurre in_modify => haria falta todo lo que sigue? o
+				if (evento.mask & IN_MODIFY) {//avisar a planificador que cambio el archivo config
+					actualizarInfoNivel(pNivel, iSocket,configFilePath);
+				}
+				inotify_rm_watch(descriptorInotify, watch_id);
+				close(descriptorInotify);
+
+				descriptorInotify = inotify_init();
+				watch_id = inotify_add_watch(descriptorInotify, configFilePath, IN_MODIFY);
+				if (watch_id == -1) {
+					log_error(logger, "Error en inotify add_watch");
+				}
+				uDescriptores[1].fd 	= descriptorInotify;
+				uDescriptores[1].events = POLLIN;
+			}
+
+			//Preguntar por que si poll detecta actividad en el descriptor del inotify y este solo se acciona cuando ocurre in_modify => haria falta todo lo que sigue? o
 			 //simplemente podria actualizar los datos y listo?
 			if (uDescriptores[0].revents & POLLIN) { // Hay data lista para recibir
 
@@ -467,40 +470,53 @@ void desconexionPersonaje(char *sPayload) {
 
 
 void actualizarInfoNivel(tNivel *pNivel, int iSocket, char* configFilePath) {
-	char* algoritmoAux;
-	t_config *configNivel;
+//	char* algoritmoAux;
+	log_debug(logger, "antes de crear archivo de configuracion %s", configFilePath);
 
-	configNivel  = config_create(configFilePath);
-	while(!config_has_property(configNivel,"Algoritmo")) {
-		usleep(10);
+	if (file_exists(configFilePath)) {
+		log_debug(logger, "Leyendo archivo de configuracion %s", configFilePath);
+		t_config *configNivel = config_create(configFilePath);
+		log_debug(logger, "despues de crear archivo de configuracion %s", configFilePath);
+
+		if (!config_has_property(configNivel,"Algoritmo")) {
+			log_debug(logger, "No esta la property algoritmo");
+		} else {
+			char* algoritmoAux = config_get_string_value(configNivel, "Algoritmo");
+
+			if (strcmp(algoritmoAux,"RR") == 0) {
+				pNivel->plataforma.algPlanif = RR;
+				pNivel->plataforma.valorAlgorimo = config_get_int_value(configNivel, "Quantum");
+				pNivel->plataforma.delay = config_get_int_value(configNivel, "Retardo");
+			} else {
+				pNivel->plataforma.algPlanif = SRDF;
+				pNivel->plataforma.valorAlgorimo = 0;
+				pNivel->plataforma.delay = config_get_int_value(configNivel, "Retardo");
+			}
+
+			pNivel->plataforma.delay = config_get_int_value(configNivel, "Retardo");
+			log_debug(logger, "Se produjo un cambio en el archivo configuracion, Algoritmo: %s quantum:%i retardo:%i",
+					algoritmoAux, pNivel->plataforma.valorAlgorimo, pNivel->plataforma.delay);
+
+			tPaquete paquete;
+			//ENVIANDO A PLATAFORMA NOTIFICACION DE ALGORITMO ASIGNADO
+			tInfoNivel infoDeNivel;
+			infoDeNivel.algoritmo = pNivel->plataforma.algPlanif;
+			infoDeNivel.quantum   = pNivel->plataforma.valorAlgorimo;
+			infoDeNivel.delay     = pNivel->plataforma.delay;
+			//serializacion propia porque la de protocolo no me andaba bien
+
+			serializarInfoNivel(N_ACTUALIZACION_CRITERIOS, infoDeNivel, &paquete);
+			tInfoNivel* pepe;
+			pepe = deserializarInfoNivel(paquete.payload);
+
+
+			log_debug(logger, "socket NOTIII           %s, %d, %d", pepe->algoritmo, pepe->delay, pepe->quantum);
+			enviarPaquete(iSocket, &paquete, logger, "Notificando cambio de algoritmo a plataforma");
+		}
 		config_destroy(configNivel);
+	}else {
+		log_debug(logger, "No esta el archivo");
 	}
-
-	algoritmoAux = config_get_string_value(configNivel, "Algoritmo");
-
-	if (strcmp(algoritmoAux,"RR") == 0) {
-		pNivel->plataforma.algPlanif = RR;
-		pNivel->plataforma.valorAlgorimo = config_get_int_value(configNivel, "Quantum");
-	} else {
-		pNivel->plataforma.algPlanif = SRDF;
-	}
-
-	pNivel->plataforma.delay = config_get_int_value(configNivel, "Retardo");
-	log_debug(logger, "Se produjo un cambio en el archivo configuracion, Algoritmo: %s quantum:%i retardo:%i",
-			algoritmoAux, pNivel->plataforma.valorAlgorimo, pNivel->plataforma.delay);
-	free(algoritmoAux);
-	config_destroy(configNivel);
-
-	tPaquete paquete;
-	//ENVIANDO A PLATAFORMA NOTIFICACION DE ALGORITMO ASIGNADO
-	tInfoNivel infoDeNivel;
-	infoDeNivel.algoritmo = pNivel->plataforma.algPlanif;
-	infoDeNivel.quantum   = pNivel->plataforma.valorAlgorimo;
-	infoDeNivel.delay     = pNivel->plataforma.delay;
-	//serializacion propia porque la de protocolo no me andaba bien
-
-	serializarInfoNivel(N_ACTUALIZACION_CRITERIOS, infoDeNivel, &paquete);
-	enviarPaquete(iSocket, &paquete, logger, "Notificando cambio de algoritmo a plataforma");
 }
 
 void *enemigo(void * args) {
@@ -1086,7 +1102,7 @@ void *deteccionInterbloqueo (void *parametro) {
 					encontrado='0';
 
 					while (encontrado == '0') {
-						log_debug(logger,"en el while");
+//						log_debug(logger,"en el while");
 						if (vecSatisfechos[i] != 0) {
 							//cargar el simbolo de ese personaje
 							log_debug(logger,"en el if del while");
@@ -1095,9 +1111,9 @@ void *deteccionInterbloqueo (void *parametro) {
 							log_debug(logger,"en el if del while2");
 							encontrado = '1';
 						}
-						log_debug(logger,"saliendo del if");
+//						log_debug(logger,"saliendo del if");
 					}
-					log_debug(logger,"saliendo del while");
+//					log_debug(logger,"saliendo del while");
 					log_debug(logger,"antes de enviar paquete con perso(caja):%c",personaje);
 					paquete.type = N_MUERTO_POR_DEADLOCK;
 					paquete.length = sizeof(tSimbolo);

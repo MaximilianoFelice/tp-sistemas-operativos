@@ -106,7 +106,7 @@ void movimientoPersonaje(tNivel *pNivel, int iSocket, char *sPayload);
 void posicionRecurso(tNivel *pNivel, int iSocket, char *sPayload);
 void solicitudRecurso(tNivel *pNivel, int iSocket, char *sPayload);
 void desconexionPersonaje(char *sPayload) ;
-void escucharConexiones(tNivel *pNivel, int fdInotify, char* configFilePath);
+void escucharConexiones(tNivel *pNivel, char* configFilePath);
 void levantarArchivoConf(char* pathConfigFile, tNivel *pNivel);
 void actualizarInfoNivel(tNivel *pNivel, int iSocket, char* configFilePath);
 void crearNuevoPersonaje (tSimbolo simbolo);
