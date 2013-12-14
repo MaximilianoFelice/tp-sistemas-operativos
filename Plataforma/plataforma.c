@@ -121,6 +121,9 @@ int main(int argc, char*argv[]) {
 	pthread_mutex_init(&semNivel, NULL);
 	pthread_mutex_init(&mtxlNiveles, NULL);
 
+	// Inicializa la lista de personajes
+	personajes_jugando = list_create();
+
 	thResult = pthread_create(&thOrquestador, NULL, orquestador, (void *) &usPuerto);
 
 	if (thResult != 0) {
@@ -1368,10 +1371,10 @@ void imprimirLista(tNivel *pNivel, tPersonaje *pPersonaje) {
 	}
 
 	log_info(logger, retorno);
-	log_debug(logger, "Antes de los frees");
+//	log_debug(logger, "Antes de los frees");
 	free(tmp);
 	free(retorno);
-	log_debug(logger, "despues de los frees");
+//	log_debug(logger, "despues de los frees");
 }
 
 tPersonajeBloqueado* sacarDeListaBloqueados(t_list* lBloqueados, tSimbolo simbolo) {
