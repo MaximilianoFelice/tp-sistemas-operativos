@@ -150,7 +150,7 @@ int main (int argc, char *argv[]){
 		strcpy(fuse_disc_path, runtime_options.define_disc_path);
 	} else{
 		printf("Mountpoint not specified: Unloading modules.");
-		sig_term_handler(SIGTERM);
+		exit(0);
 	}
 
 	// Settea el log level del disco:
