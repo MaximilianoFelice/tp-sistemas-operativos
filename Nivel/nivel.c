@@ -251,6 +251,7 @@ void escucharConexiones(tNivel *pNivel, char* configFilePath) {
 					perror("la cague");
 				}
 				if (evento.mask & IN_MODIFY) {//avisar a planificador que cambio el archivo config
+					log_debug(logger, "DETECTA CAMBIO EN EL INOTIFY");
 					actualizarInfoNivel(pNivel, iSocket,configFilePath);
 				}
 				inotify_rm_watch(descriptorInotify, watch_id);
@@ -530,11 +531,11 @@ void actualizarInfoNivel(tNivel *pNivel, int iSocket, char* configFilePath) {
 			//serializacion propia porque la de protocolo no me andaba bien
 
 			serializarInfoNivel(N_ACTUALIZACION_CRITERIOS, infoDeNivel, &paquete);
-			tInfoNivel* pepe;
-			pepe = deserializarInfoNivel(paquete.payload);
-
-
-			log_debug(logger, "socket NOTIII           %s, %d, %d", pepe->algoritmo, pepe->delay, pepe->quantum);
+//			tInfoNivel* pepe;
+//			pepe = deserializarInfoNivel(paquete.payload);
+//
+//
+//			log_debug(logger, "socket NOTIII           %s, %d, %d", pepe->algoritmo, pepe->delay, pepe->quantum);
 			enviarPaquete(iSocket, &paquete, logger, "Notificando cambio de algoritmo a plataforma");
 		}
 		config_destroy(configNivel);
