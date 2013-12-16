@@ -17,11 +17,11 @@
 *.app
 
 # Makefiles del Eclipse
-*.mk
 *.d
 Debug/
 FileSystem/Testdisk/
 FileSystem/log/
+FileSystem/Release/FileSystem
 
 # Settings
 .settings
