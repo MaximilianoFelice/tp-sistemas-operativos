@@ -245,6 +245,10 @@ void *jugar(void *vPersonajeNivel) {
 				}
 
 			}
+			//Si le quedan recursos
+			if(pPersonajePorNivel->recursoActual+1 < list_size(pPersonajePorNivel->Objetivos)){
+				enviarMensajeFinDeTurno(pPersonajePorNivel);
+			}
 		} //Fin de for de objetivos
 
 		if (pPersonajePorNivel->murioEnNivel) {
@@ -314,6 +318,15 @@ void desconectarPersonaje(personajeIndividual_t* personajePorNivel){
 
 bool conseguiRecurso(personajeIndividual_t *personajePorNivel) {
 	return ((personajePorNivel->posY == personajePorNivel->posRecursoY) && (personajePorNivel->posX == personajePorNivel->posRecursoX));
+}
+
+void enviarMensajeFinDeTurno(personajeIndividual_t *pPersonajePorNivel){
+	tPaquete paquete;
+	paquete.length = 0;
+	paquete.type   = P_FIN_TURNO;
+
+	enviarPaquete(pPersonajePorNivel->socketPlataforma, &paquete, logger, "Envio fin de turno del recurso a plataforma");
+
 }
 
 void moverAlPersonaje(personajeIndividual_t* personajePorNivel){

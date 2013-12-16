@@ -120,7 +120,7 @@ void cerrarForzado(int sig);
 
 //Enemigos
 void *enemigo(void * args);
-void deteccionInterbloqueo(void* parametro);
+void *deteccionInterbloqueo(void* parametro);
 void actualizaPosicion(tDirMovimiento dirMovimiento, int *posX, int *posY);
 void calcularMovimiento(tNivel *pNivel, tDirMovimiento direccion, int *posX, int *posY);
 void matarPersonaje(tNivel *, tSimbolo *simboloItem);

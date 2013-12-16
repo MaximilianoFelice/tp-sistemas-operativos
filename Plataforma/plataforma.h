@@ -87,7 +87,7 @@ void imprimirConexiones(fd_set *master_planif, int maxSock, char* host);
 
 //Busquedas
 int existeNivel(t_list * lNiveles, char* sLevelName);
-int existPersonajeBlock(t_list *block, tSimbolo recurso, tBusquedaPersBlock);
+int existPersonajeBlock(t_list *block, tSimbolo valor, tBusquedaPersBlock criterio);
 int existePersonaje(t_list *pListaPersonajes, int valor, tBusquedaPersonaje criterio);
 tPersonaje *getPersonaje(t_list *listaPersonajes, int valor, tBusquedaPersonaje criterio);
 tPersonajeBloqueado *getPersonajeBlock(t_list *lBloqueados, int valor, tBusquedaPersBlock criterio);
@@ -97,7 +97,7 @@ void agregarPersonaje(tNivel *pNivel, tSimbolo simbolo, int socket);
 void crearNivel(t_list* lNiveles, tNivel* nivelNuevo, int socket, char *levelName, tInfoNivel *pInfoNivel);
 void crearHiloPlanificador(pthread_t *pPlanificador, tNivel *nivelNuevo);
 tPersonajeBloqueado *createPersonajeBlock(tPersonaje *personaje, tSimbolo recurso);
-tPersonaje *removePersonajeOfBlock(t_list *block, int indicePersonaje);
+tPersonaje *removePersonajeOfBlock(t_list *block, tSimbolo *recurso, int indicePersonaje);
 void destroyNivel(tNivel *pNivel);
 void destroyPlanificador(pthread_t *pPlanificador);
 

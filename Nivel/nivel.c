@@ -25,7 +25,7 @@ int main(int argc, char** argv) {
 
 	signal(SIGINT, cerrarForzado);
 
-	
+
 	pthread_mutex_init(&semItems,NULL);
 
 	//LOG
@@ -55,6 +55,7 @@ int main(int argc, char** argv) {
 	crearEnemigos(&nivel);
 
 	// LANZANDO EL HILO DETECTOR DE INTERBLOQUEO
+	//TODO REVISAR
 	pthread_t hiloInterbloqueo;
 	pthread_create(&hiloInterbloqueo, NULL, &deteccionInterbloqueo, (void *)&nivel);
 
@@ -309,20 +310,10 @@ void escucharConexiones(tNivel *pNivel, char* configFilePath) {
 }
 
 void conexionPersonaje(int iSocket, char *sPayload) {
-//	tPersonaje *pPersonaje;
 	tSimbolo *simbolo = deserializarSimbolo(sPayload);
 
-	//pPersonaje = getPersonajeBySymbol(*simbolo);
 	crearNuevoPersonaje(*simbolo);
 	notificacionAPlataforma(iSocket, N_CONEXION_EXITOSA, "Se notifica a plataforma que el personaje se onecto exitosamente");
-
-//	if (pPersonaje == NULL) {
-//		crearNuevoPersonaje(*simbolo);
-//		notificacionAPlataforma(iSocket, N_CONEXION_EXITOSA, "Se notifica a plataforma que el personaje se onecto exitosamente");
-//	}
-//	else {//se encontro=>el personaje ya existe
-//		notificacionAPlataforma(iSocket, N_PERSONAJE_YA_EXISTENTE, "Se notifica a plataforma que el personaje ya existe");
-//	}
 
 	free(simbolo);
 	free(sPayload);
@@ -410,8 +401,7 @@ void solicitudRecurso(tNivel *pNivel, int iSocket, char *sPayload) {
 
 	if (cantInstancias >= 0) { //SE LO OTORGO EL RECURSO PEDIDO
 
-		log_info(logger, "Al personaje %c se le dio el recurso %c",posConsultada->simbolo,posConsultada->recurso);
-
+		log_info(logger, "Al personaje %c se le dio el recurso %c", posConsultada->simbolo, posConsultada->recurso);
 
 		//Agrego el recurso a la lista de recursos del personaje y lo desbloquea si estaba bloqueado
 		void agregaRecursoYdesboquea(tPersonaje *personaje){
@@ -439,7 +429,13 @@ void solicitudRecurso(tNivel *pNivel, int iSocket, char *sPayload) {
 
 		list_iterate(list_personajes,(void*)agregaRecursoYbloquea);
 
-//		notificacionAPlataforma(iSocket,N_BLOQUEADO_RECURSO, "Un personaje se bloqueo porque no quedaban instancias del recurso");
+		tPregPosicion recursoSolicitado;
+		recursoSolicitado.simbolo=pPersonaje->simbolo;
+		recursoSolicitado.recurso=posConsultada->recurso;
+
+		serializarPregPosicion(N_BLOQUEADO_RECURSO, recursoSolicitado, &paquete);
+		// Envio mensaje donde confirmo la otorgacion del recurso pedido
+		enviarPaquete(iSocket, &paquete, logger, "Se envia confirmacion de otorgamiento de recurso a plataforma");
 	}
 
 	free(sPayload);
@@ -474,7 +470,7 @@ void desconexionPersonaje(char *sPayload) {
 	}
 
 	tPersonaje *personajeOut = list_remove_by_condition(list_personajes,(void*)buscarPersonaje);
-	
+
 	if (personajeOut == NULL) {
 		log_debug(logger, "No se encontro el personaje");
 	}
@@ -560,7 +556,7 @@ void *enemigo(void * args) {
 	tPersonaje* persVictima;
 	bool estaEnRecurso = false;
 
-	
+
 	bool esUnRecurso(ITEM_NIVEL *itemNiv){
 		return (itemNiv->item_type==RECURSO_ITEM_TYPE && itemNiv->posx==enemigo->posX && itemNiv->posy==enemigo->posY);
 	}
@@ -733,7 +729,7 @@ void *enemigo(void * args) {
 				pthread_mutex_unlock(&semItems);
 				usleep(enemigo->pNivel->sleepEnemigos);
 
-			} 
+			}
 
 		}//Else->perseguir enemigos
 
@@ -1034,7 +1030,7 @@ _Bool tieneLoQueNecesito(tPersonaje* pPersonaje1, tPersonaje* pPersonaje2) {		//
 	return false;
 }
 
-void deteccionInterbloqueo(void* parametro) {
+void *deteccionInterbloqueo(void* parametro) {
 
 	tNivel *pNivel;
 	pNivel = (tNivel *)parametro;
@@ -1092,32 +1088,32 @@ void deteccionInterbloqueo(void* parametro) {
 
 		};
 
-		bool personajeBloqueado(tPersonaje* personaje){
-			return (personaje->marcado==false);
-		}
-		int cant = list_count_satisfying(list_personajes,(void*)personajeBloqueado);
+//		bool personajeBloqueado(tPersonaje* personaje){
+//			return (personaje->marcado==false);
+//		}
+//		int cant = list_count_satisfying(list_personajes,(void*)personajeBloqueado);
 
 
 		//Estan en DeadLock los que no esten marcados
 		for (contPer1 = 0; contPer1 < list_size(list_personajes); contPer1++) {
 			levantador1 = list_get(list_personajes, contPer1);
 			if (!levantador1->marcado) {
-				list_add_new(bloqueados, levantador1, sizeof(list_personajes));
+				//Agrego solo el simbolo, porque si agregaba el personaje levantador1 completo andaba mal y no agregaba bien.
+				list_add_new(bloqueados, &levantador1->simbolo, sizeof(list_personajes));
 				log_trace(logger, "%c esta en Deadlock", levantador1->simbolo);
 			}
 		}
 
-		//--Si la lista tiene más de 1 deadlockeados, se la mandamos al orquestador
+		//--Si la lista tiene más de 1 deadlockeados elijo uno y le notifico al planificador
 		if ((list_size(bloqueados) > 1) && (deadlock.recovery)) {
 			//--Envía un header con la cantidad de personajes
 			tPaquete paquete;
-			tPersonaje* pPersonajeBloq;
-			pPersonajeBloq = list_remove(bloqueados, 0);
-			paquete.type    = N_MUERTO_POR_DEADLOCK;
-			paquete.length  = sizeof(tSimbolo);
-			memcpy(paquete.payload, &(pPersonajeBloq->simbolo), sizeof(tSimbolo));
+			tSimbolo *simboloPersBlock = list_get(bloqueados, 0);
+
+			log_debug(logger, "Hay deadlock y voy a matar a %c", *simboloPersBlock);
+			serializarSimbolo(N_MUERTO_POR_DEADLOCK, *simboloPersBlock, &paquete);
 			enviarPaquete(pNivel->plataforma.socket, &paquete, logger, "Enviando notificacion de bloqueo de personajes a plataforma");
-			log_debug(logger, "El personaje %c se elimino por participar en un interbloqueo", paquete.payload);
+			log_debug(logger, "El personaje %c se elimino por participar en un interbloqueo", *simboloPersBlock);
 
 			list_destroy_and_destroy_elements(bloqueados, free);
 		}
@@ -1127,26 +1123,7 @@ void deteccionInterbloqueo(void* parametro) {
 		usleep(deadlock.checkTime);
 		log_trace(logger, ">>>Revisando DL<<<");
 	}
-}
-
-//TODO esta no sirve
-void liberarRecsPersonaje(char id){
-	tPersonaje* personaje;
-
-	bool buscarPersonaje(tPersonaje* perso){return(perso->simbolo==id);}
-	//eliminar al personaje de list_personajes y devolverlo para desasignar sus recursos:
-	personaje=list_find(list_personajes,(void*)buscarPersonaje);
-	list_remove_by_condition(list_personajes,(void*)buscarPersonaje);//elimina el personaje de la lista list_personajes
-
-	void desasignar(char* id1){
-		ITEM_NIVEL* itemAux;
-		bool buscarRecurso(ITEM_NIVEL* item1){return (item1->id==*id1);}
-		itemAux=list_find(list_items,(void*)buscarRecurso);
-		itemAux->quantity++;
-	}
-	list_iterate(personaje->recursos,(void*)desasignar);
-	BorrarPersonaje(list_items, id);
-	personaje_destroyer(personaje);
+	pthread_exit(NULL);
 }
 
 void actualizaPosicion(tDirMovimiento dirMovimiento, int *posX, int *posY) {

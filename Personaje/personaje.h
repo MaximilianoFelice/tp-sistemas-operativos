@@ -60,6 +60,12 @@ typedef struct PersonajeIndividual{
 	pthread_t *thread;
 } personajeIndividual_t;
 
+
+
+void enviarMensajeFinDeTurno(personajeIndividual_t *pPersonajePorNivel);
+
+
+
 bool consultarReinicio();
 void matarHilosExceptoYo(char *nivel);
 void asesinarme();

@@ -72,7 +72,7 @@ int enviarPaquete(int socketServidor, tPaquete* pPaqueteAEnviar, t_log* logger, 
 	int byteEnviados;
 	log_debug(logger, ">>> %s", info);
 
-	byteEnviados = send(socketServidor, (char *)pPaqueteAEnviar, sizeof(tHeader) + pPaqueteAEnviar->length, MSG_NOSIGNAL);
+	byteEnviados = send(socketServidor, (char *)pPaqueteAEnviar, sizeof(tHeader) + pPaqueteAEnviar->length, 0);
 
 	if (byteEnviados == -1) {
 		log_error(logger, "%s: %s", info, strerror(errno));
@@ -144,9 +144,8 @@ signed int getConnection(fd_set *setSockets, int *maxSock, int sockListener, tMe
 
 
 	struct timeval timeout;
-
-	timeout.tv_sec = 2;
-	timeout.tv_usec = 0;
+	timeout.tv_sec=2;
+	timeout.tv_usec=0;
 
 	//--Multiplexa conexiones
 	if (select(*maxSock + 1, &setTemporal, NULL, NULL, &timeout) == -1) {
@@ -281,10 +280,6 @@ signed int multiplexar(fd_set *master, fd_set *temp, int *maxSock, tMensaje* tip
 	int nBytes;
 	memcpy(temp, master, sizeof(fd_set));
 
-//	struct timeval timeout;
-//	timeout.tv_sec=1;
-//	timeout.tv_usec=0;
-
 	//--Multiplexa conexiones
 	if (select(*maxSock + 1, temp, NULL, NULL, NULL) == -1) {
 		log_error(logger, "select: %s", strerror(errno));
@@ -306,7 +301,7 @@ signed int multiplexar(fd_set *master, fd_set *temp, int *maxSock, tMensaje* tip
 					log_error(logger, "multiplexar :: recv in %d: %s", iSocket, strerror(errno));
 				}
 				//--Cierra la conexión y lo saca de la lista
-//				close(iSocket);
+//				close(iSocket); //Lo hace el getConnection()
 				FD_CLR(iSocket, master);
 				*tipoMensaje = DESCONEXION;
 
