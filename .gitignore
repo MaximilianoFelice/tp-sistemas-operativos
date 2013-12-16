@@ -22,6 +22,8 @@ Debug/
 FileSystem/Testdisk/
 FileSystem/log/
 FileSystem/Release/FileSystem
+FileSystem/scripts\ y\ utilitarios/disk.bin
+FileSystem/scripts\ y\ utilitarios/Log.*
 
 # Settings
 .settings
