@@ -170,7 +170,7 @@ int main (int argc, char *argv[]){
 	if (runtime_options.log_path_param != NULL){
 		strcpy(fuse_log_path,runtime_options.log_path_param);
 	} else {
-		strcpy(fuse_log_path,"/home/utnso/tp-2013-2c-c-o-no-ser/FileSystem/log/");
+		log_level = LOG_LEVEL_NONE; /*No deberia logear nada*/
 	}
 
 	// Obiene el tamanio del disco
