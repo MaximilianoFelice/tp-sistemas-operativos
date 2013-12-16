@@ -42,10 +42,15 @@ then
 	fi
 
 	exit
+elif [[ $1 == "--format" ]]
+then
+	echo -n "Formatting &path ...	"
+	./grasa-format $path
+	echo "DONE!"
+	exit
 fi
 
 ((mb=1024*1024))
-echo "$mb"
 if [[ $1 != "" ]]
 then
 	cant=$1
