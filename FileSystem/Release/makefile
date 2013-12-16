@@ -25,13 +25,13 @@ endif
 all: FileSystem
 
 dependents:
-	-cd /home/utnso/tp-2013-2c-c-o-no-ser/Shared-Library/Debug && $(MAKE) all
+	-cd ../../Shared-Library/Debug && $(MAKE) all
 
 # Tool invocations
-FileSystem: $(OBJS) $(USER_OBJS) /home/utnso/tp-2013-2c-c-o-no-ser/Shared-Library/Debug/libShared-Library.so
+FileSystem: $(OBJS) $(USER_OBJS) ../../Shared-Library/Debug/libShared-Library.so
 	@echo 'Building target: $@'
 	@echo 'Invoking: GCC C Linker'
-	gcc -L"/home/utnso/tp-2013-2c-c-o-no-ser/Shared-Library/Debug" -pg -o "FileSystem" $(OBJS) $(USER_OBJS) $(LIBS)
+	gcc -L"../../Shared-Library/Debug" -pg -o "FileSystem" $(OBJS) $(USER_OBJS) $(LIBS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 
@@ -42,6 +42,6 @@ clean:
 
 .PHONY: all clean dependents
 .SECONDARY:
-/home/utnso/tp-2013-2c-c-o-no-ser/Shared-Library/Debug/libShared-Library.so:
+../../Shared-Library/Debug/libShared-Library.so:
 
 -include ../makefile.targets
