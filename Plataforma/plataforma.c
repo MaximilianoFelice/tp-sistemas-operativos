@@ -262,7 +262,7 @@ void *orquestador(void *vPuerto) {
 				orquestadorTerminaJuego();
 				break;
 //			 case P_FIN_PLAN_NIVELES:
-//				//TODO buscar el simbolo
+//				//
 //				setAsFinished(sPayload);
 //				orquestadorTerminaJuego();
 //				break;
@@ -946,6 +946,7 @@ int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNi
 	pNivel->quantum = pInfoNivel->quantum;
 	pNivel->delay   = pInfoNivel->delay;
 
+//	log_debug(logger, "POR EL INOTIFY llega            %s, %d, %d", pNivel->algoritmo, pNivel->delay, pNivel->quantum);
 	if (pNivel->algoritmo != pInfoNivel->algoritmo) {
 		pNivel->algoritmo = pInfoNivel->algoritmo;
 
