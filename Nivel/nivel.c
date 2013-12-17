@@ -412,7 +412,13 @@ void solicitudRecurso(tNivel *pNivel, int iSocket, char *sPayload) {
 		}
 
 		list_iterate(list_personajes,(void*) agregaRecursoYdesboquea);
-		serializarSimbolo(N_ENTREGA_RECURSO, posConsultada->recurso, &paquete);
+
+		tPregPosicion recursoSolicitado;
+		recursoSolicitado.simbolo=pPersonaje->simbolo;
+		recursoSolicitado.recurso=posConsultada->recurso;
+
+		serializarPregPosicion(N_ENTREGA_RECURSO, recursoSolicitado, &paquete);
+
 		// Envio mensaje donde confirmo la otorgacion del recurso pedido
 		enviarPaquete(iSocket, &paquete, logger, "Se envia confirmacion de otorgamiento de recurso a plataforma");
 
@@ -495,12 +501,12 @@ void desconexionPersonaje(char *sPayload) {
 
 void actualizarInfoNivel(tNivel *pNivel, int iSocket, char* configFilePath) {
 //	char* algoritmoAux;
-	log_debug(logger, "antes de crear archivo de configuracion %s", configFilePath);
+//	log_debug(logger, "antes de crear archivo de configuracion %s", configFilePath);
 
 	if (file_exists(configFilePath)) {
 		log_debug(logger, "Leyendo archivo de configuracion %s", configFilePath);
 		t_config *configNivel = config_create(configFilePath);
-		log_debug(logger, "despues de crear archivo de configuracion %s", configFilePath);
+//		log_debug(logger, "despues de crear archivo de configuracion %s", configFilePath);
 
 		if (!config_has_property(configNivel,"Algoritmo")) {
 			log_debug(logger, "No esta la property algoritmo");
@@ -530,11 +536,7 @@ void actualizarInfoNivel(tNivel *pNivel, int iSocket, char* configFilePath) {
 			//serializacion propia porque la de protocolo no me andaba bien
 
 			serializarInfoNivel(N_ACTUALIZACION_CRITERIOS, infoDeNivel, &paquete);
-			tInfoNivel* pepe;
-			pepe = deserializarInfoNivel(paquete.payload);
 
-
-			log_debug(logger, "socket NOTIII           %s, %d, %d", pepe->algoritmo, pepe->delay, pepe->quantum);
 			enviarPaquete(iSocket, &paquete, logger, "Notificando cambio de algoritmo a plataforma");
 		}
 		config_destroy(configNivel);
