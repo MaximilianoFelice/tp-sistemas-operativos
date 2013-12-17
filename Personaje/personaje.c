@@ -777,31 +777,32 @@ void muertoPorSenial() {
 	exit(EXIT_FAILURE);
 }
 
-bool consultarReinicio(){
-	char cRespuesta[50];
+bool consultarReinicio() {
+	int cRespuesta;
 
 	printf("El personaje ha muerto ¿Desea volver a intentar? (Y/N) ");
 
-	scanf("%s", cRespuesta);
+	cRespuesta = getchar();
 
-	char caracter_pulsado = *cRespuesta;
-	while ((toupper(caracter_pulsado) != 'N') && (toupper(caracter_pulsado) != 'Y')) {
-		printf("No entiendo ese comando \n");
-		printf("¿Desea volver a intentar? (Y/N) \n");
-		scanf("%s", cRespuesta);
+	while ((toupper(cRespuesta) != 'N') && (toupper(cRespuesta) != 'Y')) {
+		if (cRespuesta != '\n') {
+			printf("No entiendo ese comando \n");
+			printf("¿Desea volver a intentar? (Y/N) \n");
+		}
+		cRespuesta = getchar();
 	}
 
-	if (toupper(caracter_pulsado) == 'Y') {
+	if (toupper(cRespuesta) == 'Y') {
 		personaje.reintentos++;
 		personaje.vidas = personaje.vidasMaximas;
 		log_info(logger, "Se vuelve a jugar. Numero de reintentos: %d");
 		return true;
 
-	} else if (toupper(caracter_pulsado) == 'N') {
+	} else if (toupper(cRespuesta) == 'N') {
 		return false;
 	}
-	return false;
 
+	return false;
 }
 
 
