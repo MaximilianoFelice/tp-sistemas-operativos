@@ -1,4 +1,4 @@
-# Object files
+ç# Object files
 *.o
 
 # Libraries
@@ -36,3 +36,8 @@ FileSystem/scripts\ y\ utilitarios/Log.*
 
 #Saves de scripts
 *.sh.save
+
+/Nivel/Release/nivel
+/Personaje/Release/personaje
+/Plataforma/Release/plataforma
+/FileSystem/Release/FileSystem
