@@ -1011,14 +1011,12 @@ void recepcionBloqueado(tNivel *pNivel, tPersonaje **pPersonajeActual, char *sPa
 }
 
 void recepcionRecurso(tNivel *pNivel, tPersonaje **pPersonajeActual, char *sPayload) {
-	tSimbolo *pRecurso;
-
 	tPregPosicion *recursoOtorgado;
 
 	recursoOtorgado = deserializarPregPosicion(sPayload);
 	free(sPayload);
 
-	if(*pPersonajeActual != NULL && (*pPersonajeActual)->simbolo==recursoOtorgado->simbolo) {
+	if (*pPersonajeActual != NULL && (*pPersonajeActual)->simbolo==recursoOtorgado->simbolo) {
 	    //Aqui actualizo su quantum
 		(*pPersonajeActual)->quantumUsado 	   = pNivel->quantum;
 		(*pPersonajeActual)->remainingDistance = pNivel->rdDefault;
@@ -1033,10 +1031,9 @@ void recepcionRecurso(tNivel *pNivel, tPersonaje **pPersonajeActual, char *sPayl
 		queue_push(pNivel->cListos, *pPersonajeActual);
 		*pPersonajeActual=NULL;
 
-	}
-	else {
+	} else {
 
-		log_warning(logger, "WARN: el personaje que recibio el recurso no era el actual. Lo busco en la lista");
+		log_warning(logger, "El personaje que recibio el recurso no era el actual. Lo busco en la lista");
 		sleep(2);
 		tPersonaje *pPersonaje = getPersonaje(pNivel->cListos->elements, recursoOtorgado->simbolo, byName);
 		 //Aqui actualizo su quantum
