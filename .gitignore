@@ -34,3 +34,5 @@ FileSystem/scripts\ y\ utilitarios/Log.*
 
 /Nivel/logvalgrind.txt
 
+#Saves de scripts
+*.sh.save

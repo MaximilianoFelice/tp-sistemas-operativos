@@ -261,6 +261,11 @@ void *orquestador(void *vPuerto) {
 			case DESCONEXION:
 				orquestadorTerminaJuego();
 				break;
+//			 case P_FIN_PLAN_NIVELES:
+//				//
+//				setAsFinished(sPayload);
+//				orquestadorTerminaJuego();
+//				break;
 			default:
 				break;
 			}
@@ -626,6 +631,7 @@ void *planificador(void * pvNivel) {
             	if(pPersonajeActual==NULL && queue_size(pNivel->cListos)>0 && cantidadBloqueadosAntesDeDesconexion == cantidadBloqueadosDespuesDeDesconexion){
             		seleccionarJugador(&pPersonajeActual, pNivel);
             	}
+
 				break;
 
             default:
@@ -944,6 +950,7 @@ int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNi
 	pNivel->quantum = pInfoNivel->quantum;
 	pNivel->delay   = pInfoNivel->delay;
 
+//	log_debug(logger, "POR EL INOTIFY llega            %s, %d, %d", pNivel->algoritmo, pNivel->delay, pNivel->quantum);
 	if (pNivel->algoritmo != pInfoNivel->algoritmo) {
 		pNivel->algoritmo = pInfoNivel->algoritmo;
 
@@ -979,6 +986,7 @@ void solicitudRecursoPersonaje(int iSocketConexion, char *sPayload, tNivel *pNiv
 
     log_info(logger, "<<< El personaje %c solicita el recurso %c", (*pPersonajeActual)->simbolo, *recurso);
 
+
     free(recurso);
 
     enviarPaquete(pNivel->socket, &pkgSolicituRecurso, logger, "Solicitud de recurso");
@@ -1003,6 +1011,7 @@ void recepcionBloqueado(tNivel *pNivel, tPersonaje **pPersonajeActual, char *sPa
 }
 
 void recepcionRecurso(tNivel *pNivel, tPersonaje **pPersonajeActual, char *sPayload) {
+	tSimbolo *pRecurso;
 
 	tPregPosicion *recursoOtorgado;
 
@@ -1070,7 +1079,6 @@ int desconectarPersonaje(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSoc
 	if ((*pPersonajeActual)!= NULL && (iSocketConexion == (*pPersonajeActual)->socket)) {
 		socketPersonajeQueSalio = iSocketConexion;
 		liberarRecursosYDesbloquearPersonajes(pNivel, *pPersonajeActual);
-		free(*pPersonajeActual);
 		*pPersonajeActual = NULL;
 		return socketPersonajeQueSalio;
 	}
@@ -1165,7 +1173,7 @@ void liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel, char **recursosNoA
 
 					log_info(logger, "Por la muerte de %c se desbloquea %c que estaba esperando por el recurso %c", pPersMuerto->simbolo, pPersonajeLiberado->simbolo, *pRecurso);
 
-					//TODO poner esto cuando se bloquea la primera vez
+
 					queue_push(pNivel->cListos, pPersonajeLiberado);
 
 					tPaquete paquete;
@@ -1359,16 +1367,13 @@ tPersonaje *sacarPersonajeDeListas(tNivel *pNivel, int iSocket) {
 	iIndicePersonaje = existePersonaje(pNivel->cListos->elements, iSocket, bySocket);
 
 	if (iIndicePersonaje != -1) {
-		log_debug(logger, "Lo saque de listosssssssssssssssss. Indice = %d", iIndicePersonaje);
 		tPersonaje *pPersonaje =  list_remove(pNivel->cListos->elements, iIndicePersonaje);
-		log_debug(logger, "personaje simbolo = %c; list_size=%d", pPersonaje->simbolo, queue_size(pNivel->cListos));
 		return pPersonaje;
 	}
 
 	iIndicePersonaje = existPersonajeBlock(pNivel->lBloqueados, iSocket, bySock);
 
 	if (iIndicePersonaje != -1) {
-		log_debug(logger, "Lo saque de blockkkkkkkkkkkkkkkkkkkk, indice =%d", iIndicePersonaje);
 		tPersonajeBloqueado *pPersonajeBlock = list_remove(pNivel->lBloqueados, iIndicePersonaje);
 		return pPersonajeBlock->pPersonaje;
 	}
@@ -1430,8 +1435,10 @@ void imprimirLista(tNivel *pNivel, tPersonaje *pPersonaje) {
 	}
 
 	log_info(logger, retorno);
+
 	free(tmp);
 	free(retorno);
+
 }
 
 tPersonajeBloqueado* sacarDeListaBloqueados(t_list* lBloqueados, tSimbolo simbolo) {
@@ -1502,6 +1509,7 @@ void inicializarConexion(fd_set *master_planif, int *maxSock, int *sock) {
 	FD_ZERO(master_planif);
 	*maxSock = *sock;
 }
+
 
 void waitPersonajes(tNivel *pNivel, tPersonaje **pPersonajeActual) {
 	if (nivelVacio(pNivel) && *pPersonajeActual==NULL) {

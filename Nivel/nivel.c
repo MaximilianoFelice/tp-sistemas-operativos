@@ -251,6 +251,7 @@ void escucharConexiones(tNivel *pNivel, char* configFilePath) {
 					perror("la cague");
 				}
 				if (evento.mask & IN_MODIFY) {//avisar a planificador que cambio el archivo config
+					log_debug(logger, "DETECTA CAMBIO EN EL INOTIFY");
 					actualizarInfoNivel(pNivel, iSocket,configFilePath);
 				}
 				inotify_rm_watch(descriptorInotify, watch_id);
@@ -501,12 +502,12 @@ void desconexionPersonaje(char *sPayload) {
 
 void actualizarInfoNivel(tNivel *pNivel, int iSocket, char* configFilePath) {
 //	char* algoritmoAux;
-//	log_debug(logger, "antes de crear archivo de configuracion %s", configFilePath);
+	log_debug(logger, "antes de crear archivo de configuracion %s", configFilePath);
 
 	if (file_exists(configFilePath)) {
 		log_debug(logger, "Leyendo archivo de configuracion %s", configFilePath);
 		t_config *configNivel = config_create(configFilePath);
-//		log_debug(logger, "despues de crear archivo de configuracion %s", configFilePath);
+		log_debug(logger, "despues de crear archivo de configuracion %s", configFilePath);
 
 		if (!config_has_property(configNivel,"Algoritmo")) {
 			log_debug(logger, "No esta la property algoritmo");
@@ -536,7 +537,11 @@ void actualizarInfoNivel(tNivel *pNivel, int iSocket, char* configFilePath) {
 			//serializacion propia porque la de protocolo no me andaba bien
 
 			serializarInfoNivel(N_ACTUALIZACION_CRITERIOS, infoDeNivel, &paquete);
-
+//			tInfoNivel* pepe;
+//			pepe = deserializarInfoNivel(paquete.payload);
+//
+//
+//			log_debug(logger, "socket NOTIII           %s, %d, %d", pepe->algoritmo, pepe->delay, pepe->quantum);
 			enviarPaquete(iSocket, &paquete, logger, "Notificando cambio de algoritmo a plataforma");
 		}
 		config_destroy(configNivel);

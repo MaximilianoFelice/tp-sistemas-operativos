@@ -95,3 +95,4 @@ echo "DONE!"
 echo ""
 echo "Mounted, and ready to go!!!"
 echo ""
+pcmanfm $mountpoint
