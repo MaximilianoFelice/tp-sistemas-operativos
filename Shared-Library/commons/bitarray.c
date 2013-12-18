@@ -17,6 +17,10 @@
 #include <stdlib.h>
 #include "bitarray.h"
 
+#define INT64MAX _max
+
+uint64_t _max = ~((uint64_t) 0);
+
 /*
  * @NAME: bitarray_create
  * @DESC: Crea y devuelve un puntero a una estructura t_bitarray
@@ -78,4 +82,32 @@ size_t bitarray_get_max_bit(t_bitarray *self) {
  */
 void bitarray_destroy(t_bitarray *self) {
 	free(self);
+}
+
+
+/*
+ * @NAME: bitarray_test_and_set
+ * @DESC: Encuentra el primer bit libre en el bitmap y lo settea.
+ */
+int bitarray_test_and_set(t_bitarray *self, off_t offset){
+	uint64_t i, res;
+	uint64_t *array = (uint64_t*) self->bitarray;
+
+	off_t _off = offset / 64;
+
+	for (i=_off; i< self->size; i++){
+		if (((array[i]) ^ (INT64MAX)) != 0){
+			break;
+		}
+	}
+
+	res = i*64;
+
+	for (i=0; i<64 ; i++,res++){
+		if (bitarray_test_bit(self, res) == 0){
+			bitarray_set_bit(self,res);
+			return res;
+		}
+	}
+	return -ENOSPC;
 }
