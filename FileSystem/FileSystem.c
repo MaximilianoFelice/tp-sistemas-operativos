@@ -83,7 +83,8 @@ fuse_fill_dir_t* functi_filler(void *buf, const char *name,const struct stat *st
 void sig_int_handler(int sig){
 	log_info(logger, "Recibido signal SIGUSR1");
 	if (sig == SIGUSR1) {
-		printf("\n%d\n", obtain_free_blocks());
+		printf("\n Amount of free blocks (cached, now freed): %d\n", bitmap_free_blocks);
+		printf("\n Amount of free blocks: %d\n", obtain_free_blocks());
 	}
 	log_info(logger, "SIGUSR1 res: %d", bitmap_free_blocks);
 }
@@ -114,6 +115,7 @@ void sig_term_handler(int sig){
 }
 
 int main (int argc, char *argv[]){
+
 
 	/* Crea la estructura de cache */
 	name_cache_create(&node_cache);

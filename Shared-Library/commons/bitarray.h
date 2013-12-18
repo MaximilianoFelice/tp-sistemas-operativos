@@ -20,6 +20,8 @@
 	#include <stdbool.h>
 	#include <limits.h>
 	#include <unistd.h>
+	#include <stdint.h>
+	#include <errno.h>
 
 	/* position of bit within character */
 	#define BIT_CHAR(bit)         ((bit) / CHAR_BIT)
@@ -39,5 +41,6 @@
 	void		 bitarray_clean_bit(t_bitarray*, off_t bit_index);
 	size_t		 bitarray_get_max_bit(t_bitarray*);
 	void 		 bitarray_destroy(t_bitarray*);
+	int 		 bitarray_test_and_set(t_bitarray*, off_t);
 
 #endif /* BITARRAY_H_ */

@@ -109,28 +109,16 @@ int split_path(const char* path, char** super_path, char** name){
 *		(void)
  *
  *  @RETURN
- *  	Devuelve el numero de un nodo libre listo para escribir. Si hay error, un numero negativo.
+ *  	Devuelve el numero de un bloque listo para escribir. Si hay error, un numero negativo, correspondiente al error.
  */
 int get_node(void){
 	t_bitarray *bitarray;
-	int i, res;
-	int bitmap_size_in_bits = BITMAP_SIZE_BITS;
+	int res;
 
 	bitarray = bitarray_create((char*) bitmap_start, BITMAP_SIZE_B);
 
-	// Encuentra el primer bit libre en la tabla de nodos.
-	for (i = (GHEADERBLOCKS+BITMAP_BLOCK_SIZE+GFILEBYTABLE); (i <= bitmap_size_in_bits) & (bitarray_test_bit(bitarray,i) == 1); i++);
-	if(i > BITMAP_SIZE_BITS) {
-		res = -ENOSPC;
-		goto finalizar;
-	}
-	res = i;
+	res = bitarray_test_and_set(bitarray, GHEADERBLOCKS+BITMAP_BLOCK_SIZE+GFILEBYTABLE);
 
-	// Setea en 1 el bitmap.
-	bitarray_set_bit(bitarray, i);
-	bitmap_free_blocks--;
-
-	finalizar:
 	// Cierra el bitmap
 	bitarray_destroy(bitarray);
 	return res;
