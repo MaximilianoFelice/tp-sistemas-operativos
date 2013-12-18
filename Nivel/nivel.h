@@ -106,24 +106,30 @@ void conexionPersonaje(int iSocket, char *sPayload);
 void movimientoPersonaje(tNivel *pNivel, int iSocket, char *sPayload);
 void posicionRecurso(tNivel *pNivel, int iSocket, char *sPayload);
 void solicitudRecurso(tNivel *pNivel, int iSocket, char *sPayload);
-void desconexionPersonaje(char *sPayload) ;
+void desconexionPersonaje(tNivel *pNivel, char *sPayload) ;
 void escucharConexiones(tNivel *pNivel, char* configFilePath);
 void levantarArchivoConf(char* pathConfigFile, tNivel *pNivel);
 void actualizarInfoNivel(tNivel *pNivel, int iSocket, char* configFilePath);
 void crearNuevoPersonaje (tSimbolo simbolo);
 void notificacionAPlataforma(int iSocket, tMensaje tipoMensaje, char *msjInfo);
 void liberarRecursosPersonajeMuerto(tNivel *pNivel, char *sPayload);
+void liberarRecursos(tNivel *pNivel, tDesconexionPers *persDesconectado);
+void desbloquearPersonajes(tNivel *pNivel, tDesconexionPers *persDesconectado);
+void removePersonajeDeListas(tSimbolo simbolo);
 
 //Señales
 void cerrarNivel(char*);
 void cerrarForzado(int sig);
 
-//Enemigos
-void *enemigo(void * args);
+//Hilo deadlock
 void *deteccionInterbloqueo(void* parametro);
+_Bool tieneLoQueNecesito(tPersonaje* pPersonaje1, tPersonaje* pPersonaje2);
+
+//Hilo Enemigos
+void *enemigo(void * args);
 void actualizaPosicion(tDirMovimiento dirMovimiento, int *posX, int *posY);
 void calcularMovimiento(tNivel *pNivel, tDirMovimiento direccion, int *posX, int *posY);
-void matarPersonaje(tNivel *, tSimbolo *simboloItem);
+void matarPersonaje(tNivel *pNivel, tSimbolo *simboloItem, tMensaje tipoMensaje);
 ITEM_NIVEL *asignarVictima(tEnemigo *enemigo);
 tPersonaje *asignarPersonajeVictima(tEnemigo *enemigo);
 tPersonaje *asignarVictimaVersionVieja(tEnemigo *enemigo);

@@ -14,6 +14,7 @@ t_log  *logger;
 t_list *list_personajes;
 t_list *list_items;
 bool hayQueAsesinar = true;
+bool analizarDeadlock = true;
 
 pthread_mutex_t semItems;
 
@@ -295,7 +296,7 @@ void escucharConexiones(tNivel *pNivel, char* configFilePath) {
 					break;
 
 				case PL_DESCONEXION_PERSONAJE:// Un personaje termino o murio y debo liberar instancias de recursos que tenia asignado
-					desconexionPersonaje(sPayload);
+					desconexionPersonaje(pNivel, sPayload);
 					break;
 
 				default:
@@ -314,7 +315,7 @@ void conexionPersonaje(int iSocket, char *sPayload) {
 	tSimbolo *simbolo = deserializarSimbolo(sPayload);
 
 	crearNuevoPersonaje(*simbolo);
-	notificacionAPlataforma(iSocket, N_CONEXION_EXITOSA, "Se notifica a plataforma que el personaje se onecto exitosamente");
+	notificacionAPlataforma(iSocket, N_CONEXION_EXITOSA, "Se notifica a plataforma que el personaje se conecto exitosamente");
 
 	free(simbolo);
 	free(sPayload);
@@ -349,7 +350,8 @@ void movimientoPersonaje(tNivel *pNivel, int iSocket, char *sPayload) {
 			notificacionAPlataforma(iSocket, N_CONFIRMACION_MOV, "Notificando a plataforma personaje movido correctamente");
 
 		} else {
-			matarPersonaje(pNivel, &movPersonaje->simbolo);
+			log_info(logger, "-> Un enemigo alcanzo al personaje %c <-", movPersonaje->simbolo);
+			matarPersonaje(pNivel, &movPersonaje->simbolo, N_MUERTO_POR_ENEMIGO);
 			hayQueAsesinar = true;
 		}
 	}
@@ -449,29 +451,73 @@ void solicitudRecurso(tNivel *pNivel, int iSocket, char *sPayload) {
 	free(posConsultada);
 }
 
-
 void liberarRecursosPersonajeMuerto(tNivel *pNivel, char *sPayload){
 	tDesconexionPers *persDesconectado = deserializarDesconexionPers(sPayload);
 
-	log_debug(logger, "%s: Liberando recursos del personaje %c", pNivel->nombre, persDesconectado->simbolo);
+	liberarRecursos(pNivel, persDesconectado);
+	free(persDesconectado);
+	free(sPayload);
+	log_info(logger, "Libere recursos exitosamente");
+
+	tMensaje tipoDeMensaje;
+	recibirPaquete(pNivel->plataforma.socket, &tipoDeMensaje, &sPayload, logger, "Recibo personajes que se desbloquearon");
+	persDesconectado = deserializarDesconexionPers(sPayload);
+
+	desbloquearPersonajes(pNivel, persDesconectado);
+	free(sPayload);
+	free(persDesconectado);
+
+	log_info(logger, "Desbloquee a los personajes y libere recursos exitosamente");
+
+}
+
+void liberarRecursos(tNivel *pNivel, tDesconexionPers *persDesconectado){
+
+	log_info(logger, "%s: Liberando recursos del personaje %c", pNivel->nombre, persDesconectado->simbolo);
 
 	int i;
 	for (i=0; i<persDesconectado->lenghtRecursos; i++) {
-		sumarInstanciasRecurso(list_items, (char) persDesconectado->recursos[i]);
-		log_debug(logger, "Libere una instancia del recurso %c", persDesconectado->recursos[i]);
+		int instancias = sumarInstanciasRecurso(list_items, (char) persDesconectado->recursos[i]);
+		log_debug(logger, "Libere una instancia del recurso %c. Ahora tiene %d", persDesconectado->recursos[i], instancias);
 	}
-	free(persDesconectado);
-	free(sPayload);
 }
 
+void desbloquearPersonajes(tNivel *pNivel, tDesconexionPers *persDesconectado){
 
-void desconexionPersonaje(char *sPayload) {
+	log_info(logger, "%s: Desbloqueando personajes por liberacion de recursos", pNivel->nombre);
+
+	int i;
+	for (i=0; i<persDesconectado->lenghtRecursos; i++) {
+		tPersonaje *personaje = getPersonajeBySymbol((tSimbolo)persDesconectado->recursos[i]);
+		personaje->bloqueado = false;
+		log_debug(logger, "Desbloqueo al personaje %c", personaje->simbolo);
+	}
+
+}
+
+void removePersonajeDeListas(tSimbolo simbolo){
+	bool buscarPersonaje(tPersonaje* pPersonaje) {
+		return (pPersonaje->simbolo == simbolo);
+	}
+
+	tPersonaje *personajeOut = list_remove_by_condition(list_personajes,(void*)buscarPersonaje);
+
+	if (personajeOut == NULL) {
+		log_debug(logger, "No se encontro el personaje");
+	}
+
+	BorrarItem(list_items, simbolo);
+	personaje_destroyer(personajeOut);
+}
+
+void desconexionPersonaje(tNivel *pNivel, char *sPayload) {
 
 	tDesconexionPers *persDesconectado = deserializarDesconexionPers(sPayload);
 
-	log_debug(logger, "<<< El personaje %c se desconecto", persDesconectado->simbolo);
+	log_info(logger, "<<< El personaje %c se desconecto", persDesconectado->simbolo);
 
 	// Eliminar al personaje de list_personajes
+//	removePersonajeDeListas(persDesconectado->simbolo); //TODO revisar funcion matarPersonaje
 	bool buscarPersonaje(tPersonaje* pPersonaje) {
 		return (pPersonaje->simbolo == persDesconectado->simbolo);
 	}
@@ -482,21 +528,28 @@ void desconexionPersonaje(char *sPayload) {
 		log_debug(logger, "No se encontro el personaje");
 	}
 
-	//agrego una instancia a list_items de todos los recursos que me manda planificador (que son todos los que no reasigno)
-	int iIndexRecurso;
-	for (iIndexRecurso=0; iIndexRecurso<persDesconectado->lenghtRecursos; iIndexRecurso++) {
-		sumarInstanciasRecurso(list_items, (char) persDesconectado->recursos[iIndexRecurso]);
-//		sumarRecurso(list_items, persDesconectado->recursos[iIndexRecurso]); //Fucking shit
-		log_debug(logger, "Libere una instancia del recurso %c", persDesconectado->recursos[iIndexRecurso]);
-	}
+	BorrarPersonaje(list_items, persDesconectado->simbolo);
 
-	BorrarItem(list_items, persDesconectado->simbolo); //Si no esta muerto, sacalo
+	log_debug(logger, "Elimine al personaje del nivel");
 
-	log_debug(logger, "Libere recursos");
-
+	liberarRecursos(pNivel, persDesconectado);
 	free(sPayload);
 	free(persDesconectado);
+	log_info(logger, "Libere recursos exitosamente");
+
+	tMensaje tipoDeMensaje;
+	recibirPaquete(pNivel->plataforma.socket, &tipoDeMensaje, &sPayload, logger, "Recibo personajes que se desbloquearon");
+	persDesconectado = deserializarDesconexionPers(sPayload);
+
+	desbloquearPersonajes(pNivel, persDesconectado);
+	free(sPayload);
+	free(persDesconectado);
+
+	log_info(logger, "Desbloquee a los personajes y libere recursos exitosamente");
+
 	personaje_destroyer(personajeOut);
+	analizarDeadlock = true;
+
 }
 
 
@@ -549,6 +602,7 @@ void actualizarInfoNivel(tNivel *pNivel, int iSocket, char* configFilePath) {
 		log_debug(logger, "No esta el archivo");
 	}
 }
+
 
 void *enemigo(void * args) {
 
@@ -743,12 +797,12 @@ void *enemigo(void * args) {
 	} //Fin de while(1)
 	pthread_exit(NULL );
 }
-
-
 ////FUNCIONES ENEMIGOS
+
 _Bool alcanceVictima(tEnemigo *enemigo, ITEM_NIVEL *victima){
 	return (victima->posx==enemigo->posX) && (victima->posy==enemigo->posY);
 }
+
 
 _Bool analizarMovimientoDeEnemigo(){
 
@@ -761,8 +815,8 @@ _Bool analizarMovimientoDeEnemigo(){
 
 	return (cantPersonajesNoBloqueados==0);
 }
-
 //Devuelve true si alcance la victima y false en caso contrario
+
 _Bool acercarmeALaVictima(tEnemigo *enemigo, ITEM_NIVEL *item, tDirMovimiento *dirMovimiento){
 
 	//Elijo el eje por el que me voy a acercar
@@ -786,6 +840,7 @@ _Bool acercarmeALaVictima(tEnemigo *enemigo, ITEM_NIVEL *item, tDirMovimiento *d
 	return false;
 
 }
+
 
 _Bool acercarmeALaVictimaPersonaje(tEnemigo *enemigo, tPersonaje *personaje, tDirMovimiento *dirMovimiento){
 
@@ -811,6 +866,7 @@ _Bool acercarmeALaVictimaPersonaje(tEnemigo *enemigo, tPersonaje *personaje, tDi
 
 }
 
+
 ITEM_NIVEL *asignarVictima(tEnemigo *enemigo){
 
 	int dist2=999999;
@@ -830,6 +886,7 @@ ITEM_NIVEL *asignarVictima(tEnemigo *enemigo){
 	return itemReturn;
 }
 
+
 tPersonaje *asignarPersonajeVictima(tEnemigo *enemigo){
 
 	int dist2=999999;
@@ -848,6 +905,7 @@ tPersonaje *asignarPersonajeVictima(tEnemigo *enemigo){
 	}
 	return personajeReturn;
 }
+
 
 tPersonaje *asignarVictimaVersionVieja(tEnemigo *enemigo){
 
@@ -875,10 +933,12 @@ tPersonaje *asignarVictimaVersionVieja(tEnemigo *enemigo){
 	return personajeVictima;
 }
 
+
 _Bool esUnPersonaje(ITEM_NIVEL *item){
 	return (item->item_type==PERSONAJE_ITEM_TYPE);
 
 }
+
 
 int calcularDistancia(tEnemigo *enemigo, int posX, int posY){
 
@@ -889,8 +949,8 @@ int calcularDistancia(tEnemigo *enemigo, int posX, int posY){
 	return (terminoEnX + terminoEnY);
 
 }
-
 //Buscar en list_items y me devuelve el personaje que cumple la condicion
+
 ITEM_NIVEL *getItemVictimaSiExiste(tEnemigo *enemigo){
 	ITEM_NIVEL *personajeItem;
 	bool esUnPersonaje(ITEM_NIVEL *item){
@@ -899,8 +959,8 @@ ITEM_NIVEL *getItemVictimaSiExiste(tEnemigo *enemigo){
 	personajeItem = list_find(list_items, (void *)esUnPersonaje);
 	return personajeItem;
 }
-
 //Busca en la lista de items una victima
+
 ITEM_NIVEL *getItemById(char id_victima){
 	int i;
 	for(i=0;i<list_size(list_items);i++){
@@ -910,8 +970,8 @@ ITEM_NIVEL *getItemById(char id_victima){
 	}
 	return NULL;
 }
-
 //Mueve el enemigo atras en x si se paro en un recurso
+
 void evitarRecurso(tEnemigo *enemigo){
 
 	void esUnRecurso(ITEM_NIVEL *item){
@@ -921,6 +981,7 @@ void evitarRecurso(tEnemigo *enemigo){
 	list_iterate(list_items,(void*)esUnRecurso);
 }
 
+
 void evitarOrigen(tEnemigo *enemigo){
 
 	if(enemigo->posX<=1 && enemigo->posY<=1){
@@ -929,9 +990,11 @@ void evitarOrigen(tEnemigo *enemigo){
 	}
 }
 
+
 _Bool estoyArriba(tEnemigo *enemigo, tPersonaje *persVictima){
 	return (enemigo->posX==persVictima->posicion.x)&&(enemigo->posY==persVictima->posicion.y);
 }
+
 
 _Bool hayAlgunEnemigoArriba(tNivel *pNivel, int posPerX, int posPerY) {
 
@@ -955,6 +1018,7 @@ tPersonaje *getPersonajeBySymbol(tSimbolo simbolo){
 	return unPersonaje;
 }
 
+
 void crearNuevoPersonaje (tSimbolo simbolo) {
 	tPersonaje *pPersonajeNuevo = malloc(sizeof(tPersonaje));
 	pPersonajeNuevo->simbolo = simbolo;
@@ -968,12 +1032,14 @@ void crearNuevoPersonaje (tSimbolo simbolo) {
 	log_info(logger, "<<< Se agrego al personaje %c a la lista", simbolo);
 }
 
+
 void notificacionAPlataforma(int iSocket, tMensaje tipoMensaje, char *msjInfo) {
 	tPaquete paquete;
 	paquete.type   = tipoMensaje;
 	paquete.length = 0;
 	enviarPaquete(iSocket, &paquete, logger, msjInfo);
 }
+
 
 void calcularMovimiento(tNivel *pNivel, tDirMovimiento direccion, int *posX, int *posY) {
 	switch (direccion) {
@@ -1003,24 +1069,23 @@ void calcularMovimiento(tNivel *pNivel, tDirMovimiento direccion, int *posX, int
 	}
 }
 
-void matarPersonaje(tNivel *pNivel, tSimbolo *simboloItem){
+
+void matarPersonaje(tNivel *pNivel, tSimbolo *simboloItem, tMensaje tipoMensaje){
 
 	tPaquete paquete;
 
-	log_debug(logger, "-> Un enemigo alcanzo al personaje %c <-", *simboloItem);
 	log_debug(logger, "Eliminando al personaje...");
-	bool buscarPersonaje(tPersonaje* perso){return(perso->simbolo==*simboloItem);}
-	tPersonaje *personajeOut = list_remove_by_condition(list_personajes,(void*)buscarPersonaje);
+	removePersonajeDeListas(*simboloItem);
 
-	BorrarItem(list_items, *simboloItem);
-	nivel_gui_dibujar(list_items, pNivel->nombre);
-
-	paquete.type=N_MUERTO_POR_ENEMIGO;
+	paquete.type=tipoMensaje;
 	memcpy(paquete.payload, simboloItem,sizeof(tSimbolo));
 	paquete.length=sizeof(tSimbolo);
-	enviarPaquete(pNivel->plataforma.socket,&paquete,logger,"enviando notificacion de muerte de personaje a plataforma");
-	personaje_destroyer(personajeOut);
+	char *messageInfo = malloc(80);
+	sprintf(messageInfo, "%s: Notifico a plataforma la muerte del personaje %c", pNivel->nombre, *simboloItem);
+	enviarPaquete(pNivel->plataforma.socket,&paquete,logger, messageInfo);
+	free(messageInfo);
 }
+
 
 _Bool tieneLoQueNecesito(tPersonaje* pPersonaje1, tPersonaje* pPersonaje2) {		//--Electrolitos
 	char* blkB = list_get(pPersonaje2->recursos, list_size(pPersonaje2->recursos) - 1); //--Guardar recurso por el que se bloquée B
@@ -1056,76 +1121,80 @@ void *deteccionInterbloqueo(void* parametro) {
 // Iteramos infinitamente
 	while (1) {
 		pthread_mutex_lock(&semItems);
-		cantBloq   = 0;
-		bloqueados = list_create();
+		if(analizarDeadlock){
+			cantBloq   = 0;
+			bloqueados = list_create();
 
-		int contPer1, contPer2;
-		tPersonaje *levantador1, *levantador2;
+			int contPer1, contPer2;
+			tPersonaje *levantador1, *levantador2;
 
-		//--Recorrer los personajes
-		for (contPer1 = 0; contPer1 < list_size(list_personajes); contPer1++) {
-			levantador1 = list_get(list_personajes, contPer1);
-
-			//--marca a los que no estan bloqueados
-			if (levantador1->bloqueado) {
-				levantador1->marcado = false;
-				cantBloq++;
-			} else {
-				levantador1->marcado = true;
-			}
-		}
-
-		for (; cantBloq >= 0; cantBloq--) { //(En el peor de los casos, tiene que asignar 2n-1 veces)
-			//Por cada pj no marcado
+			//--Recorrer los personajes
 			for (contPer1 = 0; contPer1 < list_size(list_personajes); contPer1++) {
 				levantador1 = list_get(list_personajes, contPer1);
-				if (!levantador1->marcado) {
-					//Si necesita un recurso de uno marcado
-					for (contPer2 = 0; contPer2 < list_size(list_personajes); contPer2++) {
-						levantador2 = list_get(list_personajes, contPer2);
 
-						if (levantador2->marcado && tieneLoQueNecesito(levantador2, levantador1)) {
-							log_trace(logger, "Marque a %c", levantador1->simbolo);
-							levantador1->marcado = true;
-							break;
-						}
-					}
+				//--marca a los que no estan bloqueados
+				if (levantador1->bloqueado) {
+					levantador1->marcado = false;
+					cantBloq++;
+				} else {
+					levantador1->marcado = true;
 				}
 			}
 
-		};
+			for (; cantBloq >= 0; cantBloq--) { //(En el peor de los casos, tiene que asignar 2n-1 veces)
+				//Por cada pj no marcado
+				for (contPer1 = 0; contPer1 < list_size(list_personajes); contPer1++) {
+					levantador1 = list_get(list_personajes, contPer1);
+					if (!levantador1->marcado) {
+						//Si necesita un recurso de uno marcado
+						for (contPer2 = 0; contPer2 < list_size(list_personajes); contPer2++) {
+							levantador2 = list_get(list_personajes, contPer2);
 
-//		bool personajeBloqueado(tPersonaje* personaje){
-//			return (personaje->marcado==false);
-//		}
-//		int cant = list_count_satisfying(list_personajes,(void*)personajeBloqueado);
+							if (levantador2->marcado && tieneLoQueNecesito(levantador2, levantador1)) {
+								log_trace(logger, "Marque a %c", levantador1->simbolo);
+								levantador1->marcado = true;
+								break;
+							}
+						}
+					}
+				}
+
+			};
+
+	//		bool personajeBloqueado(tPersonaje* personaje){
+	//			return (personaje->marcado==false);
+	//		}
+	//		int cant = list_count_satisfying(list_personajes,(void*)personajeBloqueado);
 
 
-		//Estan en DeadLock los que no esten marcados
-		for (contPer1 = 0; contPer1 < list_size(list_personajes); contPer1++) {
-			levantador1 = list_get(list_personajes, contPer1);
-			if (!levantador1->marcado) {
-				//Agrego solo el simbolo, porque si agregaba el personaje levantador1 completo andaba mal y no agregaba bien.
-				list_add_new(bloqueados, &levantador1->simbolo, sizeof(list_personajes));
-				log_trace(logger, "%c esta en Deadlock", levantador1->simbolo);
+			//Estan en DeadLock los que no esten marcados
+			for (contPer1 = 0; contPer1 < list_size(list_personajes); contPer1++) {
+				levantador1 = list_get(list_personajes, contPer1);
+				if (!levantador1->marcado) {
+					//Agrego solo el simbolo, porque si agregaba el personaje levantador1 completo andaba mal y no agregaba bien.
+					list_add_new(bloqueados, &levantador1->simbolo, sizeof(list_personajes));
+					log_trace(logger, "%c esta en Deadlock", levantador1->simbolo);
+				}
 			}
+
+			//--Si la lista tiene más de 1 deadlockeados elijo uno y le notifico al planificador
+			if ((list_size(bloqueados) > 1) && (deadlock.recovery)) {
+				//--Envía un header con la cantidad de personajes
+				tSimbolo *simboloPersBlock = list_get(bloqueados, 0);
+
+				log_info(logger, "Hay deadlock y voy a matar a %c", *simboloPersBlock);
+				//No analices deadlock hasta que hayas liberado recursos
+				analizarDeadlock = false;
+				tPaquete paquete;
+				serializarSimbolo(N_MUERTO_POR_DEADLOCK, *simboloPersBlock, &paquete);
+				enviarPaquete(pNivel->plataforma.socket, &paquete, logger, "Envio a plataforma el personaje que murio");
+				log_info(logger, "El personaje %c se elimino por participar en un interbloqueo", *simboloPersBlock);
+
+				list_destroy_and_destroy_elements(bloqueados, free);
+			}
+
+			// Mandamos el proceso a dormir para que espere el tiempo definido por archivo de config.
 		}
-
-		//--Si la lista tiene más de 1 deadlockeados elijo uno y le notifico al planificador
-		if ((list_size(bloqueados) > 1) && (deadlock.recovery)) {
-			//--Envía un header con la cantidad de personajes
-			tPaquete paquete;
-			tSimbolo *simboloPersBlock = list_get(bloqueados, 0);
-
-			log_debug(logger, "Hay deadlock y voy a matar a %c", *simboloPersBlock);
-			serializarSimbolo(N_MUERTO_POR_DEADLOCK, *simboloPersBlock, &paquete);
-			enviarPaquete(pNivel->plataforma.socket, &paquete, logger, "Enviando notificacion de bloqueo de personajes a plataforma");
-			log_debug(logger, "El personaje %c se elimino por participar en un interbloqueo", *simboloPersBlock);
-
-			list_destroy_and_destroy_elements(bloqueados, free);
-		}
-
-		// Mandamos el proceso a dormir para que espere el tiempo definido por archivo de config.
 		pthread_mutex_unlock(&semItems);
 		usleep(deadlock.checkTime);
 		log_trace(logger, ">>>Revisando DL<<<");
@@ -1152,7 +1221,6 @@ void actualizaPosicion(tDirMovimiento dirMovimiento, int *posX, int *posY) {
 		break;
 	}
 }
-
 
 //--------------------------------------Señal SIGINT
 void cerrarForzado(int sig) {
