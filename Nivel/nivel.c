@@ -459,13 +459,13 @@ void liberarRecursosPersonajeMuerto(tNivel *pNivel, char *sPayload){
 	free(sPayload);
 	log_info(logger, "Libere recursos exitosamente");
 
-	tMensaje tipoDeMensaje;
-	recibirPaquete(pNivel->plataforma.socket, &tipoDeMensaje, &sPayload, logger, "Recibo personajes que se desbloquearon");
-	persDesconectado = deserializarDesconexionPers(sPayload);
-
-	desbloquearPersonajes(pNivel, persDesconectado);
-	free(sPayload);
-	free(persDesconectado);
+//	tMensaje tipoDeMensaje;
+//	recibirPaquete(pNivel->plataforma.socket, &tipoDeMensaje, &sPayload, logger, "Recibo personajes que se desbloquearon");
+//	persDesconectado = deserializarDesconexionPers(sPayload);
+//
+//	desbloquearPersonajes(pNivel, persDesconectado);
+//	free(sPayload);
+//	free(persDesconectado);
 
 	log_info(logger, "Desbloquee a los personajes y libere recursos exitosamente");
 
@@ -517,7 +517,6 @@ void desconexionPersonaje(tNivel *pNivel, char *sPayload) {
 	log_info(logger, "<<< El personaje %c se desconecto", persDesconectado->simbolo);
 
 	// Eliminar al personaje de list_personajes
-//	removePersonajeDeListas(persDesconectado->simbolo); //TODO revisar funcion matarPersonaje
 	bool buscarPersonaje(tPersonaje* pPersonaje) {
 		return (pPersonaje->simbolo == persDesconectado->simbolo);
 	}
@@ -1075,7 +1074,17 @@ void matarPersonaje(tNivel *pNivel, tSimbolo *simboloItem, tMensaje tipoMensaje)
 	tPaquete paquete;
 
 	log_debug(logger, "Eliminando al personaje...");
-	removePersonajeDeListas(*simboloItem);
+	bool buscarPersonaje(tPersonaje* pPersonaje) {
+		return (pPersonaje->simbolo == *simboloItem);
+	}
+
+	tPersonaje *personajeOut = list_remove_by_condition(list_personajes,(void*)buscarPersonaje);
+
+	if (personajeOut == NULL) {
+		log_debug(logger, "No se encontro el personaje");
+	}
+
+	BorrarPersonaje(list_items, *simboloItem);
 
 	paquete.type=tipoMensaje;
 	memcpy(paquete.payload, simboloItem,sizeof(tSimbolo));
@@ -1084,6 +1093,7 @@ void matarPersonaje(tNivel *pNivel, tSimbolo *simboloItem, tMensaje tipoMensaje)
 	sprintf(messageInfo, "%s: Notifico a plataforma la muerte del personaje %c", pNivel->nombre, *simboloItem);
 	enviarPaquete(pNivel->plataforma.socket,&paquete,logger, messageInfo);
 	free(messageInfo);
+	personaje_destroyer(personajeOut);
 }
 
 

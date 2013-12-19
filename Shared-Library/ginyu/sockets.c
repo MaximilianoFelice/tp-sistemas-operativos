@@ -142,7 +142,6 @@ signed int getConnection(fd_set *setSockets, int *maxSock, int sockListener, tMe
 	socklen_t sinClientSize;
 	sinClientSize = sizeof(clientAddress);
 
-
 	struct timeval timeout;
 	timeout.tv_sec=2;
 	timeout.tv_usec=0;
