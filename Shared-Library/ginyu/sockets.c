@@ -129,7 +129,7 @@ int recibirPaquete(int socketReceptor, tMensaje* tipoMensaje, char** psPayload, 
  * 	<0 = Se cerro el socket que devuelve
  * 	>0 = Cambio el socket que devuelve
  */
-signed int getConnection(fd_set *setSockets, int *maxSock, int sockListener, tMensaje *tipoMensaje, char** payload, int *nroConexiones, t_log* logger)
+signed int getConnection(fd_set *setSockets, int *maxSock, int sockListener, tMensaje *tipoMensaje, char** payload, t_log* logger)
 {
 	int iSocket;
 	int iNewSocket;
@@ -142,12 +142,8 @@ signed int getConnection(fd_set *setSockets, int *maxSock, int sockListener, tMe
 	socklen_t sinClientSize;
 	sinClientSize = sizeof(clientAddress);
 
-	struct timeval timeout;
-	timeout.tv_sec=2;
-	timeout.tv_usec=0;
-
 	//--Multiplexa conexiones
-	if (select(*maxSock + 1, &setTemporal, NULL, NULL, &timeout) == -1) {
+	if (select(*maxSock + 1, &setTemporal, NULL, NULL, NULL) == -1) {
 		log_error(logger, "select: %s", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
@@ -175,7 +171,6 @@ signed int getConnection(fd_set *setSockets, int *maxSock, int sockListener, tMe
 					if (iNewSocket > *maxSock) {
 						*maxSock = iNewSocket;
 					}
-					(*nroConexiones)++;
 				}
 
 			} else {
@@ -188,7 +183,6 @@ signed int getConnection(fd_set *setSockets, int *maxSock, int sockListener, tMe
 					} else {
 						log_error(logger, "recv: %s", strerror(errno));
 					}
-
 					//--Cierra la conexión y lo saca de la lista
 					close(iSocket);
 					FD_CLR(iSocket, setSockets);
@@ -300,7 +294,7 @@ signed int multiplexar(fd_set *master, fd_set *temp, int *maxSock, tMensaje* tip
 					log_error(logger, "multiplexar :: recv in %d: %s", iSocket, strerror(errno));
 				}
 				//--Cierra la conexión y lo saca de la lista
-//				close(iSocket); //Lo hace el getConnection()
+				close(iSocket);
 				FD_CLR(iSocket, master);
 				*tipoMensaje = DESCONEXION;
 
