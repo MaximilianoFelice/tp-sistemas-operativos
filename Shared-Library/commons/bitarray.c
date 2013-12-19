@@ -28,11 +28,13 @@ uint64_t _max = ~((uint64_t) 0);
  * 		bitarray
  *		size - Tamaño en bytes del bit array
  */
-t_bitarray *bitarray_create(char *bitarray, size_t size) {
+t_bitarray *bitarray_create(char *bitarray, size_t size, size_t size64, size_t size_64_leak) {
 	t_bitarray *self = malloc(sizeof(t_bitarray));
 
 	self->bitarray = bitarray;
 	self->size = size;
+	self->size64 = size64;
+	self->size64_leak = size_64_leak;
 
 	return self;
 
@@ -95,19 +97,21 @@ int bitarray_test_and_set(t_bitarray *self, off_t offset){
 
 	off_t _off = offset / 64;
 
-	for (i=_off; i< self->size; i++){
+	for (i=_off; i < (self->size64); i++){
 		if (((array[i]) ^ (INT64MAX)) != 0){
 			break;
 		}
 	}
 
 	res = i*64;
+	size_t _max = (i == self->size64) ? (self->size64_leak) : (64);
 
-	for (i=0; i<64 ; i++,res++){
+	for (i=0; i<_max ; i++,res++){
 		if (bitarray_test_bit(self, res) == 0){
 			bitarray_set_bit(self,res);
 			return res;
 		}
 	}
+
 	return -ENOSPC;
 }
