@@ -41,6 +41,7 @@ static struct fuse_operations grasa_oper = {
 		.chmod = grasa_chmod,		// OK
 		.utime = grasa_utime,		// OK
 		.chown = grasa_chown,		// OK
+		.flush = grasa_flush,		// OK
 };
 
 /** keys for FUSE_OPT_ options */

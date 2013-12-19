@@ -158,6 +158,7 @@ int discDescriptor;
 	int grasa_rename (const char*, const char*);
 	int grasa_setxattr(const char*, const char*, const char*, size_t, int);
 	int grasa_utime(const char*, struct utimbuf*);
+	int grasa_flush(const char*, struct fuse_file_info*);
 
 	// Funciones definidas como Dummy porque la implementacion no las requiere (incluidas en <Grasa_Dummy.c>)
 	int grasa_open(const char*, struct fuse_file_info*);
