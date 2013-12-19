@@ -991,8 +991,6 @@ void recepcionBloqueado(tNivel *pNivel, tPersonaje **pPersonajeActual, char *sPa
 	(*pPersonajeActual)->quantumUsado 	   = pNivel->quantum;
 	(*pPersonajeActual)->remainingDistance = pNivel->rdDefault;
 
-	list_add_new((*pPersonajeActual)->recursos, (void *)&recursoBloqueado->recurso, sizeof(tSimbolo));
-
 	tPersonajeBloqueado *pPersonajeBloqueado =  createPersonajeBlock(*pPersonajeActual, recursoBloqueado->recurso);
 	list_add(pNivel->lBloqueados, pPersonajeBloqueado);
 	log_debug(logger, "Personaje %c se encuentra bloqueado por recurso %c", pPersonajeBloqueado->pPersonaje->simbolo, recursoBloqueado->recurso);
@@ -1024,14 +1022,11 @@ void recepcionRecurso(tNivel *pNivel, tPersonaje **pPersonajeActual, char *sPayl
 
 	} else {
 
-		log_warning(logger, "El personaje que recibio el recurso no era el actual. Lo busco en la lista");
-		sleep(2);
-		tPersonaje *pPersonaje = getPersonaje(pNivel->cListos->elements, recursoOtorgado->simbolo, byName);
+		tPersonaje *pPersonaje = desbloquearPersonaje(pNivel->lBloqueados, recursoOtorgado->recurso);
 		 //Aqui actualizo su quantum
 		pPersonaje->quantumUsado 	   = pNivel->quantum;
 		pPersonaje->remainingDistance = pNivel->rdDefault;
-
-		list_add_new(pPersonaje->recursos, (void *)&recursoOtorgado->recurso, sizeof(tSimbolo));
+		queue_push(pNivel->cListos, pPersonaje);
 
 		tPaquete pkgRecursoOtorgado;
 		pkgRecursoOtorgado.type   = PL_RECURSO_OTORGADO;
