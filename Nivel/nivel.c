@@ -466,8 +466,8 @@ void liberarRecursosPersonajeMuerto(tNivel *pNivel, char *sPayload){
 //	desbloquearPersonajes(pNivel, persDesconectado);
 //	free(sPayload);
 //	free(persDesconectado);
-
-	log_info(logger, "Desbloquee a los personajes y libere recursos exitosamente");
+//
+//	log_info(logger, "Desbloquee a los personajes y libere recursos exitosamente");
 
 }
 
@@ -551,7 +551,6 @@ void desconexionPersonaje(tNivel *pNivel, char *sPayload) {
 
 }
 
-
 void actualizarInfoNivel(tNivel *pNivel, int iSocket, char* configFilePath) {
 //	char* algoritmoAux;
 	log_debug(logger, "antes de crear archivo de configuracion %s", configFilePath);
@@ -601,7 +600,6 @@ void actualizarInfoNivel(tNivel *pNivel, int iSocket, char* configFilePath) {
 		log_debug(logger, "No esta el archivo");
 	}
 }
-
 
 void *enemigo(void * args) {
 
@@ -802,7 +800,6 @@ _Bool alcanceVictima(tEnemigo *enemigo, ITEM_NIVEL *victima){
 	return (victima->posx==enemigo->posX) && (victima->posy==enemigo->posY);
 }
 
-
 _Bool analizarMovimientoDeEnemigo(){
 
 	int cantPersonajesNoBloqueados;
@@ -840,7 +837,6 @@ _Bool acercarmeALaVictima(tEnemigo *enemigo, ITEM_NIVEL *item, tDirMovimiento *d
 
 }
 
-
 _Bool acercarmeALaVictimaPersonaje(tEnemigo *enemigo, tPersonaje *personaje, tDirMovimiento *dirMovimiento){
 
 	//Elijo el eje por el que me voy a acercar
@@ -865,7 +861,6 @@ _Bool acercarmeALaVictimaPersonaje(tEnemigo *enemigo, tPersonaje *personaje, tDi
 
 }
 
-
 ITEM_NIVEL *asignarVictima(tEnemigo *enemigo){
 
 	int dist2=999999;
@@ -885,7 +880,6 @@ ITEM_NIVEL *asignarVictima(tEnemigo *enemigo){
 	return itemReturn;
 }
 
-
 tPersonaje *asignarPersonajeVictima(tEnemigo *enemigo){
 
 	int dist2=999999;
@@ -896,7 +890,7 @@ tPersonaje *asignarPersonajeVictima(tEnemigo *enemigo){
 
 		tPersonaje *personaje=list_get(list_personajes, i);
 		distFinal = calcularDistancia(enemigo, personaje->posicion.x, personaje->posicion.y);
-		if((distFinal<dist2)){
+		if((distFinal<dist2) && !estaArribaDeUnRecurso(personaje)){
 			personajeReturn = personaje;
 			dist2=distFinal;
 		}
@@ -905,6 +899,17 @@ tPersonaje *asignarPersonajeVictima(tEnemigo *enemigo){
 	return personajeReturn;
 }
 
+bool estaArribaDeUnRecurso(tPersonaje *personaje){
+
+	int x = personaje->posicion.x;
+	int y = personaje->posicion.y;
+	bool _arriba_de_recurso(ITEM_NIVEL *item){
+		return (item->item_type==RECURSO_ITEM_TYPE)&&(item->posx==x)&&(item->posy==y);
+	}
+
+	return list_any_satisfy(list_items, (void *)_arriba_de_recurso);
+
+}
 
 tPersonaje *asignarVictimaVersionVieja(tEnemigo *enemigo){
 
@@ -932,12 +937,10 @@ tPersonaje *asignarVictimaVersionVieja(tEnemigo *enemigo){
 	return personajeVictima;
 }
 
-
 _Bool esUnPersonaje(ITEM_NIVEL *item){
 	return (item->item_type==PERSONAJE_ITEM_TYPE);
 
 }
-
 
 int calcularDistancia(tEnemigo *enemigo, int posX, int posY){
 

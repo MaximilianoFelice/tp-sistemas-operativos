@@ -131,6 +131,9 @@ void actualizaPosicion(tDirMovimiento dirMovimiento, int *posX, int *posY);
 void calcularMovimiento(tNivel *pNivel, tDirMovimiento direccion, int *posX, int *posY);
 void matarPersonaje(tNivel *pNivel, tSimbolo *simboloItem, tMensaje tipoMensaje);
 ITEM_NIVEL *asignarVictima(tEnemigo *enemigo);
+
+bool estaArribaDeUnRecurso(tPersonaje *personaje);
+
 tPersonaje *asignarPersonajeVictima(tEnemigo *enemigo);
 tPersonaje *asignarVictimaVersionVieja(tEnemigo *enemigo);
 int calcularDistancia(tEnemigo *enemigo, int posX, int posY);
