@@ -33,9 +33,11 @@
 	typedef struct {
 		char *bitarray;
 		size_t size;
+		size_t size64;
+		size_t size64_leak;
 	} t_bitarray;
 
-	t_bitarray 	*bitarray_create(char *bitarray, size_t size);
+	t_bitarray 	*bitarray_create(char *bitarray, size_t size, size_t size64, size_t size64_leak);
 	bool 		 bitarray_test_bit(t_bitarray*, off_t bit_index);
 	void		 bitarray_set_bit(t_bitarray*, off_t bit_index);
 	void		 bitarray_clean_bit(t_bitarray*, off_t bit_index);

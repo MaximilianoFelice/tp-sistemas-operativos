@@ -66,6 +66,11 @@
 #define DISABLE_DELETE_MODE _del_mode=0
 int _del_mode;
 
+// Se guarda el tamaño del bitarray para la implementacion de 64 bits.
+#define ARRAY64SIZE _bitarray_64
+size_t _bitarray_64;
+#define ARRAY64LEAK _bitarray_64_leak
+size_t _bitarray_64_leak;
 
 // Se guardara aqui la ruta al disco. Tiene un tamanio maximo.
 char fuse_disc_path[1000];
