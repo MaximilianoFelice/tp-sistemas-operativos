@@ -47,6 +47,7 @@ typedef struct {
 	int y;
 } tPosicion;
 
+
 typedef struct {
 	_Bool bloqueado;
 	_Bool muerto; //Para que no lo intente matar dos veces seguidas
@@ -55,6 +56,7 @@ typedef struct {
 	tSimbolo simbolo;
 	t_list* recursos;
 } tPersonaje;
+
 
 typedef struct {
 	char IP[INET_ADDRSTRLEN];
@@ -97,11 +99,8 @@ typedef struct {
 	tNivel *pNivel;
 } tEnemigo;
 
-
-
 //Acciones de los mensajes
 void handshakeConPlataforma(tNivel *pNivel);
-void crearEnemigos(tNivel *nivel);
 void conexionPersonaje(int iSocket, char *sPayload);
 void movimientoPersonaje(tNivel *pNivel, int iSocket, char *sPayload);
 void posicionRecurso(tNivel *pNivel, int iSocket, char *sPayload);
@@ -110,12 +109,10 @@ void desconexionPersonaje(tNivel *pNivel, char *sPayload) ;
 void escucharConexiones(tNivel *pNivel, char* configFilePath);
 void levantarArchivoConf(char* pathConfigFile, tNivel *pNivel);
 void actualizarInfoNivel(tNivel *pNivel, int iSocket, char* configFilePath);
-void crearNuevoPersonaje (tSimbolo simbolo);
 void notificacionAPlataforma(int iSocket, tMensaje tipoMensaje, char *msjInfo);
 void liberarRecursosPersonajeMuerto(tNivel *pNivel, char *sPayload);
 void liberarRecursos(tNivel *pNivel, tDesconexionPers *persDesconectado);
 void desbloquearPersonajes(tNivel *pNivel, tDesconexionPers *persDesconectado);
-void removePersonajeDeListas(tSimbolo simbolo);
 
 //Señales
 void cerrarNivel(char*);
@@ -130,32 +127,25 @@ void *enemigo(void * args);
 void actualizaPosicion(tDirMovimiento dirMovimiento, int *posX, int *posY);
 void calcularMovimiento(tNivel *pNivel, tDirMovimiento direccion, int *posX, int *posY);
 void matarPersonaje(tNivel *pNivel, tSimbolo *simboloItem, tMensaje tipoMensaje);
-ITEM_NIVEL *asignarVictima(tEnemigo *enemigo);
-
-bool estaArribaDeUnRecurso(tPersonaje *personaje);
-
-tPersonaje *asignarPersonajeVictima(tEnemigo *enemigo);
-tPersonaje *asignarVictimaVersionVieja(tEnemigo *enemigo);
-int calcularDistancia(tEnemigo *enemigo, int posX, int posY);
 void evitarRecurso(tEnemigo *enemigo);
 void evitarOrigen(tEnemigo *enemigo);
+tPersonaje *asignarVictima(tEnemigo *enemigo);
+int calcularDistancia(tEnemigo *enemigo, int posX, int posY);
 _Bool analizarMovimientoDeEnemigo();
 _Bool esUnPersonaje(ITEM_NIVEL *item);
-_Bool acercarmeALaVictima(tEnemigo *enemigo, ITEM_NIVEL *item, tDirMovimiento *dirMovimiento);
-_Bool acercarmeALaVictimaPersonaje(tEnemigo *enemigo, tPersonaje *personaje, tDirMovimiento *dirMovimiento);
+_Bool acercarmeALaVictima(tEnemigo *enemigo, tPersonaje *personaje, tDirMovimiento *dirMovimiento);
 _Bool estoyArriba(tEnemigo *enemigo, tPersonaje *persVictima);
 _Bool hayAlgunEnemigoArriba(tNivel *pNivel, int posPerX, int posPerY);
+bool estaArribaDeUnRecurso(tPersonaje *personaje);
 
 //Busquedas e iteraciones de listas
 tPersonaje *getPersonajeBySymbol(tSimbolo simbolo); //Busca en list_personajes
 ITEM_NIVEL *getItemById(char id_victima); //Busca en list_items
-void evitarRecurso(tEnemigo *enemigo);
-ITEM_NIVEL *getVictima(tEnemigo *enemigo);
 
-//Nivel
-void CrearNuevoPersonaje(tPersonaje *pjNew, tSimbolo simbolo);
-void liberarRecsPersonaje(char);
+//Constructores . Destroyers
+void crearNuevoPersonaje (tSimbolo simbolo);
 static void personaje_destroyer(tPersonaje *personaje);
+void crearEnemigos(tNivel *nivel);
 
 //#undef NIVEL_H_
 #endif //NIVEL_H_
