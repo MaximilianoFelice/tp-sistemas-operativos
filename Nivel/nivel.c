@@ -1034,8 +1034,10 @@ void *deteccionInterbloqueo(void* parametro) {
 					levantador1->marcado = true;
 				}
 			}
-
-			for (; cantBloq >= 0; cantBloq--) { //(En el peor de los casos, tiene que asignar 2n-1 veces)
+			 bool continuarAnalisis = true;
+			 while(continuarAnalisis){
+//			for (; cantBloq >= 0; cantBloq--) { //(En el peor de los casos, tiene que asignar 2n-1 veces)
+			continuarAnalisis = false;
 				//Por cada pj no marcado
 				for (contPer1 = 0; contPer1 < list_size(list_personajes); contPer1++) {
 					levantador1 = list_get(list_personajes, contPer1);
@@ -1047,6 +1049,7 @@ void *deteccionInterbloqueo(void* parametro) {
 							if (levantador2->marcado && tieneLoQueNecesito(levantador2, levantador1)) {
 								log_trace(logger, "Marque a %c", levantador1->simbolo);
 								levantador1->marcado = true;
+								continuarAnalisis = true;
 								break;
 							}
 						}
@@ -1055,12 +1058,14 @@ void *deteccionInterbloqueo(void* parametro) {
 
 			};
 
+			// TODOS LOS QUE ESTAN EN DEADLOCK TIENEN QUE LLEGAR ACA CON MARCADO=FALSE.
+
 			//Estan en DeadLock los que no esten marcados
 			for (contPer1 = 0; contPer1 < list_size(list_personajes); contPer1++) {
 				levantador1 = list_get(list_personajes, contPer1);
 				if (!levantador1->marcado) {
 					//Agrego solo el simbolo, porque si agregaba el personaje levantador1 completo andaba mal y no agregaba bien.
-					list_add_new(bloqueados, &levantador1->simbolo, sizeof(list_personajes));
+					list_add_new(bloqueados, &levantador1->simbolo, sizeof(tSimbolo));
 					log_trace(logger, "%c esta en Deadlock", levantador1->simbolo);
 				}
 			}
