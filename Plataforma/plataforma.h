@@ -95,7 +95,6 @@ void agregarPersonaje(tNivel *pNivel, tSimbolo simbolo, int socket);
 void crearNivel(t_list* lNiveles, tNivel* nivelNuevo, int socket, char *levelName, tInfoNivel *pInfoNivel);
 void crearHiloPlanificador(pthread_t *pPlanificador, tNivel *nivelNuevo);
 tPersonajeBloqueado *createPersonajeBlock(tPersonaje *personaje, tSimbolo recurso);
-tPersonaje *removePersonajeOfBlock(t_list *block, tSimbolo *recurso, int indicePersonaje);
 void destroyNivel(tNivel *pNivel);
 void destroyPlanificador(pthread_t *pPlanificador);
 

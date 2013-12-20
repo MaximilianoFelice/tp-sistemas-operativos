@@ -28,9 +28,7 @@ t_list* personajes_jugando;
 /*
  * Funciones privadas
  */
-tPersonaje* desbloquearPersonaje(t_list* lBloqueados, tSimbolo recurso);
 tPersonaje *sacarPersonajeDeListas(tNivel *pNivel, int iSocket, bool *bloqueado);
-char *getRecursosNoAsignados(t_list *recursos, char *recursosNoAsignados, int *lengthRecursos, bool bloqueado);
 void waitPersonajes(tNivel *pNivel, tPersonaje **personajeActual);
 
 /*
@@ -78,57 +76,13 @@ int desconectarPersonaje(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSoc
 int liberarRecursosYDesbloquearPersonajes(tNivel *pNivel, tPersonaje *pPersonaje, tMensaje tipoMensaje, bool bloqueado);
 void enviarPersonajesDesbloqueadosAlNivel(tNivel *pNivel, tSimbolo simboloPersonaje, tMensaje tipoMensaje, char *personajesDesbloqueados, int cantidad);
 void enviarRecursosLiberadosAlNivel(tNivel *pNivel, tSimbolo simboloPersonaje, tMensaje, char *personajesDesbloqueados, int cantidad);
-
-void liberarRecursosRefactor(tPersonaje *pPersMuerto, tNivel *pNivel, t_list *recursosNoAsignados, t_list *persDesbloqueados, bool bloqueado);
+void liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel, t_list *recursosNoAsignados, t_list *persDesbloqueados, bool bloqueado);
 void armarPersonajesDesbloqueados(t_list *personajesADesbloquear, char *personajesDesbloqueados);
 void armarRecursosNoAsignados(t_list *recursosALiberar, char *recursosNoAsignados);
-
-void liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel, bool bloqueado, char *personajesDeadloqueados, int *cantDesbloqueados, char *recursosNoAsignados, int *lengthRecursos);
-
 
 /*
  * PLATAFORMA
  */
-
-//t_estado_personaje* crear_estado_personaje(tSimbolo simbolo) {
-//        t_estado_personaje* estado = malloc(sizeof(t_estado_personaje));
-//        estado->estado = FALSE;
-//        estado->simbolo = simbolo;
-//        return estado;
-//}
-
-//void add_to_character_list(tSimbolo simbolo){
-//
-//                bool _mismoSimbolo(t_estado_personaje personaje){
-//                        tSimbolo sim;
-//                        memcpy(&sim, &(personaje.simbolo), sizeof(tSimbolo));
-//                        if (personaje.simbolo == simbolo) return TRUE;
-//                        else return FALSE;
-//                }
-//
-//        if (!list_any_satisfy(personajes_jugando, (void*) _mismoSimbolo)){
-//                t_estado_personaje* estado = crear_estado_personaje(string_from_format("%d", simbolo));
-//                t_estado_personaje* estado = crear_estado_personaje(simbolo);
-//                list_add(personajes_jugando, estado);
-//        }
-//
-//}
-
-//void setAsFinished(char* sPayload){
-//        tSimbolo simbolo;
-//        memcpy(&simbolo,sPayload,sizeof(tSimbolo));
-//        t_estado_personaje *pj;
-////        log_debug(logger, "ME LLEGO EL SIMBOLO %d", simbolo);
-//
-//        bool _mismoSimbolo(t_estado_personaje personaje){
-//                if (personaje.simbolo == simbolo) return TRUE;
-//                else return FALSE;
-//        }
-//
-//        pj = list_find(personajes_jugando, (void*) _mismoSimbolo);
-//        pj->estado = TRUE;
-//}
-
 int main(int argc, char*argv[]) {
 
 	signal(SIGINT, cerrarTodoSignal);
@@ -301,8 +255,6 @@ void *orquestador(void *vPuerto) {
 
 			case P_FIN_PLAN_NIVELES:
 				verificarKoopa(sPayload);
-				//setAsFinished(sPayload);
-				//orquestadorTerminaJuego();
 				break;
 
 			case DESCONEXION:
@@ -316,50 +268,6 @@ void *orquestador(void *vPuerto) {
 
 	pthread_exit(NULL);
 }
-
-//void orquestadorTerminaJuego() {
-//	int indiceNivel;
-//	int cantidadNiveles;
-//	tNivel *nivelLevantador;
-//
-//	pthread_mutex_lock(&mtxlNiveles);
-//	log_debug(logger, "Verificando niveles para ejecucion de Koopa...");
-//	cantidadNiveles = list_size(listaNiveles);
-//	bool noHayPersonajes = (cantidadNiveles == 0 ? false : true);
-//	nroConexiones--; //Me llego una desconexion, resto.
-//	log_debug(logger, "Cantidad de conexiones = %d", nroConexiones);
-//	log_debug(logger, "Cantidad de niveles    = %d", cantidadNiveles);
-//
-//	//Reviso los niveles
-//	for (indiceNivel=0; indiceNivel < cantidadNiveles; indiceNivel++) {
-//		nivelLevantador = list_get(listaNiveles, indiceNivel);
-//		if (!nivelVacio(nivelLevantador)) {
-//			noHayPersonajes = false;
-//			break;
-//		}
-//	}
-//
-//	if (noHayPersonajes && soloQuedanNiveles()) {
-//		log_debug(logger, "No hay tipitos jugando entonces ejecuto koopa y cierro todo");
-//		cerrarTodo();
-//		executeKoopa(pathKoopa, pathScript);
-//		pthread_mutex_unlock(&mtxlNiveles);
-//		exit(EXIT_SUCCESS);
-//	}
-//	pthread_mutex_unlock(&mtxlNiveles);
-//	bool _termino_plan(t_estado_personaje* estado) {
-//		return estado->estado == TRUE;
-//	}
-//	if (list_all_satisfy(personajes_jugando, (void*) _termino_plan)) {
-//		cerrarTodo();
-//		executeKoopa(pathKoopa, pathScript);
-//	}
-//		pthread_mutex_unlock(&mtxlNiveles);
-//		exit(EXIT_FAILURE);
-//	}
-//	pthread_mutex_unlock(&mtxlNiveles);
-//}
-
 
 bool nivelVacio(tNivel* nivel) {
 	return ((list_size(nivel->cListos->elements)==0) && (list_size(nivel->lBloqueados) == 0));
@@ -444,10 +352,8 @@ int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char*
 			sendConnectionFail(iSocketComunicacion, PL_NIVEL_INEXISTENTE, "No se encontro el nivel pedido");
 		}
 
-//		bool rta_nivel;
 		avisoConexionANivel(pNivelPedido->socket, sPayload, pHandshakePers->simbolo);
 
-//		if (rta_nivel) {
 		add_new_personaje_in_plataforma(pHandshakePers->simbolo);
 
 		agregarPersonaje(pNivelPedido, pHandshakePers->simbolo, iSocketComunicacion);
@@ -466,17 +372,6 @@ int conexionPersonaje(int iSocketComunicacion, fd_set* socketsOrquestador, char*
 		enviarPaquete(iSocketComunicacion, &pkgHandshake, logger, "Handshake de la plataforma al personaje");
 
 		return EXIT_SUCCESS;
-
-//		}
-//		else {
-//			log_error(logger, "El personaje ya esta jugando actualmente en ese nivel");
-//			sendConnectionFail(iSocketComunicacion, PL_PERSONAJE_REPETIDO, "El personaje ya esta jugando ese nivel");
-//
-//			free(pHandshakePers->nombreNivel);
-//			free(pHandshakePers);
-//			return EXIT_FAILURE;
-//		}
-
 	} else {
 		pthread_mutex_unlock(&mtxlNiveles);
 		log_error(logger, "El nivel solicitado no se encuentra conectado a la plataforma");
@@ -874,8 +769,12 @@ void muertePorDeadlockPersonaje(tNivel *pNivel, char *sPayload){
 	tPersonajeBloqueado *personajeBloqueado = getPersonajeBlock(pNivel->lBloqueados, *pSimboloDeadlock, bySymbol);
 	if(personajeBloqueado != NULL){
 
+		liberarRecursosYDesbloquearPersonajes(pNivel, personajeBloqueado->pPersonaje, PL_LIBERA_RECURSOS, true);
+
 		//Libera recursos en DESCONEXION
 		avisarAlPersonajeDeMuerte(personajeBloqueado->pPersonaje->socket, *pSimboloDeadlock, PL_MUERTO_POR_DEADLOCK);
+
+		free(personajeBloqueado);
 	}
 	else {
 		log_error(logger, "No se encontro al personaje deadlockeado en la lista de bloqueados");
@@ -924,7 +823,6 @@ int actualizacionCriteriosNivel(int iSocketConexion, char* sPayload, tNivel* pNi
 	pNivel->quantum = pInfoNivel->quantum;
 	pNivel->delay   = pInfoNivel->delay;
 
-//	log_debug(logger, "POR EL INOTIFY llega            %s, %d, %d", pNivel->algoritmo, pNivel->delay, pNivel->quantum);
 	if (pNivel->algoritmo != pInfoNivel->algoritmo) {
 		pNivel->algoritmo = pInfoNivel->algoritmo;
 
@@ -959,7 +857,6 @@ void solicitudRecursoPersonaje(int iSocketConexion, char *sPayload, tNivel *pNiv
     free(sPayload);
 
     log_info(logger, "<<< El personaje %c solicita el recurso %c", (*pPersonajeActual)->simbolo, *recurso);
-
 
     free(recurso);
 
@@ -1009,7 +906,6 @@ void recepcionRecurso(tNivel *pNivel, tPersonaje **pPersonajeActual, char *sPayl
 	} else {
 
 		log_warning(logger, "El personaje que recibio el recurso no era el actual. Lo busco en la lista");
-		sleep(2);
 		tPersonaje *pPersonaje = getPersonaje(pNivel->cListos->elements, recursoOtorgado->simbolo, byName);
 		 //Aqui actualizo su quantum
 		pPersonaje->quantumUsado 	   = pNivel->quantum;
@@ -1101,12 +997,15 @@ void enviarPersonajesDesbloqueadosAlNivel(tNivel *pNivel, tSimbolo simboloPerson
 
 int liberarRecursosYDesbloquearPersonajes(tNivel *pNivel, tPersonaje *pPersonajeDesconectado, tMensaje tipoMensaje, bool bloqueado){
 	log_info(logger, "Se desconecto el personaje %c", pPersonajeDesconectado->simbolo);
+
 	t_list *list_recursosALiberar       = list_create();
 	t_list *list_personajesADesbloquear = list_create();
-	liberarRecursosRefactor(pPersonajeDesconectado, pNivel, list_recursosALiberar, list_personajesADesbloquear, bloqueado);
+
+	liberarRecursos(pPersonajeDesconectado, pNivel, list_recursosALiberar, list_personajesADesbloquear, bloqueado);
 
 	int lenghtRecursos             = list_size(list_recursosALiberar);
 	int cantidadDesbloqueados      = list_size(list_personajesADesbloquear);
+
 	char *recursosNoAsignados      = malloc(lenghtRecursos*sizeof(char));
 	char *personajesDesbloqueados  = malloc(cantidadDesbloqueados*sizeof(char));
 
@@ -1165,8 +1064,7 @@ void armarPersonajesDesbloqueados(t_list *personajesADesbloquear, char *personaj
 
 }
 
-
-void liberarRecursosRefactor(tPersonaje *pPersMuerto, tNivel *pNivel, t_list *recursosNoAsignados, t_list *persDesbloqueados, bool bloqueado) {
+void liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel, t_list *recursosNoAsignados, t_list *persDesbloqueados, bool bloqueado) {
 	int iCantidadBloqueados = list_size(pNivel->lBloqueados);
 	int iCantidadRecursos	= list_size(pPersMuerto->recursos);
 
@@ -1220,87 +1118,6 @@ void liberarRecursosRefactor(tPersonaje *pPersMuerto, tNivel *pNivel, t_list *re
 			}
 		}
 	}
-}
-
-/*
- * Se liberan los recursos que poseia el personaje en el nivel y en caso de que un personaje estaba bloqueado por uno de estos, se libera
- */
-void liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel, bool bloqueado, char *personajesDeadloqueados, int *cantDesbloqueados, char *recursosNoAsignados, int *lengthRecursos) {
-	int iCantidadBloqueados = list_size(pNivel->lBloqueados);
-	int iCantidadRecursos	= list_size(pPersMuerto->recursos);
-
-	if ((iCantidadBloqueados == 0) || (iCantidadRecursos == 0)) {
-		/* No hay nada que liberar */
-		log_info(logger, "No se reasignarán recursos con la muerte de %c", pPersMuerto->simbolo);
-		*lengthRecursos = iCantidadRecursos;
-		getRecursosNoAsignados(pPersMuerto->recursos, recursosNoAsignados, lengthRecursos, bloqueado);
-		*cantDesbloqueados = 0;
-		personajesDeadloqueados = NULL;
-	} else {
-
-		int iIndexBloqueados, iIndexRecursos;
-		tPersonaje *pPersonajeLiberado;
-		tSimbolo *pRecurso;
-		*cantDesbloqueados = 0;
-
-		/* Respetando el orden en que se bloquearon voy viendo si se libero el recurso que esperaban */
-		for (iIndexBloqueados = 0; iIndexBloqueados < list_size(pNivel->lBloqueados); iIndexBloqueados++) {
-			tPersonajeBloqueado *pPersonajeBloqueado = (tPersonajeBloqueado *)list_get(pNivel->lBloqueados, iIndexBloqueados);
-
-			//Si el personaje que se murio estaba bloquedao entonces el ultimo recuros de su lista no es real.
-			for (iIndexRecursos = 0; iIndexRecursos < (list_size(pPersMuerto->recursos) - (bloqueado ? 1 : 0)); iIndexRecursos++) {
-				pRecurso = (tSimbolo *)list_get(pPersMuerto->recursos, iIndexRecursos);
-
-				if (pPersonajeBloqueado->recursoEsperado == *pRecurso) {
-					pPersonajeBloqueado = (tPersonajeBloqueado *)list_remove(pNivel->lBloqueados, iIndexBloqueados);
-					personajesDeadloqueados[*cantDesbloqueados] = pPersonajeBloqueado->pPersonaje->simbolo;
-					*cantDesbloqueados = *cantDesbloqueados + 1;
-
-					/* Como saco un personaje de la lista, actualizo la iteracion de los bloqueados */
-					pPersonajeLiberado = pPersonajeBloqueado->pPersonaje;
-
-					pRecurso = (tSimbolo *)list_remove(pPersMuerto->recursos, iIndexRecursos);
-					/* Como saco un recurso de la lista, actualizo la iteracion de los recursos */
-
-					log_info(logger, "Por la muerte de %c se desbloquea %c que estaba esperando por el recurso %c", pPersMuerto->simbolo, pPersonajeLiberado->simbolo, *pRecurso);
-
-					queue_push(pNivel->cListos, pPersonajeLiberado);
-
-					tPaquete paquete;
-					paquete.length = 0;
-					paquete.type   = PL_RECURSO_OTORGADO;
-					enviarPaquete(pPersonajeLiberado->socket, &paquete, logger, "Se le otorgo el recurso al personaje");
-
-					free(pPersonajeBloqueado);
-					iIndexBloqueados--;
-					iIndexRecursos--;
-					break;
-				}
-			}
-		}
-
-		getRecursosNoAsignados(pPersMuerto->recursos, recursosNoAsignados, lengthRecursos, bloqueado);
-	}
-}
-
-/*
- * Recibe una lista de recursos de un personaje muerto y retorna un puntero a string con esos recursos; y libera memoria de la lista
- */
-char *getRecursosNoAsignados(t_list *recursos, char *recursosNoAsignados, int *lengthRecursos, bool bloqueado){
-
-	int cantRecursosNoAsignados = *lengthRecursos = (list_size(recursos) - (bloqueado ? 1 : 0));
-	int i;
-	tSimbolo *pRecurso;
-	if(cantRecursosNoAsignados != 0){
-
-		for(i = 0; i < cantRecursosNoAsignados - (bloqueado ? 1 : 0); i++){
-			pRecurso = (tSimbolo*) list_get(recursos, i);
-			recursosNoAsignados[i] = (char)*pRecurso;
-		}
-		list_destroy_and_destroy_elements(recursos, free);
-		return recursosNoAsignados;
-	}
-	return NULL;
 }
 
 /*
@@ -1531,51 +1348,6 @@ void imprimirLista(tNivel *pNivel, tPersonaje *pPersonaje) {
 
 }
 
-tPersonajeBloqueado* sacarDeListaBloqueados(t_list* lBloqueados, tSimbolo simbolo) {
-	tPersonajeBloqueado *pPersonajeBloqueado;
-	int iCantidadBloqueados;
-	int iIndicePersonaje;
-	int bEncontrado = 0;
-
-	iCantidadBloqueados = list_size(lBloqueados);
-
-	for (iIndicePersonaje = 0; (iIndicePersonaje < iCantidadBloqueados) && (bEncontrado == 0); iIndicePersonaje++) {
-		pPersonajeBloqueado = (tPersonajeBloqueado *)list_get(lBloqueados, iIndicePersonaje);
-		bEncontrado    		= (pPersonajeBloqueado->pPersonaje->simbolo == simbolo);
-	}
-
-	if (bEncontrado == 1) {
-		pPersonajeBloqueado = list_remove(lBloqueados, iIndicePersonaje);
-		return pPersonajeBloqueado;
-
-	} else {
-		return NULL;
-	}
-}
-
-/*
- * Devuelve un puntero al primer personaje que se encontraba esperando el recurso en la lista de bloqueados
- */
-tPersonaje* desbloquearPersonaje(t_list* lBloqueados, tSimbolo simboloPersonaje) {
-	int iIndicePersonaje;
-
-	iIndicePersonaje = existPersonajeBlock(lBloqueados, simboloPersonaje, bySymbol);
-
-	if (iIndicePersonaje != -1) {
-		tSimbolo recurso;
-		tPersonaje *personaje = removePersonajeOfBlock(lBloqueados, &recurso, iIndicePersonaje);
-
-		if (personaje == NULL) {
-			log_debug(logger, "personaje es NULL");
-		}
-		list_add_new(personaje->recursos, (void *)&recurso, sizeof(recurso));
-		return personaje;
-
-	} else {
-		return NULL;
-	}
-}
-
 void delegarConexion(fd_set *conjuntoDestino, fd_set *conjuntoOrigen, int iSocket, int *maxSock) {
 
 	FD_CLR(iSocket, conjuntoOrigen); // Saco el socket del conjunto de sockets del origen
@@ -1619,18 +1391,5 @@ tPersonajeBloqueado *createPersonajeBlock(tPersonaje *personaje, tSimbolo recurs
 	 pPersonajeBloqueado->pPersonaje = personaje;
 	 memcpy(&pPersonajeBloqueado->recursoEsperado, &recurso, sizeof(tSimbolo));
 	 return pPersonajeBloqueado;
-}
-
-/*
- * Retorna un puntero a un personaje de la lista de bloqueados y libera memoria
- */
-tPersonaje *removePersonajeOfBlock(t_list *block, tSimbolo *recurso, int indicePersonaje){
-	tPersonaje *personaje;
-	tPersonajeBloqueado *personajeBlock;
-	personajeBlock = list_remove(block, indicePersonaje);
-	personaje = personajeBlock->pPersonaje;
-	*recurso = personajeBlock->recursoEsperado;
-	free(personajeBlock);
-	return personaje;
 }
 
