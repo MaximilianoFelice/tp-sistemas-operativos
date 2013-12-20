@@ -495,16 +495,17 @@ void *planificador(void * pvNivel) {
 
             case(P_MOVIMIENTO):
                 movimientoPersonaje(iSocketConexion, sPayload, pNivel, &pPersonajeActual);
+
             	break;
 
             case(P_SOLICITUD_RECURSO):
                 solicitudRecursoPersonaje(iSocketConexion, sPayload, pNivel, &pPersonajeActual);
                 break;
 
-            //Cuando llega al recurso y aún
-            case(P_FIN_TURNO):
-				seleccionarJugador(&pPersonajeActual, pNivel);
-            	break;
+//            //Cuando llega al recurso y aún
+//            case(P_FIN_TURNO):
+//				seleccionarJugador(&pPersonajeActual, pNivel);
+//            	break;
 
             /* Mensajes que puede mandar el nivel */
             case(N_POS_RECURSO):
@@ -526,6 +527,7 @@ void *planificador(void * pvNivel) {
 
             case(N_ENTREGA_RECURSO):
 				recepcionRecurso(pNivel, &pPersonajeActual, sPayload);
+            	seleccionarJugador(&pPersonajeActual, pNivel);
             	break;
 
             case(N_BLOQUEADO_RECURSO):
@@ -540,6 +542,8 @@ void *planificador(void * pvNivel) {
 
             case(DESCONEXION):
 				desconectar(pNivel, &pPersonajeActual, iSocketConexion);
+            	if(pPersonajeActual == NULL)
+            		seleccionarJugador(&pPersonajeActual, pNivel);
 				break;
 
             default:

@@ -245,10 +245,10 @@ void *jugar(void *vPersonajeNivel) {
 				}
 
 			}
-			//Si le quedan recursos
-			if(pPersonajePorNivel->recursoActual+1 < list_size(pPersonajePorNivel->Objetivos)){
-				enviarMensajeFinDeTurno(pPersonajePorNivel);
-			}
+//			//Si le quedan recursos
+//			if(pPersonajePorNivel->recursoActual+1 < list_size(pPersonajePorNivel->Objetivos) || pPersonajePorNivel->murioEnNivel){
+//				enviarMensajeFinDeTurno(pPersonajePorNivel);
+//			}
 
 		} //Fin de for de objetivos
 
@@ -390,7 +390,7 @@ void solicitarRecurso(personajeIndividual_t* personajePorNivel, char *recurso){
 		}
 		default: {
 			log_error(logger, "%s: Llego un mensaje (tipoMensaje: %s) cuando debia llegar PL_SOLICITUD_RECURSO", personajePorNivel->nomNivel, enumToString(tipoMensaje));
-//			exit(EXIT_FAILURE);
+			exit(EXIT_FAILURE);
 			break;
 		}
 	}
@@ -444,7 +444,7 @@ tDirMovimiento calcularYEnviarMovimiento(personajeIndividual_t *personajePorNive
 
 		default:
 			log_error(logger, "%s: Llego un mensaje (tipoMensaje: %s) cuando debia llegar PL_CONFIRMACION_MOV", personajePorNivel->nomNivel, enumToString(tipoMensaje));
-//			exit(EXIT_FAILURE);
+			exit(EXIT_FAILURE);
 			break;
 		
 	}
@@ -486,7 +486,7 @@ void recibirMensajeTurno(personajeIndividual_t *personajePorNivel){
 
 		default:
 			log_error(logger, "%s: Llego un mensaje (tipoMensaje: %s) cuando debia llegar PL_OTORGA_TURNO", personajePorNivel->nomNivel, enumToString(tipoMensaje));
-//			exit(EXIT_FAILURE);
+			exit(EXIT_FAILURE);
 			break;
 	}
 	free(sPayload);
