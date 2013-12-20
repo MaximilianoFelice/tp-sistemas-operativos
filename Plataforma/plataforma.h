@@ -80,9 +80,6 @@ void *planificador(void *);
 
 void imprimirLista(tNivel *pNivel, tPersonaje *pPersonaje);
 
-
-
-
 //Delegar conexiones
 void delegarConexion(fd_set *conjuntoDestino, fd_set *conjuntoOrigen, int iSocketADelegar, int *maxSockDestino);
 void inicializarConexion(fd_set *master_planif, int *maxSock, int *sock);
