@@ -459,15 +459,15 @@ void liberarRecursosPersonajeMuerto(tNivel *pNivel, char *sPayload){
 	free(sPayload);
 	log_info(logger, "Libere recursos exitosamente");
 
-//	tMensaje tipoDeMensaje;
-//	recibirPaquete(pNivel->plataforma.socket, &tipoDeMensaje, &sPayload, logger, "Recibo personajes que se desbloquearon");
-//	persDesconectado = deserializarDesconexionPers(sPayload);
-//
-//	desbloquearPersonajes(pNivel, persDesconectado);
-//	free(sPayload);
-//	free(persDesconectado);
-//
-//	log_info(logger, "Desbloquee a los personajes y libere recursos exitosamente");
+	tMensaje tipoDeMensaje;
+	recibirPaquete(pNivel->plataforma.socket, &tipoDeMensaje, &sPayload, logger, "Recibo personajes que se desbloquearon");
+	persDesconectado = deserializarDesconexionPers(sPayload);
+
+	desbloquearPersonajes(pNivel, persDesconectado);
+	free(sPayload);
+	free(persDesconectado);
+
+	log_info(logger, "Desbloquee a los personajes y libere recursos exitosamente");
 
 }
 
