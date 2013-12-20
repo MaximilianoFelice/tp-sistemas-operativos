@@ -85,7 +85,7 @@ void imprimirConexiones(fd_set *master_planif, int maxSock, char* host);
 
 //Busquedas
 int existeNivel(t_list * lNiveles, char* sLevelName);
-int existPersonajeBlock(t_list *block, tSimbolo valor, tBusquedaPersBlock criterio);
+int existPersonajeBlock(t_list *block, int valor, tBusquedaPersBlock criterio);
 int existePersonaje(t_list *pListaPersonajes, int valor, tBusquedaPersonaje criterio);
 tPersonaje *getPersonaje(t_list *listaPersonajes, int valor, tBusquedaPersonaje criterio);
 tPersonajeBloqueado *getPersonajeBlock(t_list *lBloqueados, int valor, tBusquedaPersBlock criterio);
