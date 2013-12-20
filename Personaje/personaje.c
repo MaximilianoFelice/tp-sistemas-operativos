@@ -249,6 +249,7 @@ void *jugar(void *vPersonajeNivel) {
 			if(pPersonajePorNivel->recursoActual+1 < list_size(pPersonajePorNivel->Objetivos)){
 				enviarMensajeFinDeTurno(pPersonajePorNivel);
 			}
+
 		} //Fin de for de objetivos
 
 		if (pPersonajePorNivel->murioEnNivel) {
@@ -276,6 +277,9 @@ void *jugar(void *vPersonajeNivel) {
 
 		}
 		else {
+
+//			enviarMensajeFinDeTurno(pPersonajePorNivel);
+
 			pPersonajePorNivel->bienTerminado = true; //Ya termino este nivel
 			log_debug(logger, "El personaje termino bien el nivel %s", pPersonajePorNivel->nomNivel);
 
@@ -392,7 +396,6 @@ void solicitarRecurso(personajeIndividual_t* personajePorNivel, char *recurso){
 	}
 //	free(sPayload);
 }
-
 
 tDirMovimiento calcularYEnviarMovimiento(personajeIndividual_t *personajePorNivel){
 	tMensaje tipoMensaje;

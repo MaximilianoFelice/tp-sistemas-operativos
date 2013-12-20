@@ -474,8 +474,6 @@ void *planificador(void * pvNivel) {
     char* sPayload;
 
     pPersonajeActual = NULL;
-    int cantidadBloqueadosAntesDeDesconexion;
-	int cantidadBloqueadosDespuesDeDesconexion;
 
     // Ciclo donde se multiplexa para escuchar personajes que se conectan
     while (1) {
@@ -487,7 +485,8 @@ void *planificador(void * pvNivel) {
         iSocketConexion = multiplexar(&pNivel->masterfds, &readfds, &pNivel->maxSock, &tipoMensaje, &sPayload, logger);
 
         if (iSocketConexion != -1) {
-            switch (tipoMensaje) {
+
+        	switch (tipoMensaje) {
 
             /* Mensajes que puede mandar el personaje */
             case(P_POS_RECURSO):
@@ -507,7 +506,7 @@ void *planificador(void * pvNivel) {
 				seleccionarJugador(&pPersonajeActual, pNivel);
             	break;
 
-			/* Mensajes que puede mandar el nivel */
+            /* Mensajes que puede mandar el nivel */
             case(N_POS_RECURSO):
 				entregoPosicionRecursoAlPersonaje(pNivel, pPersonajeActual, iSocketConexion, sPayload, logger);
             	seleccionarJugador(&pPersonajeActual, pNivel);
@@ -523,8 +522,6 @@ void *planificador(void * pvNivel) {
 
             case(N_MUERTO_POR_DEADLOCK):
 				muertePorDeadlockPersonaje(pNivel, sPayload);
-            	log_debug(logger, "Cantidad de personajes listos = %d", list_size(pNivel->cListos->elements));
-            	log_debug(logger, "Cantidad de personajes bloqueados = %d", list_size(pNivel->lBloqueados));
 				break;
 
             case(N_ENTREGA_RECURSO):
@@ -542,13 +539,7 @@ void *planificador(void * pvNivel) {
 				break;
 
             case(DESCONEXION):
-            	cantidadBloqueadosAntesDeDesconexion = list_size(pNivel->lBloqueados);
 				desconectar(pNivel, &pPersonajeActual, iSocketConexion);
-				cantidadBloqueadosDespuesDeDesconexion = list_size(pNivel->lBloqueados);
-            	if(pPersonajeActual==NULL && queue_size(pNivel->cListos)>0 && cantidadBloqueadosAntesDeDesconexion == cantidadBloqueadosDespuesDeDesconexion){
-            		seleccionarJugador(&pPersonajeActual, pNivel);
-            	}
-
 				break;
 
             default:
@@ -723,11 +714,7 @@ void muertePorEnemigoPersonaje(tNivel *pNivel, tPersonaje** pPersonajeActual, in
 
 		int socketPersonaje = (*pPersonajeActual)->socket;
 
-		if(list_size((*pPersonajeActual)->recursos) > 0 ){
-
-			liberarRecursosYDesbloquearPersonajes(pNivel, *pPersonajeActual, PL_LIBERA_RECURSOS, false);
-
-		}
+		liberarRecursosYDesbloquearPersonajes(pNivel, *pPersonajeActual, PL_LIBERA_RECURSOS, false);
 
 		avisarAlPersonajeDeMuerte(socketPersonaje, *simbolo, PL_MUERTO_POR_ENEMIGO);
 
@@ -742,11 +729,7 @@ void muertePorEnemigoPersonaje(tNivel *pNivel, tPersonaje** pPersonajeActual, in
 		}
 		personajeMuerto = list_remove(pNivel->cListos->elements, indicePersonaje);
 
-		if(list_size(personajeMuerto->recursos) > 0){
-
-			liberarRecursosYDesbloquearPersonajes(pNivel, personajeMuerto, PL_LIBERA_RECURSOS, false);
-
-		}
+		liberarRecursosYDesbloquearPersonajes(pNivel, personajeMuerto, PL_LIBERA_RECURSOS, false);
 
 		avisarAlPersonajeDeMuerte(personajeMuerto->socket, *simbolo, PL_MUERTO_POR_ENEMIGO);
 	}

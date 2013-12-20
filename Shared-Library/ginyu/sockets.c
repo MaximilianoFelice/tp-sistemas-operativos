@@ -273,7 +273,23 @@ signed int multiplexar(fd_set *master, fd_set *temp, int *maxSock, tMensaje* tip
 	int nBytes;
 	memcpy(temp, master, sizeof(fd_set));
 
-	//--Multiplexa conexiones
+//	struct timeval timeout;
+//	timeout.tv_sec = 3; //TODO version con el time out
+//	timeout.tv_usec = 0;
+//	int ret;
+//	//--Multiplexa conexiones
+//	if (( ret = select(*maxSock + 1, temp, NULL, NULL, &timeout)) == -1) {
+//		log_error(logger, "select: %s", strerror(errno));
+//		exit(EXIT_FAILURE);
+//	} else {
+//		if(ret==0){
+//
+//			log_warning(logger, "TRAMPA CON EL TIMEOUT ---> %s", enumToString(*tipoMensaje));
+//			*tipoMensaje = P_FIN_TURNO;
+//			return 0;
+//		}
+//
+//	}
 	if (select(*maxSock + 1, temp, NULL, NULL, NULL) == -1) {
 		log_error(logger, "select: %s", strerror(errno));
 		exit(EXIT_FAILURE);
