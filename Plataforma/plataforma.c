@@ -261,13 +261,14 @@ void *orquestador(void *vPuerto) {
 				conexionPersonaje(iSocketComunicacion, &setSocketsOrquestador, sPayload);
 				break;
 
-			case P_FIN_PLAN_NIVELES:
-				break;
-
 			case DESCONEXION:
 				orquestadorTerminaJuego();
 				break;
-
+//			 case P_FIN_PLAN_NIVELES:
+//				//
+//				setAsFinished(sPayload);
+//				orquestadorTerminaJuego();
+//				break;
 			default:
 				break;
 			}
@@ -283,21 +284,23 @@ void orquestadorTerminaJuego() {
 	tNivel *nivelLevantador;
 
 	pthread_mutex_lock(&mtxlNiveles);
-	log_debug(logger, "Verificando niveles para ejecucion de Koopa...");
+	log_debug(logger, "Verificando niveles...");
 	cantidadNiveles = list_size(listaNiveles);
 	bool noHayPersonajes = (cantidadNiveles == 0 ? false : true);
 	nroConexiones--; //Me llego una desconexion, resto.
-	log_debug(logger, "Cantidad de conexiones = %d", nroConexiones);
-	log_debug(logger, "Cantidad de niveles    = %d", cantidadNiveles);
 
 	//Reviso los niveles
 	for (indiceNivel=0; indiceNivel < cantidadNiveles; indiceNivel++) {
 		nivelLevantador = list_get(listaNiveles, indiceNivel);
+
 		if (!nivelVacio(nivelLevantador)) {
+			log_debug(logger, "El %s todavia tiene chaboncitos", nivelLevantador->nombre);
 			noHayPersonajes = false;
 			break;
 		}
+		log_debug(logger, "El %s esta vacio", nivelLevantador->nombre);
 	}
+
 
 	if (noHayPersonajes && soloQuedanNiveles()) {
 		log_debug(logger, "No hay tipitos jugando entonces ejecuto koopa y cierro todo");
@@ -827,7 +830,7 @@ void muertePorEnemigoPersonaje(tNivel *pNivel, tPersonaje** pPersonajeActual, in
 
 			enviarRecursosLiberadosAlNivel(pNivel, (*pPersonajeActual)->simbolo, PL_LIBERA_RECURSOS, recursosNoAsignados, lenghtRecursos);
 
-//			enviarPersonajesDesbloqueadosAlNivel(pNivel, (*pPersonajeActual)->simbolo, PL_LIBERA_RECURSOS, personajesDesbloqueados, cantidadDesbloqueados);
+			enviarPersonajesDesbloqueadosAlNivel(pNivel, (*pPersonajeActual)->simbolo, PL_LIBERA_RECURSOS, personajesDesbloqueados, cantidadDesbloqueados);
 
 			free(recursosNoAsignados);
 			free(personajesDesbloqueados);
@@ -857,7 +860,7 @@ void muertePorEnemigoPersonaje(tNivel *pNivel, tPersonaje** pPersonajeActual, in
 			//Envio recursos liberados
 			enviarRecursosLiberadosAlNivel(pNivel, personajeMuerto->simbolo, PL_LIBERA_RECURSOS, recursosNoAsignados, lenghtRecursos);
 
-//			enviarPersonajesDesbloqueadosAlNivel(pNivel, personajeMuerto->simbolo, PL_LIBERA_RECURSOS, personajesDesbloqueados, cantidadDesbloqueados);
+			enviarPersonajesDesbloqueadosAlNivel(pNivel, personajeMuerto->simbolo, PL_LIBERA_RECURSOS, personajesDesbloqueados, cantidadDesbloqueados);
 
 			free(recursosNoAsignados);
 			free(personajesDesbloqueados);
@@ -1047,7 +1050,10 @@ int desconectar(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSocketConexi
 	if (iSocketConexion == pNivel->socket) {
 		desconectarNivel(pNivel);
 	} else {
-		desconectarPersonaje(pNivel, pPersonajeActual, iSocketConexion);
+		int socketQueSalio = desconectarPersonaje(pNivel, pPersonajeActual, iSocketConexion);
+		pthread_mutex_lock(&mtxlNiveles);
+		delegarConexion(&setSocketsOrquestador, &pNivel->masterfds, socketQueSalio, &iSocketMaximoOrquestador);
+		pthread_mutex_unlock(&mtxlNiveles);
 	}
 
 	return EXIT_SUCCESS;
@@ -1077,9 +1083,6 @@ int desconectarPersonaje(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSoc
 
 	if ((*pPersonajeActual)!= NULL && (iSocketConexion == (*pPersonajeActual)->socket)) {
 		socketPersonajeQueSalio = iSocketConexion;
-		pthread_mutex_lock(&mtxlNiveles);
-		delegarConexion(&setSocketsOrquestador, &pNivel->masterfds, socketPersonajeQueSalio, &iSocketMaximoOrquestador);
-		pthread_mutex_unlock(&mtxlNiveles);
 		liberarRecursosYDesbloquearPersonajes(pNivel, *pPersonajeActual, bloqueado);
 		*pPersonajeActual = NULL;
 		return socketPersonajeQueSalio;
@@ -1088,10 +1091,9 @@ int desconectarPersonaje(tNivel *pNivel, tPersonaje **pPersonajeActual, int iSoc
 
 	pPersonaje = sacarPersonajeDeListas(pNivel, iSocketConexion, &bloqueado);
 	if (pPersonaje != NULL) {
+		if(bloqueado)
+			log_debug(logger, "Lo saque de bloqueados");
 		socketPersonajeQueSalio = pPersonaje->socket;
-		pthread_mutex_lock(&mtxlNiveles);
-		delegarConexion(&setSocketsOrquestador, &pNivel->masterfds, socketPersonajeQueSalio, &iSocketMaximoOrquestador);
-		pthread_mutex_unlock(&mtxlNiveles);
 		liberarRecursosYDesbloquearPersonajes(pNivel, pPersonaje, bloqueado);
 		return socketPersonajeQueSalio;
 	}
@@ -1150,12 +1152,14 @@ void avisarDesconexionAlNivel(tNivel *pNivel, tPersonaje *pPersonaje, char * per
 		memcpy(&desconexionPersonaje.recursos, *recursosLiberados, lenghtRecursos);
 	serializarDesconexionPers(PL_DESCONEXION_PERSONAJE, desconexionPersonaje, &pkgDesconexionPers);
 
+
+
 	enviarPaquete(pNivel->socket, &pkgDesconexionPers, logger, "Se envia desconexion del personaje al nivel");
 }
 
 /*
  * Se liberan los recursos que poseia el personaje en el nivel y en caso de que un personaje estaba bloqueado por uno de estos, se libera
- */
+ */ //TODO refactorear esta funcion. esta muy sobrecargada
 void liberarRecursos(tPersonaje *pPersMuerto, tNivel *pNivel, bool bloqueado, char *personajesDeadloqueados, int *cantDesbloqueados, char *recursosNoAsignados, int *lengthRecursos) {
 	int iCantidadBloqueados = list_size(pNivel->lBloqueados);
 	int iCantidadRecursos	= list_size(pPersMuerto->recursos);
