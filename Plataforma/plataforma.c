@@ -423,21 +423,21 @@ void sendConnectionFail(int sockPersonaje, tMensaje typeMsj, char *msjInfo){
 }
 
 bool avisoConexionANivel(int sockNivel,char *sPayload, tSimbolo simbolo){
-	tMensaje tipoMensaje;
+//	tMensaje tipoMensaje;
 	tSimbolo simboloMsj = simbolo;
 	tPaquete *paquete   = malloc(sizeof(tPaquete));
 	serializarSimbolo(PL_CONEXION_PERS, simboloMsj, paquete);
 
 	enviarPaquete(sockNivel, paquete, logger, "Envio al nivel el nuevo personaje que se conecto");
-	recibirPaquete(sockNivel, &tipoMensaje, &sPayload, logger, "Recibo confirmacion del nivel");
+//	recibirPaquete(sockNivel, &tipoMensaje, &sPayload, logger, "Recibo confirmacion del nivel");
 
 	free(paquete);
 
-	if (tipoMensaje == N_CONEXION_EXITOSA) {
-		return true;
-	} else if(tipoMensaje == N_PERSONAJE_YA_EXISTENTE) {
-		return false;
-	}
+//	if (tipoMensaje == N_CONEXION_EXITOSA) {
+//		return true;
+//	} else if(tipoMensaje == N_PERSONAJE_YA_EXISTENTE) {
+//		return false;
+//	}
 
 	return false;
 }

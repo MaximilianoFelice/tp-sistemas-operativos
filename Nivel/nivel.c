@@ -312,7 +312,7 @@ void conexionPersonaje(int iSocket, char *sPayload) {
 	tSimbolo *simbolo = deserializarSimbolo(sPayload);
 
 	crearNuevoPersonaje(*simbolo);
-	notificacionAPlataforma(iSocket, N_CONEXION_EXITOSA, "Se notifica a plataforma que el personaje se conecto exitosamente");
+//	notificacionAPlataforma(iSocket, N_CONEXION_EXITOSA, "Se notifica a plataforma que el personaje se conecto exitosamente");
 
 	free(simbolo);
 	free(sPayload);
