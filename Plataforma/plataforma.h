@@ -29,6 +29,9 @@
 #include <signal.h>
 #include <pthread.h>
 #include <errno.h>
+#include <unistd.h>
+
+#include <sys/wait.h>
 
 typedef struct {
 	int  socket;

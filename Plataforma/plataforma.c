@@ -22,6 +22,7 @@ fd_set setSocketsOrquestador;
 int iSocketMaximoOrquestador;
 char *pathKoopa;
 char *pathScript;
+char *mountpoint;
 
 t_list* personajes_jugando;
 
@@ -36,7 +37,7 @@ void waitPersonajes(tNivel *pNivel, tPersonaje **personajeActual);
  */
 void add_new_personaje_in_plataforma(tSimbolo simbolo);
 void verificarKoopa(char *sPayload);
-int executeKoopa(char *koopaPath, char *scriptPath);
+int executeKoopa(char *koopaPath);
 //void orquestadorTerminaJuego();
 bool nivelVacio(tNivel *unNivel);
 void cerrarTodoSignal();
@@ -107,6 +108,9 @@ int main(int argc, char*argv[]) {
 	// Obtenemos el path donde va a estar el script para el filesystem
 	pathScript = config_get_string_value(configPlataforma, "script");
 
+	// Obtenemos el mountpoint
+	mountpoint = config_get_string_value(configPlataforma, "mountpoint");
+
 	logger = logInit(argv, "PLATAFORMA");
 
 	// Inicializo el semaforo
@@ -162,27 +166,55 @@ void verificarKoopa(char *sPayload){
 	if(list_size(personajes_jugando) == 0){
 		log_debug(logger, "No hay tipitos jugando entonces ejecuto koopa y cierro todo");
 		cerrarTodo();
-		executeKoopa(pathKoopa, pathScript);
+		executeKoopa(pathScript);
 		exit(EXIT_SUCCESS);
 	}
 
 }
 
-int executeKoopa(char *koopaPath, char *scriptPath) {
+int executeKoopa(char *scriptPath) {
 
-	// parametros para llamar al execve
-	char * arg2[] = {"koopa", "koopa.conf", NULL}; //parámetros (archivo de confg)
-	char * arg3[] = {"TERM=xterm",NULL};
+	pid_t pid;
 
-	// llamo a koopa
-	int ejecKoopa = execve(koopaPath, arg2, arg3);
+	pid = fork();
 
-	if (ejecKoopa < 0){ // algo salió mal =(
-		log_error(logger, "No se pudo ejecutar Koopa - error: %d", ejecKoopa);
-		return EXIT_FAILURE;
+	if (pid == -1){
+		log_error(logger, "ERROR AL EJECUTAR KOOPA");
+		exit(0);
+	}
 
-	} else {
-		return EXIT_SUCCESS;
+	if (pid == 0){
+
+		// parametros para llamar al execve
+		char * argumentos[] = { pathKoopa, mountpoint, pathScript, "--text", NULL}; //parámetros (archivo de confg)
+
+		log_debug(logger, "%s\n", pathKoopa);
+		log_debug(logger, "%s\n", pathScript);
+		log_debug(logger, "%s\n", mountpoint);
+
+		// llamo a koopa
+		int ejecKoopa = execv(pathKoopa, argumentos);
+
+		if (ejecKoopa < 0) { // algo salió mal =(
+			log_error(logger, "No se pudo ejecutar Koopa - error: %d",
+					strerror(errno));
+			return EXIT_FAILURE;
+
+		} else {
+			return EXIT_SUCCESS;
+		}
+	}
+	else{
+		int res;
+		wait(&res);
+
+		if (res == 0){
+			printf("TERMINO TODO BIEN!!!\n VAMOS AL LABORATORIO AZUL!!! \n");
+			exit(0);
+		}else {
+			printf("KOOPA NO TERMINO BIEN :( \n VAMOS IGUAL A PRENDER FUEGO EL LABO AZUL!!! \n");
+			exit(-1);
+		}
 	}
 }
 
